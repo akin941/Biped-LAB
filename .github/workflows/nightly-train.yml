@@ -1,0 +1,65 @@
+# WP3-03: nightly PPO smoke training (gha-linux, CPU). Trains rsl-rl PPO on the
+# WP3-02 velocity env for 60 iterations per seed and fails unless the mean reward
+# of the last quarter of iterations beats the first quarter. It checks that env,
+# adapter and PPO learn together; it does not judge walking quality. The per-commit
+# ci workflow never trains (see ci.yml); this runs nightly, on demand, and on PRs
+# that change the training path.
+name: nightly-train
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/train_ppo.py
+      - src/bipedlab/rl/**
+      - .github/workflows/nightly-train.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-train-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  ppo-smoke:
+    name: ppo-smoke (seed ${{ matrix.seed }})
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [0, 1, 2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: third_party
+          key: upstream-${{ hashFiles('upstream.lock.toml') }}
+      - run: uv run python scripts/fetch_upstream.py microduck_rl
+      # Training stack pinned to upstream microduck_rl's uv.lock (ADR-0012); torch from
+      # the official CPU index (no CUDA libraries). Not a project dependency yet.
+      - name: Install training stack
+        run: |
+          uv pip install --index-url https://download.pytorch.org/whl/cpu \
+            torch==2.9.1+cpu torchvision==0.24.1+cpu
+          uv pip install tensordict==0.10.0 rsl-rl-lib==5.0.1 onnxscript==0.5.7 gitpython==3.1.46
+      - name: PPO smoke training (60 iterations, 64 envs, 2 env workers)
+        run: |
+          lscpu | grep -E "Model name|^CPU\(s\)|Thread" || true
+          .venv/bin/python scripts/train_ppo.py --envs 64 --iters 60 --workers 2 \
+            --seed ${{ matrix.seed }} --require-rise --out reports/wp3-03/seed${{ matrix.seed }}.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ppo-smoke-seed${{ matrix.seed }}
+          path: reports/
