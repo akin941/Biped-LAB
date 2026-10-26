@@ -58,12 +58,17 @@ task matching your environment whose deps are `done`.
 | WP3-08 | Domain randomization in the velocity env (cloud part of WP3-05): spec **DR** rows, opt-in `dr=True`, `--dr` in train/eval scripts | cloud | WP3-02 | done: alpha_walking under DR 0.4 → 0.18–0.19 m/s, 0/16 falls; DR PPO smoke rose (gha-linux) — see 2026-10-26-wp3-08-domain-randomization.md | every DR row implemented with upstream ranges; `dr=False` unchanged; alpha_walking (trained with DR) walks under it without falls; PPO smoke with DR rises |
 | WP3-05 | DR ablation, ONNX export, comparison with official (env side done in WP3-08) | mac-m5 | WP3-04, WP3-08 | later | G3.4, G3.5 |
 
-## Phase 4–6 (outline; detailed at Phase 3 exit)
+## Phase 4 (cloud simulation work started before G3.3 while Phase 3 waits on the Mac; owner directive 2026-10-26 — exit gates unchanged)
+
+| ID | Task | Env | Deps | Status | Acceptance criteria |
+|---|---|---|---|---|---|
+| WP4-02 | Parametric MJCF generator for our biped (`bipedlab.design.biped`, `scripts/gen_biped.py`, `simulation/custom-biped/biped_v1.xml`) | cloud | – | in-review — see 2026-10-26-wp4-02-parametric-biped.md | 6–10 DoF, 20–30 cm, primitive geometry only; committed XML equals generator output; stands open-loop across leg lengths (tests) |
+| WP4-01 | Requirements & sizing calculations (mass, CoM, torque/speed from sim with ≥ 2× margin, power, battery, thermal) | cloud | WP4-02 | ready | G4.1 report, owner review |
+
+## Phase 4–6 (outline)
 
 | ID | Task | Env | Status |
 |---|---|---|---|
-| WP4-01 | Requirements & sizing calculations (mass, torque, power, battery) | cloud | later |
-| WP4-02 | Parametric MJCF generator for the custom biped (evolve `toy_biped_v0`) | cloud | later |
 | WP4-03 | Actuator survey + identification plan (BAM-style) | cloud | later |
 | WP4-04 | Rust runtime skeleton + sim bridge + safety supervisor model | cloud | later |
 | WP4-05 | BOM draft (no purchase) | cloud | later → awaiting-owner |
