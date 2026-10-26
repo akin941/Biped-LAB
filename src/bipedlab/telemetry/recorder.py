@@ -166,8 +166,7 @@ def summarize(arrays: dict[str, np.ndarray], fall_tilt_deg: float = 60.0) -> dic
     }
     if len(wall) and wall.sum() > 0:
         summary["realtime_factor"] = float(duration / wall.sum())
-        summary["wall_step_ms_p50"] = float(np.percentile(wall, 50) * 1e3)
-        summary["wall_step_ms_p99"] = float(np.percentile(wall, 99) * 1e3)
+    summary.update(timing(arrays))
     if arrays["command"].shape[-1] >= 3:
         cmd = arrays["command"]
         summary["vx_tracking_error_mps"] = float(
@@ -175,3 +174,40 @@ def summarize(arrays: dict[str, np.ndarray], fall_tilt_deg: float = 60.0) -> dic
         )
         summary["yaw_tracking_error_rps"] = float(np.abs(arrays["gyro"][:, 2] - cmd[:, 2]).mean())
     return summary
+
+
+def timing(arrays: dict[str, np.ndarray], control_hz: float = 50.0) -> dict[str, Any]:
+    """Control-loop timing (backlog WP2-03).
+
+    ``sim_*`` is the period in simulation time between control steps: it must be
+    exactly 1/control_hz, otherwise the decimation is wrong. ``wall_*`` is the
+    wall-clock time per step on the machine that ran the recording. The simulator
+    is not paced to real time, so wall time is compute cost; ``deadline_miss_ratio``
+    is the share of steps that took longer than one control period, i.e. how often
+    this machine could not have kept up with a real-time 50 Hz loop.
+    """
+    period = 1.0 / control_hz
+    out: dict[str, Any] = {"control_period_ms": period * 1e3}
+    sim_dt = np.diff(arrays["time"])
+    if len(sim_dt):
+        out["sim_period_ms_mean"] = float(sim_dt.mean() * 1e3)
+        out["sim_period_max_error_ms"] = float(np.abs(sim_dt - period).max() * 1e3)
+    wall = arrays["wall_dt"][1:]
+    if len(wall):
+        for q in (50, 90, 99):
+            out[f"wall_step_ms_p{q}"] = float(np.percentile(wall, q) * 1e3)
+        out["wall_step_ms_max"] = float(wall.max() * 1e3)
+        out["wall_step_jitter_ms"] = float(
+            (np.percentile(wall, 99) - np.percentile(wall, 50)) * 1e3
+        )
+        out["deadline_miss_ratio"] = float((wall > period).mean())
+    return out
+
+
+def wall_histogram(arrays: dict[str, np.ndarray], bins: int = 30) -> tuple[np.ndarray, np.ndarray]:
+    """Counts and bin edges (ms) of per-step wall time, for the report."""
+    wall_ms = arrays["wall_dt"][1:] * 1e3
+    if not len(wall_ms):
+        return np.zeros(0, dtype=int), np.zeros(1)
+    counts, edges = np.histogram(wall_ms, bins=bins)
+    return counts, edges

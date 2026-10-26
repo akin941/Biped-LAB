@@ -81,6 +81,7 @@ Status: `awaiting-mac` · Deps: MAC-01
 ```bash
 uv run bipedlab bench microduck --env-label mac-m5 --policy alpha_walking.onnx --seconds 5
 uv run bipedlab eval-policy alpha_walking.onnx --out /tmp/alpha_walking_mac.json
+uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --env-label mac-m5 --html --out runs/mac_timing
 ```
 **Expected:** JSON with `physics_steps_per_s` and `policy_loop_hz`. For reference only,
 the cloud container (Xeon 2.1 GHz) measured ~16–19k physics steps/s — not a target.
@@ -93,6 +94,7 @@ Result:
 revision:
 bench json:
 eval summary (fell / displacement per scenario):
+timing (record summary: wall_step_ms_p50 / p99 / max, deadline_miss_ratio):
 ```
 
 ## MAC-04 — Official reference: Hugging Face Space

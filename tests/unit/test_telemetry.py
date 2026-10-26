@@ -67,3 +67,37 @@ def test_html_report_is_self_contained(recorded, tmp_path):
     assert "<script" not in text and "http" not in text.split("<main>")[1]  # offline, no JS
     assert text.count("<svg") >= 5
     assert "Gövde eğimi" in text and "cloud" in text
+
+
+def test_timing_on_synthetic_steps():
+    # 5 steps at exactly 20 ms sim period; wall times 1, 2, 3, 30 ms after the first.
+    arrays = {
+        "time": np.arange(5) * 0.02,
+        "wall_dt": np.array([0.0, 0.001, 0.002, 0.003, 0.030]),
+    }
+    t = rec.timing(arrays)
+    assert t["control_period_ms"] == pytest.approx(20.0)
+    assert t["sim_period_ms_mean"] == pytest.approx(20.0)
+    assert t["sim_period_max_error_ms"] == pytest.approx(0.0, abs=1e-9)
+    assert t["wall_step_ms_p50"] == pytest.approx(2.5)
+    assert t["wall_step_ms_max"] == pytest.approx(30.0)
+    assert t["deadline_miss_ratio"] == pytest.approx(0.25)  # only the 30 ms step
+    counts, edges = rec.wall_histogram(arrays, bins=4)
+    assert counts.sum() == 4 and len(edges) == 5
+
+
+def test_recorded_rollout_keeps_exact_control_period(recorded):
+    _, r = recorded
+    t = rec.timing(r.arrays())
+    assert t["sim_period_max_error_ms"] < 1e-6  # decimation is exact
+    assert 0.0 <= t["deadline_miss_ratio"] <= 1.0
+    assert t["wall_step_ms_p99"] >= t["wall_step_ms_p50"] >= 0.0
+
+
+def test_html_report_has_timing_histogram(recorded, tmp_path):
+    from bipedlab.telemetry import report
+
+    _, r = recorded
+    out = report.write(r.save(tmp_path / "run", meta={"env_label": "cloud"}))
+    text = out.read_text()
+    assert "Adım süresi dağılımı" in text and "Süre aşımı oranı" in text
