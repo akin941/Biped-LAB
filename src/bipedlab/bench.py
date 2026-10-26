@@ -55,3 +55,32 @@ def policy_loop_hz(scene: str | Path, policy_path: str | Path, seconds: float = 
         if len(ctrl.log) > 1000:
             ctrl.log.clear()
     return n / (time.perf_counter() - start)
+
+
+def batch_env_steps_per_s(
+    scene: str | Path, num_envs: int, workers: int, seconds: float = 2.0
+) -> float:
+    """Env steps/s (summed over envs) of the Microduck batch env with random actions.
+
+    ``workers == 0`` times the serial ``MicroduckBatchEnv`` in this process; otherwise
+    ``ParallelBatchEnv`` with that many worker processes.
+    """
+    from bipedlab.rl.batch_env import MicroduckBatchEnv
+    from bipedlab.rl.parallel_env import ParallelBatchEnv
+    from bipedlab.sim import microduck_policy as mp
+
+    rng = np.random.default_rng(0)
+    actions = rng.uniform(-0.2, 0.2, (32, num_envs, mp.ACT_DIM)).astype(np.float32)
+    env = MicroduckBatchEnv(scene, num_envs) if workers == 0 else None
+    parallel = ParallelBatchEnv(scene, num_envs, workers) if workers else None
+    step = env.step if env is not None else parallel.step  # type: ignore[union-attr]
+    try:
+        step(actions[0])  # warm-up
+        n, start = 0, time.perf_counter()
+        while time.perf_counter() - start < seconds:
+            step(actions[n % 32])
+            n += 1
+        return n * num_envs / (time.perf_counter() - start)
+    finally:
+        if parallel is not None:
+            parallel.close()
