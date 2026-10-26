@@ -22,6 +22,7 @@ See docs/research/microduck_rl.md.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,8 @@ import mujoco
 import numpy as np
 
 from bipedlab.sim import rollout as sim_rollout
+
+ControlFn = Callable[[mujoco.MjModel, mujoco.MjData], None]
 
 OBS_DIM = 61
 ACT_DIM = 14
@@ -180,11 +183,13 @@ def run(
     twist: tuple[float, float, float] = (0.0, 0.0, 0.0),
     keyframe: str = "STAND",
     init: str = "upstream",
+    recorder: Callable[[mujoco.MjModel, ControlFn], ControlFn] | None = None,
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
     """Roll out ``policy`` with a constant twist command; return metrics.
 
     ``init="upstream"`` reproduces the upstream start state; ``"settle"`` lowers the
-    keyframe pose onto the floor first.
+    keyframe pose onto the floor first. ``recorder(model, control)`` may wrap the
+    control function (e.g. telemetry), receiving the policy command via closure.
     """
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
@@ -200,13 +205,14 @@ def run(
             start = d.qpos[0:2].copy()
         ctrl(m, d)
 
+    loop: ControlFn = control if recorder is None else recorder(model, control)
     result = sim_rollout.rollout(
         model,
         data,
         keyframe,
         duration_s,
         control_hz=CONTROL_HZ,
-        control=control,
+        control=loop,
         settle=init == "settle",
         init=upstream_init if init == "upstream" else None,
     )

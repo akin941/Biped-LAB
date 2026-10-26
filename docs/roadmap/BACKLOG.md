@@ -35,8 +35,8 @@ task matching your environment whose deps are `done`.
 
 | ID | Task | Env | Deps | Status | Acceptance criteria |
 |---|---|---|---|---|---|
-| WP2-01 | Telemetry recorder (npz/parquet) for rollouts | cloud | WP1-04 | ready | records all G2.1 signals at 50 Hz; schema documented; size < 5 MB per 10 s |
-| WP2-02 | Static HTML report (plots: joints, tilt, cmd vs measured vel, effort, falls) | cloud | WP2-01 | later | single file, opens offline; generated in CI as artifact |
+| WP2-01 | Telemetry recorder (npz/parquet) for rollouts | cloud | WP1-04 | done (`bipedlab record`, `src/bipedlab/telemetry/`) | records all G2.1 signals at 50 Hz; schema documented; size < 5 MB per 10 s |
+| WP2-02 | Static HTML report (plots: joints, tilt, cmd vs measured vel, effort, falls) | cloud | WP2-01 | ready | single file, opens offline; generated in CI as artifact |
 | WP2-03 | Control-timing analysis (sim time vs wall time, jitter histogram) | cloud | WP2-01 | later | report shows p50/p99 control period |
 | WP2-04 | Turkish guide to reading reports | cloud | WP2-02 | later | owner sign-off |
 | MAC-05 | Live viewer overlay of telemetry on M5 | mac-m5 | WP2-01 | later | owner sees live plots |
