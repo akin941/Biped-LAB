@@ -143,6 +143,10 @@ jobs:
         run: |
           uv run python scripts/eval_velocity_env.py alpha_walking.onnx --envs 16 --actuators bam --dr --out reports/g3-1/alpha_walking_dr.json > /dev/null
           uv run python -c "import json; r = json.load(open('reports/g3-1/alpha_walking_dr.json')); [print(c['policy'], c['actuator'], c['twist'][0], 'noise' if c['noise'] else 'clean', 'dr', 'falls', c['falls'], 'vx', c['vx_mean'], 'r/step', round(c['reward_per_step'], 4), {k: round(v / 0.02, 3) for k, v in c['terms_per_step'].items()}) for c in r['cases']]"
+      - name: WP4-01 sizing from Microduck walking telemetry (evidence only)
+        run: |
+          uv run bipedlab record alpha_walking.onnx --model microduck-walk --twist 0.4 0 0 --seconds 12 --actuator bam --env-label gha-linux --out reports/sizing/alpha_walking_04_bam > /dev/null
+          uv run python scripts/size_biped.py --reference reports/sizing/alpha_walking_04_bam.npz --settle 2 --out reports/sizing/biped_v1.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: policy-reports
