@@ -30,5 +30,42 @@ curriculum weights are the end-of-curriculum values.
 The speed part of the criterion is **met**. With BAM and a 0.4 m/s command, our env
 gives 0.17–0.18 m/s with no falls. Upstream's own sim evaluation gives ~0.17 m/s, and
 our earlier rollout harness gave 0.155 m/s (ADR-0011). The policy holds still at a
-zero command. The zero-action baseline falls in every env. The per-term reward
-profile is still to be recorded from the next CI run on this PR; see below.
+zero command. The zero-action baseline falls in every env.
+
+### Per-term reward profile (weight × value, per second; gha-linux, second CI run)
+For scale, the positive terms max out at 2.0 each (pose 1.0; air_time 6.0 for both
+feet).
+
+| Term | BAM, vx 0.4, noise | BAM, cmd 0, noise | Zero action, BAM, vx 0.4 |
+|---|---|---|---|
+| track_linear_velocity | 0.995 | 1.997 | 0.642 |
+| track_angular_velocity | 0.848 | 1.997 | 1.058 |
+| upright | 1.891 | 1.994 | 0.953 |
+| pose | 0.722 | 0.993 | 0.959 |
+| head_pose_tracking | 1.955 | 1.965 | 1.994 |
+| air_time | 1.279 | 0 | 0 |
+| action_rate_l2 | −0.167 | −0.005 | 0 |
+| head_pose_bias | −0.149 | −0.123 | −0.016 |
+| body_ang_vel | −0.030 | 0.000 | −0.161 |
+| others | ≥ −0.006 | 0 | ≥ −0.004 |
+
+The MJCF rows are within a few percent of the BAM rows (CI log of PR #18).
+
+How to read it:
+- **At a zero command** every positive term is within 1 % of its maximum and every
+  penalty is near zero. This is what a trained policy scores in its training env.
+- **While walking at 0.4 m/s**, upright and head tracking stay near their maxima,
+  and air_time shows a real gait (about 0.4 feet per step inside the 125–300 ms
+  window).
+- **Linear tracking is half its maximum while walking**, and this is not near the
+  maximum. It is what a 0.17–0.18 m/s walk against a 0.4 command must score:
+  exp(−0.22²/0.1) ≈ 0.62 from the vx error alone, with lateral and vertical sway
+  lowering it further. It reflects the policy's own under-tracking, which upstream's
+  sim shows too (ADR-0011). It is not a defect of the env.
+
+## Verdict
+- **WP3-02 acceptance criterion: met.** The official policy inside the env
+  reproduces upstream's number (0.4 → ~0.17 m/s, no falls).
+- **The spec's extra profile check is met at a zero command, but not for linear
+  tracking while walking.** That shortfall is explained above and left as written,
+  not relaxed. Our own policy's bar remains G1.3 (ADR-0011).
