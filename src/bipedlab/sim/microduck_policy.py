@@ -251,10 +251,12 @@ def run(
     policy: Any,
     duration_s: float,
     twist: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    keyframe: str = "STAND",
+    keyframe: str | None = "STAND",
     init: str = "upstream",
     recorder: Callable[[mujoco.MjModel, ControlFn], ControlFn] | None = None,
     post: PostProcess | None = None,
+    command_fn: Callable[[float], np.ndarray] | None = None,
+    after_init: ControlFn | None = None,
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
     """Roll out ``policy`` with a constant twist command; return metrics.
 
@@ -262,6 +264,9 @@ def run(
     keyframe pose onto the floor first. ``recorder(model, control)`` may wrap the
     control function (e.g. telemetry), receiving the policy command via closure.
     ``post`` optionally models the robot runtime's action stage (see PostProcess).
+    ``command_fn(t)`` replaces the constant twist with a full 13-D command as a
+    function of seconds since the first control step (phase-encoded behaviours).
+    ``after_init`` edits the state after the start pose is set (e.g. place a ball).
     """
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
@@ -275,12 +280,21 @@ def run(
         post=post or PostProcess(),
     )
     start = None
+    t0 = 0.0
 
     def control(m: mujoco.MjModel, d: mujoco.MjData) -> None:
-        nonlocal start
+        nonlocal start, t0
         if start is None:
-            start = d.qpos[0:2].copy()
+            start, t0 = d.qpos[0:2].copy(), d.time
+        if command_fn is not None:
+            ctrl.command[:] = command_fn(d.time - t0)
         ctrl(m, d)
+
+    def init_fn(m: mujoco.MjModel, d: mujoco.MjData) -> None:
+        if init == "upstream":
+            upstream_init(m, d)
+        if after_init is not None:
+            after_init(m, d)
 
     loop: ControlFn = control if recorder is None else recorder(model, control)
     result = sim_rollout.rollout(
@@ -291,7 +305,7 @@ def run(
         control_hz=CONTROL_HZ,
         control=loop,
         settle=init == "settle",
-        init=upstream_init if init == "upstream" else None,
+        init=init_fn if init == "upstream" or after_init is not None else None,
     )
     assert start is not None
     displacement = data.qpos[0:2] - start

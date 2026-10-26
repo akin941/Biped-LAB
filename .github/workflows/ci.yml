@@ -84,9 +84,12 @@ jobs:
           path: |
             third_party
             learning/policies/cache
-          key: upstream-policies-${{ hashFiles('upstream.lock.toml', 'learning/policies/*.lock.toml') }}
+          key: upstream-policies-v2-${{ hashFiles('upstream.lock.toml', 'learning/policies/*.lock.toml') }}
       - run: uv run python scripts/fetch_upstream.py microduck_rl
-      - run: uv run python scripts/fetch_policies.py alpha_walking.onnx alpha_stand.onnx
+      - run: >-
+          uv run python scripts/fetch_policies.py alpha_walking.onnx alpha_stand.onnx
+          alpha_sitstand.onnx alpha_ground_pick.onnx ball_kick_left.onnx ball_kick_right.onnx
+          roulade.onnx
       - name: Contract tests on real weights
         run: uv run pytest -m policy -rs
       - name: Behaviour report
@@ -96,6 +99,7 @@ jobs:
           uv run bipedlab eval-policy alpha_walking.onnx --init settle --out reports/alpha_walking_settle.json
           uv run bipedlab eval-policy alpha_stand.onnx --out reports/alpha_stand.json
           uv run bipedlab eval-policy alpha_walking.onnx --post robotd-walking --out reports/alpha_walking_robotd.json
+          uv run bipedlab eval-behaviours --out reports/behaviours.json
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --post robotd-walking --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_robotd
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

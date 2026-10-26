@@ -73,7 +73,7 @@ def hold_ctrl(target: np.ndarray) -> ControlFn:
 def rollout(
     model: mujoco.MjModel,
     data: mujoco.MjData,
-    keyframe: str,
+    keyframe: str | None,
     duration_s: float,
     control_hz: float = 50.0,
     control: ControlFn | None = None,
@@ -82,13 +82,19 @@ def rollout(
 ) -> RolloutResult:
     """Reset to ``keyframe`` and simulate, calling ``control`` at ``control_hz``.
 
+    ``keyframe=None`` resets to the model's default state (for scenes without
+    keyframes, e.g. upstream's ball scene); ``init`` then sets the pose.
+
     The root body must be the first joint and free (qpos[0:7] = pos + quat).
     Without ``control`` the keyframe's ctrl is held. ``init`` may edit the state
     after the keyframe reset (before optional settling).
     """
     if model.jnt_type[0] != mujoco.mjtJoint.mjJNT_FREE:
         raise ValueError("rollout expects a free-floating root as the first joint")
-    mujoco.mj_resetDataKeyframe(model, data, model.key(keyframe).id)
+    if keyframe is None:
+        mujoco.mj_resetData(model, data)
+    else:
+        mujoco.mj_resetDataKeyframe(model, data, model.key(keyframe).id)
     if init is not None:
         init(model, data)
         mujoco.mj_forward(model, data)

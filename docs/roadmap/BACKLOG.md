@@ -26,7 +26,8 @@ task matching your environment whose deps are `done`.
 | WP1-05 | Pretrained policy lock + sha256-verified fetch | cloud | – | done (fetch runs in gha-linux; HF blocked in cloud container) | tampered file rejected; CI downloads and verifies | `tests/unit/test_policy_lock.py`, CI `pretrained-policy` |
 | WP1-06 | BAM actuator integration (pinned Rhoban/bam) for CPU MuJoCo | cloud | WP1-04 | awaiting-owner (adds third-party code: approve pinned dependency or own port) | XL330 M6 model loads; unit test vs a hand-computed torque; runner option `actuator=bam` | – |
 | WP1-07 | Official policy behaviour report (stand/walk/turn) with MJCF vs BAM actuators | cloud | WP1-05, WP1-06 | MJCF part done; BAM part blocked on WP1-06 | report JSON+MD in `docs/experiments/`; G1.3 thresholds evaluated (pass or documented fail) | `docs/experiments/2026-10-26-official-policies-mjcf-actuators.md` (G1.3 fails with MJCF actuators) |
-| WP1-08 | Sit/stand, ground pick, kick, roulade scenario support (phase commands) | cloud | WP1-07 | ready | each policy runs its documented command; report per behaviour | – |
+| WP1-08 | Sit/stand, ground pick, kick, roulade scenario support (phase commands) | cloud | WP1-07 | done | each policy runs its documented command; report per behaviour | experiments/2026-10-26-behaviour-policies-mjcf-actuators.md (sitstand, pick, left kick work; right kick misses; roulade ends on its side) |
+| WP1-11 | Rule out a walking-specific input mismatch (obs scaling, command range, policy metadata) | cloud | WP1-08 | ready | ONNX metadata read; obs statistics vs training ranges documented; verdict in experiments | – |
 | WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | done | report compares settle vs upstream init | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect) |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | done | toggleable; report shows effect | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect on walking) |
 | MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | awaiting-mac | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
@@ -37,7 +38,7 @@ task matching your environment whose deps are `done`.
 |---|---|---|---|---|---|
 | WP2-01 | Telemetry recorder (npz/parquet) for rollouts | cloud | WP1-04 | done (`bipedlab record`, `src/bipedlab/telemetry/`) | records all G2.1 signals at 50 Hz; schema documented; size < 5 MB per 10 s |
 | WP2-02 | Static HTML report (plots: joints, tilt, cmd vs measured vel, effort, falls) | cloud | WP2-01 | done (`bipedlab report`, CI artifact) | single file, opens offline; generated in CI as artifact |
-| WP2-03 | Control-timing analysis (sim time vs wall time, jitter histogram) | cloud | WP2-01 | in-review | report shows p50/p99 control period | `recorder.timing`, histogram in HTML report; Mac numbers via MAC-03 |
+| WP2-03 | Control-timing analysis (sim time vs wall time, jitter histogram) | cloud | WP2-01 | done | report shows p50/p99 control period | gha-linux (PR #8): p50 0.50 ms, p99 0.58 ms, max 1.0 ms, 0 deadline misses; Mac numbers via MAC-03 |
 | WP2-04 | Turkish guide to reading reports | cloud | WP2-02 | done (`docs/learning/02-telemetri-raporu-okuma.md`; owner sign-off pending) | owner sign-off |
 | MAC-05 | Live viewer overlay of telemetry on M5 | mac-m5 | WP2-01 | later | owner sees live plots |
 

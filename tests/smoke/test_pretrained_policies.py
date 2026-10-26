@@ -15,7 +15,15 @@ from bipedlab.sim import microduck_policy as mp  # noqa: E402
 
 pytestmark = [pytest.mark.upstream, pytest.mark.policy]
 
-NAMES = ["alpha_walking.onnx", "alpha_stand.onnx"]
+NAMES = [
+    "alpha_walking.onnx",
+    "alpha_stand.onnx",
+    "alpha_sitstand.onnx",
+    "alpha_ground_pick.onnx",
+    "ball_kick_left.onnx",
+    "ball_kick_right.onnx",
+    "roulade.onnx",
+]
 
 
 @pytest.fixture(params=NAMES)
