@@ -18,7 +18,9 @@ Usage: python scripts/train_ppo.py --envs 64 --iters 60 --seed 0 --out reports/p
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -138,10 +140,77 @@ def make_runner(env: Any, rec: Recorder) -> Any:
     return OnPolicyRunner(Adapter(), cfg, log_dir=None, device="cpu")
 
 
+def save_checkpoint(
+    runner: Any, args: argparse.Namespace, iterations: int, common_step: int, rec: Recorder
+) -> None:
+    """Write ``model_<iterations>.pt`` (rsl-rl format plus our counters) and the history."""
+    args.run_dir.mkdir(parents=True, exist_ok=True)
+    infos = {"iterations": iterations, "common_step": common_step}
+    runner.save(str(args.run_dir / f"model_{iterations}.pt"), infos=infos)
+    # One history file per run segment, so a resumed run keeps the earlier one.
+    start = iterations - len(rec.rows)
+    (args.run_dir / f"history_from_{start}.json").write_text(json.dumps(rec.rows) + "\n")
+
+
+def export_onnx(runner: Any, path: Path) -> None:
+    """Actor (with its observation normaliser) as ONNX, 61 -> 14.
+
+    Uses the TorchScript exporter at opset 17, as upstream microduck_rl does
+    (``dynamo=False``): torch 2.9's default dynamo exporter fails to convert rsl-rl's
+    actor to an older opset.
+    """
+    model = runner.alg.get_policy().as_onnx(verbose=False)
+    model.to("cpu")
+    model.eval()
+    torch.onnx.export(
+        model,
+        model.get_dummy_inputs(),
+        str(path),
+        export_params=True,
+        opset_version=17,
+        input_names=model.input_names,
+        output_names=model.output_names,
+        dynamo=False,
+    )
+
+
+def write_manifest(args: argparse.Namespace, report: dict[str, Any]) -> None:
+    """``run.json``: config, seed, git revision, metrics and artifact sha256 (G3.x)."""
+    rev = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False
+    ).stdout.strip()
+    dirty = bool(
+        subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True, check=False
+        ).stdout.strip()
+    )
+    artifacts = {
+        f.name: hashlib.sha256(f.read_bytes()).hexdigest()
+        for f in sorted(args.run_dir.iterdir())
+        if f.suffix in (".onnx", ".pt")
+    }
+    config = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
+    manifest = {
+        "git_revision": rev,
+        "git_dirty": dirty,
+        "config": config,
+        "metrics": {k: v for k, v in report.items() if k != "history"},
+        "artifacts_sha256": artifacts,
+    }
+    (args.run_dir / "run.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+
 def train(args: argparse.Namespace) -> dict[str, Any]:
     torch.manual_seed(args.seed)
     scene = upstream.microduck_scene("scene_walk.xml")
-    kwargs = {"seed": args.seed, "actuator": args.actuator}
+    resume: dict[str, Any] | None = None
+    if args.resume:
+        resume = torch.load(args.resume, map_location="cpu", weights_only=False)
+    # Curricula continue from where the checkpoint left them.
+    infos = (resume or {}).get("infos") or {}
+    common_step = int(infos.get("common_step", 0))
+    first_iter = int(infos.get("iterations", 0))
+    kwargs = {"seed": args.seed, "actuator": args.actuator, "common_step": common_step}
     env: Any = (
         ParallelBatchEnv(
             scene, args.envs, args.workers, episode_s=20.0, env_cls=MicroduckVelocityEnv, **kwargs
@@ -152,7 +221,19 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     rec = Recorder()
     start = time.perf_counter()
     try:
-        make_runner(env, rec).learn(args.iters)
+        runner = make_runner(env, rec)
+        if args.resume:
+            runner.load(str(args.resume))
+        done = 0
+        while done < args.iters:
+            chunk = min(args.save_every or args.iters, args.iters - done)
+            runner.learn(chunk)
+            done += chunk
+            if args.run_dir:
+                total = first_iter + done
+                save_checkpoint(runner, args, total, common_step + done * STEPS_PER_ENV, rec)
+        if args.run_dir:
+            export_onnx(runner, args.run_dir / "policy.onnx")
     finally:
         if isinstance(env, ParallelBatchEnv):
             env.close()
@@ -185,6 +266,11 @@ def main() -> None:
     parser.add_argument("--threads", type=int, default=None, help="torch.set_num_threads")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
+        "--run-dir", type=Path, default=None, help="save checkpoints and policy.onnx here"
+    )
+    parser.add_argument("--save-every", type=int, default=0, help="iterations per checkpoint")
+    parser.add_argument("--resume", type=Path, default=None, help="checkpoint to continue from")
+    parser.add_argument(
         "--require-rise", action="store_true", help="exit 1 unless the mean reward rose"
     )
     args = parser.parse_args()
@@ -201,6 +287,8 @@ def main() -> None:
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(report, indent=2) + "\n")
+    if args.run_dir:
+        write_manifest(args, report)
     if args.require_rise and not result["reward_rose"]:
         raise SystemExit(1)
 

@@ -69,3 +69,8 @@ How to read it:
 - **The spec's extra profile check is met at a zero command, but not for linear
   tracking while walking.** That shortfall is explained above and left as written,
   not relaxed. Our own policy's bar remains G1.3 (ADR-0011).
+- **G3.1 also names the stand check (body tilt ±10°).** That was met with `alpha_stand`
+  in the rollout harness (gha-linux, WP1-12). It was not re-run inside this env: here
+  the body-pose commands span only ±0.05 rad, and upstream's standup/velstand task,
+  which trains tilt tracking, is not implemented. So G3.1 is met for walking inside
+  the env, and for standing only in the earlier harness.

@@ -84,7 +84,9 @@ def run_case(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("policy", help="policy file name in the verified cache")
+    parser.add_argument(
+        "policy", help="policy file name in the verified cache, or a path to an .onnx file"
+    )
     parser.add_argument("--envs", type=int, default=4)
     parser.add_argument("--seconds", type=float, default=10.0)
     parser.add_argument("--actuators", nargs="+", default=["bam", "mjcf"])
@@ -92,7 +94,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     scene = upstream.microduck_scene("scene_walk.xml")
-    policy = mp.OnnxPolicy(policies.verified_path(args.policy))
+    local = Path(args.policy)
+    path = local if local.suffix == ".onnx" and local.is_file() else None
+    policy = mp.OnnxPolicy(path or policies.verified_path(args.policy))
     cases = []
     for actuator in args.actuators:
         for twist in [(0.4, 0.0, 0.0), (0.0, 0.0, 0.0)]:
