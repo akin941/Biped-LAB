@@ -53,7 +53,7 @@ task matching your environment whose deps are `done`.
 | WP3-02 | Training env reproducing 61/14 contract + upstream reward terms and command sampling (extends `bipedlab.rl.batch_env`, rsl-rl `VecEnv`); spec in `docs/research/velocity-task-spec.md` (v1 rows) | cloud | WP3-01 | done: alpha_walking + BAM 0.4 → 0.17–0.18 m/s, 0 falls (gha-linux) — see 2026-10-26-wp3-02-velocity-env.md | official policies inside env reproduce upstream's numbers (ADR-0011) |
 | WP3-06 | Parallel env stepping across processes (env is ≥ 84 % of PPO time, ADR-0012) | cloud | WP3-01 | partial: equivalence met; scaling 2.08× on 4 logical CPUs (gha-linux), below 2.8× — see 2026-10-26-wp3-06-parallel-env.md | samples/s scales ≥ 0.7 × cores on gha-linux; same results as the serial env for a fixed seed |
 | WP3-07 | Vectorise observation/reward over the batch (Python is ~35 % of env time) | cloud | WP3-06 | partial: identical arrays met; +28 % on gha-linux, below +30 % — see 2026-10-26-wp3-07-batched-observation.md | serial env steps/s +30 % on gha-linux, identical arrays to the per-env path |
-| WP3-03 | PPO smoke train job (nightly, ≤ 5 min): `scripts/train_ppo.py`, `.github/workflows/nightly-train.yml` | cloud | WP3-02 | in progress | mean reward rises over 3 seeds |
+| WP3-03 | PPO smoke train job (nightly, ≤ 5 min): `scripts/train_ppo.py`, `.github/workflows/nightly-train.yml` | cloud | WP3-02 | done: rose on all 3 seeds on gha-linux, ~1 min per job — see 2026-10-26-wp3-03-ppo-smoke.md | mean reward rises over 3 seeds |
 | WP3-04 | Full training run on M5 (CPU, then MPS comparison) | mac-m5 | WP3-03 | later | G3.3 |
 | WP3-05 | DR ablation, ONNX export, comparison with official | mac-m5 | WP3-04 | later | G3.4, G3.5 |
 
