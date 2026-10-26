@@ -158,8 +158,19 @@ def _cmd_record(args: argparse.Namespace) -> int:
         "env_label": args.env_label,
     }
     out = holder["r"].save(args.out, meta=meta)
+    if args.html:
+        from bipedlab.telemetry import report
+
+        report.write(out)
     summary = rec.summarize(holder["r"].arrays())
     print(json.dumps({"file": str(out), **meta, "summary": summary}, indent=2))
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    from bipedlab.telemetry import report
+
+    print(report.write(args.recording, args.out))
     return 0
 
 
@@ -200,7 +211,13 @@ def main(argv: list[str] | None = None) -> int:
         default="unlabelled",
         choices=["unlabelled", "cloud", "gha-linux", "gha-macos", "mac-m5", "self-hosted"],
     )
+    p.add_argument("--html", action="store_true", help="also write an HTML report next to it")
     p.set_defaults(func=_cmd_record)
+
+    p = sub.add_parser("report", help="turn a telemetry .npz into a self-contained HTML report")
+    p.add_argument("recording")
+    p.add_argument("--out")
+    p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("bench", help="measure CPU simulation speed (label the environment!)")
     p.add_argument("model", nargs="?", default="microduck")

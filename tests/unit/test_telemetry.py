@@ -54,3 +54,16 @@ def test_fall_shows_up_in_summary(tmp_path):
     sim_rollout.rollout(model, data, "STAND", 3.0, control=r)
     s = rec.summarize(r.arrays())
     assert s["fell"] and s["first_fall_s"] is not None
+
+
+def test_html_report_is_self_contained(recorded, tmp_path):
+    from bipedlab.telemetry import report
+
+    _, r = recorded
+    path = r.save(tmp_path / "run", meta={"env_label": "cloud", "policy": "hold"})
+    out = report.write(path)
+    text = out.read_text()
+    assert text.startswith("<!doctype html>")
+    assert "<script" not in text and "http" not in text.split("<main>")[1]  # offline, no JS
+    assert text.count("<svg") >= 5
+    assert "Gövde eğimi" in text and "cloud" in text
