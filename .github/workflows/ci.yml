@@ -81,6 +81,34 @@ jobs:
           uname -a
           uv run python -c "import platform, mujoco, numpy; print(platform.platform(), platform.machine(), 'mujoco', mujoco.__version__, 'numpy', numpy.__version__)"
 
+  runtime:
+    # WP4-04 / G4.4: Rust runtime (ADR-0007) drives the MuJoCo sim through the
+    # socket bridge. Uses the runner's preinstalled Rust toolchain; the crate has
+    # no third-party dependencies (Cargo.lock has only the crate itself).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - name: Rust toolchain record
+        run: rustc --version && cargo --version
+      - name: Format, lint, unit tests, release build
+        working-directory: runtime
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --locked --release
+      - name: Runtime drives the sim (G4.4 tests)
+        env:
+          BIPEDLAB_REQUIRE_RUNTIME: "1"
+        run: uv run pytest -m runtime -rs -s
+      - name: 50 Hz wall-clock run, 30 s (evidence only)
+        run: uv run python scripts/runtime_sim.py --seconds 30 --realtime --out reports/runtime/realtime_30s.json
+
   pretrained-policy:
     # Downloads the pinned official policies (sha256-verified) and records how
     # they behave in CPU MuJoCo. The report is evidence (gha-linux), not a Mac result.

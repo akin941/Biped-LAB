@@ -36,7 +36,7 @@ the same command → policy → actuator interfaces are kept.
 | Training env (gymnasium) + PPO configs | `learning/training/` (planned) | 3 | Python |
 | Evaluation harness | `learning/evaluation/` (planned) | 3 | Python |
 | Custom biped models | `simulation/custom-biped/` | 4 | MJCF |
-| Robot runtime | `runtime/` (planned Rust workspace) | 4–5 | Rust |
+| Robot runtime (gate, controller, safety supervisor model) | `runtime/` crate `biped-runtime`; sim side `src/bipedlab/runtime_bridge.py` | 4–5 | Rust + Python |
 | Firmware | `hardware/firmware/` (planned) | 5 | C/C++ or Rust |
 | CAD, BOM, electronics | `hardware/` | 4–5 | — |
 
@@ -53,7 +53,7 @@ simulation/
 learning/
   policies/                      policy lockfiles (weights cached, gitignored)
   training/  evaluation/         Phase 3
-runtime/                         Phase 4 (Rust)
+runtime/                         Phase 4 (Rust crate biped-runtime, WP4-04)
 hardware/                        Phase 4–5 (cad, electronics, bom)
 tests/unit  tests/smoke          pytest tiers (see docs/testing)
 scripts/                         fetch_upstream.py, fetch_policies.py

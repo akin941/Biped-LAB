@@ -1,0 +1,16 @@
+[package]
+name = "biped-runtime"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+description = "Robot-side control loop for biped_v1: command gate, controller, safety supervisor model, sim bridge client (WP4-04)"
+publish = false
+
+# No third-party crates in the skeleton: the bridge protocol is fixed-size
+# little-endian frames over TCP (std only). ONNX inference (`ort`) is added with
+# the first policy for our robot (G4.3), with its own review.
+[dependencies]
+
+[profile.release]
+debug = false
