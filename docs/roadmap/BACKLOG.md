@@ -29,7 +29,7 @@ task matching your environment whose deps are `done`.
 | WP1-08 | Sit/stand, ground pick, kick, roulade scenario support (phase commands) | cloud | WP1-07 | done | each policy runs its documented command; report per behaviour | experiments/2026-10-26-behaviour-policies-mjcf-actuators.md (sitstand, pick, left kick work; right kick misses; roulade ends on its side) |
 | WP1-11 | Close the walking tracking gap with BAM: training-time action delay (3–6 physics steps), joint_vel one-step lag, voltage range | cloud | WP1-06 | done | each factor toggleable; CI report per factor; G1.3 re-evaluated | experiments/2026-10-26-wp1-12-bam-start-state-fix.md (with the correct start no factor produces a gait; earlier gains were a start-state artefact) |
 | WP1-13 | Find why alpha_walking does not start a gait from the upstream start (both actuators): audit obs/joint order and command path against infer_policy.py, command response sweep, start-state and push perturbations, foot contact/friction vs training | cloud | WP1-12 | done | cause found or narrowed; G1.3 re-evaluated with repeats | experiments/2026-10-26-wp1-13-walking-command-response.md (start threshold ~0.3 m/s; 0.4 → 0.155 m/s matches upstream 0.17; G1.3 fails, policy-limited) |
-| WP1-14 | Pin and evaluate `velstand.onnx` (HF tag v8, the walking policy robotd ships) against G1.3 with BAM | cloud | WP1-13 | ready | pinned rev + sha256 in the policy lock; sweep + G1.3 report with repeats | – |
+| WP1-14 | Pin and evaluate `velstand.onnx` (HF tag v8, the walking policy robotd ships) against G1.3 with BAM | cloud | WP1-13 | blocked | pinned rev + sha256 in the policy lock; sweep + G1.3 report with repeats | velstand.onnx is not on Hugging Face (public tags v1–v4, main has 9 files, no velstand; checked 2026-10-26) |
 | WP1-12 | Explain alpha_stand leaning 46–53° with BAM (start state, robotd standing gain 0.8) | cloud | WP1-06 | done | cause found or narrowed, report in experiments | experiments/2026-10-26-wp1-12-bam-start-state-fix.md (BAM reset bug; alpha_stand tracks ±10° body tilt at 9.0–9.7°) |
 | WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | done | report compares settle vs upstream init | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect) |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | done | toggleable; report shows effect | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect on walking) |
@@ -49,8 +49,8 @@ task matching your environment whose deps are `done`.
 
 | ID | Task | Env | Deps | Status | Acceptance criteria |
 |---|---|---|---|---|---|
-| WP3-01 | Choose PPO library (SB3 vs rsl-rl) by a 30-min CPU benchmark | cloud | WP1-06 | later | ADR with measured throughput |
-| WP3-02 | gymnasium env reproducing 61/14 contract + reward terms | cloud | WP3-01 | later | official policy inside env meets G1.3 |
+| WP3-01 | Choose PPO library (SB3 vs rsl-rl) by a 30-min CPU benchmark | cloud | WP1-06 | ready | ADR with measured throughput |
+| WP3-02 | gymnasium env reproducing 61/14 contract + reward terms | cloud | WP3-01 | later | official policies inside env reproduce upstream's numbers (ADR-0011) |
 | WP3-03 | PPO smoke train job (nightly, ≤ 5 min) | cloud | WP3-02 | later | mean reward rises over 3 seeds |
 | WP3-04 | Full training run on M5 (CPU, then MPS comparison) | mac-m5 | WP3-03 | later | G3.3 |
 | WP3-05 | DR ablation, ONNX export, comparison with official | mac-m5 | WP3-04 | later | G3.4, G3.5 |

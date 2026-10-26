@@ -15,3 +15,4 @@ update the old one's status line only.
 | [0008](ADR-0008-evidence-environments.md) | Every result is labelled with the environment that produced it | accepted |
 | [0009](ADR-0009-no-ros2-docker-yet.md) | No ROS 2 now; Docker only for reproducible Linux CI if needed | accepted |
 | [0010](ADR-0010-bam-actuator-port.md) | BAM XL330 actuator as a reviewed in-repo port, not an installed package | accepted |
+| [0011](ADR-0011-g13-and-phase3-entry.md) | G1.3 stays as written; Phase 3 starts on simulator-fidelity evidence | accepted |
