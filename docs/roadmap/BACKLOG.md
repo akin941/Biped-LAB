@@ -49,8 +49,9 @@ task matching your environment whose deps are `done`.
 
 | ID | Task | Env | Deps | Status | Acceptance criteria |
 |---|---|---|---|---|---|
-| WP3-01 | Choose PPO library (SB3 vs rsl-rl) by a 30-min CPU benchmark | cloud | WP1-06 | ready | ADR with measured throughput |
-| WP3-02 | gymnasium env reproducing 61/14 contract + reward terms | cloud | WP3-01 | later | official policies inside env reproduce upstream's numbers (ADR-0011) |
+| WP3-01 | Choose PPO library (SB3 vs rsl-rl) by a 30-min CPU benchmark | cloud | WP1-06 | done | ADR with measured throughput (ADR-0012) |
+| WP3-02 | Training env reproducing 61/14 contract + upstream reward terms and command sampling (extends `bipedlab.rl.batch_env`, rsl-rl `VecEnv`) | cloud | WP3-01 | ready | official policies inside env reproduce upstream's numbers (ADR-0011) |
+| WP3-06 | Parallel env stepping across processes (env is ≥ 84 % of PPO time, ADR-0012) | cloud | WP3-01 | ready | samples/s scales ≥ 0.7 × cores on gha-linux; same results as the serial env for a fixed seed |
 | WP3-03 | PPO smoke train job (nightly, ≤ 5 min) | cloud | WP3-02 | later | mean reward rises over 3 seeds |
 | WP3-04 | Full training run on M5 (CPU, then MPS comparison) | mac-m5 | WP3-03 | later | G3.3 |
 | WP3-05 | DR ablation, ONNX export, comparison with official | mac-m5 | WP3-04 | later | G3.4, G3.5 |
