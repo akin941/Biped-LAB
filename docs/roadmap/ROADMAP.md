@@ -35,10 +35,12 @@ gate item has evidence in the named environment.
   - G2.3 Turkish guide explaining every plot — owner sign-off
 
 ## Phase 3 — Reinforcement learning
-- **Entry:** G1.3, G2.1.
+- **Entry:** G2.1 and simulator fidelity per ADR-0011 (G1.3 fails with the official
+  policy for a policy reason; its threshold is the bar for G3.3).
 - **Exit gate:**
   - G3.1 gymnasium env reproducing the 61/14 contract, validated by running the official
-    policy inside it with the same metrics as G1.3 — `gha-linux`
+    policies inside it and reproducing upstream's numbers (stand body tilt ±10°,
+    walk 0.4 → 0.17 m/s, ADR-0011) — `gha-linux`
   - G3.2 PPO smoke train (≤ 5 min) in CI-nightly; reward increases — `gha-linux`
   - G3.3 a policy trained from scratch on the M5 (CPU/MPS measured) stands and walks
     forward per G1.3 thresholds — `mac-m5`
