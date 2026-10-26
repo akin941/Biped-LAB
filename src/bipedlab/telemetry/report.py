@@ -72,6 +72,45 @@ def _chart(title: str, note: str, t: np.ndarray, series: dict[str, np.ndarray], 
     )
 
 
+def _histogram(counts: np.ndarray, edges: np.ndarray, deadline_ms: float) -> str:
+    """Bar chart of step wall time with the control deadline marked."""
+    lo, hi = float(edges[0]), float(edges[-1])
+    top = max(int(counts.max()), 1)
+    span = max(hi - lo, 1e-6)
+
+    def x(v: float) -> float:
+        return PAD + (v - lo) / span * (W - 2 * PAD)
+
+    bars = "".join(
+        f'<rect x="{x(float(a)):.1f}" y="{H - PAD - (c / top) * (H - 2 * PAD):.1f}" '
+        f'width="{max(x(float(b)) - x(float(a)) - 1, 1):.1f}" '
+        f'height="{(c / top) * (H - 2 * PAD):.1f}" fill="{PALETTE[0]}"/>'
+        for a, b, c in zip(edges[:-1], edges[1:], counts, strict=True)
+    )
+    marker = ""
+    if lo <= deadline_ms <= hi:
+        dx = x(deadline_ms)
+        marker = (
+            f'<line x1="{dx:.1f}" x2="{dx:.1f}" y1="{PAD}" y2="{H - PAD}" '
+            f'stroke="{PALETTE[1]}" stroke-dasharray="4 3"/>'
+            f'<text x="{dx + 4:.1f}" y="{PAD + 12}">{deadline_ms:.0f} ms sınırı</text>'
+        )
+    axes = (
+        f'<text x="{PAD - 4}" y="{PAD}" text-anchor="end">{top}</text>'
+        f'<text x="{PAD - 4}" y="{H - PAD}" text-anchor="end">0</text>'
+        f'<text x="{PAD}" y="{H - 8}">{lo:.3g} ms</text>'
+        f'<text x="{W - PAD}" y="{H - 8}" text-anchor="end">{hi:.3g} ms</text>'
+    )
+    title = "Adım süresi dağılımı"
+    return (
+        f"<section><h2>{title}</h2><p>Kaç adımın ne kadar sürdüğü. Hepsi kesikli çizginin "
+        f"solundaysa bu makine 50 Hz'i gerçek zamanda yetiştirebilir.</p>"
+        f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{title}">'
+        f'<rect x="{PAD}" y="{PAD}" width="{W - 2 * PAD}" height="{H - 2 * PAD}" class="frame"/>'
+        f"{bars}{marker}{axes}</svg></section>"
+    )
+
+
 SUMMARY_LABELS = {
     "fell": ("Düştü mü?", "Gövde 60°'den fazla eğildiyse evet."),
     "first_fall_s": ("İlk düşme anı", "saniye"),
@@ -87,7 +126,17 @@ SUMMARY_LABELS = {
     "peak_abs_torque_nm": ("En yüksek tork", "N·m; motorun en zorlandığı an"),
     "foot_contact_ratio": ("Ayak yerde oranı (sol, sağ)", "1 = hep yerde; yürürken < 1 olmalı"),
     "realtime_factor": ("Gerçek zamana göre hız", "kaç kat hızlı simüle edildi (bu makinede)"),
+    "wall_step_ms_p50": ("Adım süresi p50", "ms; tipik bir kontrol adımının hesap süresi"),
     "wall_step_ms_p99": ("Adım süresi p99", "ms; kontrol döngüsünün en yavaş %1'i"),
+    "wall_step_jitter_ms": ("Titreşim (p99 − p50)", "ms; küçükse döngü düzenli"),
+    "deadline_miss_ratio": (
+        "Süre aşımı oranı",
+        "20 ms'den uzun süren adımların payı; gerçek zamanlı 50 Hz için 0 olmalı",
+    ),
+    "sim_period_max_error_ms": (
+        "Simülasyon periyot hatası",
+        "ms; adımlar arası simülasyon zamanı 20 ms'den ne kadar saptı (0 olmalı)",
+    ),
     "steps": ("Kontrol adımı sayısı", "50 Hz"),
 }
 
@@ -178,6 +227,9 @@ def render(arrays: dict[str, np.ndarray], sidecar: dict[str, Any], title: str) -
                 "ms",
             )
         )
+    counts, edges = rec.wall_histogram(arrays)
+    if len(counts):
+        charts.append(_histogram(counts, edges, 1e3 / 50.0))
     return f"""<!doctype html>
 <html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
