@@ -64,13 +64,13 @@ task matching your environment whose deps are `done`.
 |---|---|---|---|---|---|
 | WP4-02 | Parametric MJCF generator for our biped (`bipedlab.design.biped`, `scripts/gen_biped.py`, `simulation/custom-biped/biped_v1.xml`) | cloud | – | done (PR #22, cloud) — see 2026-10-26-wp4-02-parametric-biped.md | 6–10 DoF, 20–30 cm, primitive geometry only; committed XML equals generator output; stands open-loop across leg lengths (tests) |
 | WP4-01 | Requirements & sizing calculations (mass, CoM, torque/speed from sim with ≥ 2× margin, power, battery, thermal): `bipedlab.design.sizing`, `scripts/size_biped.py` | cloud | WP4-02 | done (calcs, gha-linux): knee needs 0.68 N·m with 2× margin, XL330-class placeholder fails at the knee — see 2026-10-26-wp4-01-sizing.md; owner review pending (`docs/learning/03-boyutlandirma-ozeti.md`) | G4.1 report, owner review |
+| WP4-03 | Actuator survey + identification plan (BAM-style): `bipedlab.design.actuators`, `scripts/actuator_survey.py` | cloud | WP4-01 | done (survey, cloud): only XC330-M288-T at 6 V passes the knee; recommended mixed set (XC330-M288 knees, XL330-M288 elsewhere) — see 2026-10-26-wp4-03-actuator-survey.md; owner picks at WP4-05 (`docs/learning/04-servo-secenekleri.md`) | every joint type has a passing candidate with 2× torque and speed margin; identification plan written; no purchase |
 
 ## Phase 4–6 (outline)
 
 | ID | Task | Env | Status |
 |---|---|---|---|
-| WP4-03 | Actuator survey + identification plan (BAM-style); knee ≥ 0.7 N·m at ≥ 10 rad/s (WP4-01) | cloud | ready |
-| WP4-04 | Rust runtime skeleton + sim bridge + safety supervisor model | cloud | later |
+| WP4-04 | Rust runtime skeleton + sim bridge + safety supervisor model | cloud | ready |
 | WP4-05 | BOM draft (no purchase) | cloud | later → awaiting-owner |
 | WP5-xx | Hardware tasks (all `hw`, owner approval) | hw | later |
 | WP6-xx | Autonomy | – | later |
