@@ -11,7 +11,7 @@ task matching your environment whose deps are `done`.
 | WP0-01 | Research upstream repos at pinned shas | cloud | – | done | 15 topics, V/U labels, line citations | `docs/research/` |
 | WP0-02 | ADRs, architecture, tech matrix, risks, security plan | cloud | WP0-01 | done | files exist, cross-linked | `docs/` |
 | WP0-03 | Python package skeleton, uv.lock, ruff/mypy strict | cloud | – | done | `ruff check`, `ruff format --check`, `mypy` clean | PR #1 |
-| WP0-04 | CI: static, unit, smoke (linux + macos arm64), security | cloud | WP0-03 | ready | all jobs green on PR and main | PR #1 checks |
+| WP0-04 | CI: static, unit, smoke (linux + macos arm64), security | cloud | WP0-03 | done | all jobs green on PR and main | PR #1 checks (7/7 green, incl. macos-15) |
 | WP0-05 | Mac handoff doc + Turkish README/primer | cloud | WP0-02 | done | MAC tasks have commands, expected output, criteria | `docs/handoffs/` |
 | WP0-06 | Branch protection on `main` requiring CI | owner | WP0-04 | awaiting-owner | settings show required checks | owner |
 
@@ -24,9 +24,10 @@ task matching your environment whose deps are `done`.
 | WP1-03 | Open-loop stand + determinism characterization | cloud | WP1-02 | done | same digest twice; Microduck falls < 2 s open-loop; toy stands 5 s | `docs/experiments/2026-10-26-phase1-cloud-baseline.md` |
 | WP1-04 | 61/14 observation builder + ONNX runner | cloud | WP1-02 | done | obs slices verified (gravity, joint rel, command); bad shapes / NaN rejected | `tests/smoke/test_microduck_policy.py` |
 | WP1-05 | Pretrained policy lock + sha256-verified fetch | cloud | – | done (fetch runs in gha-linux; HF blocked in cloud container) | tampered file rejected; CI downloads and verifies | `tests/unit/test_policy_lock.py`, CI `pretrained-policy` |
-| WP1-06 | BAM actuator integration (pinned Rhoban/bam) for CPU MuJoCo | cloud | WP1-04 | ready | XL330 M6 model loads; unit test vs a hand-computed torque; runner option `actuator=bam` | – |
-| WP1-07 | Official policy behaviour report (stand/walk/turn) with MJCF vs BAM actuators | cloud | WP1-05, WP1-06 | ready | report JSON+MD in `docs/experiments/`; G1.3 thresholds evaluated (pass or documented fail) | – |
+| WP1-06 | BAM actuator integration (pinned Rhoban/bam) for CPU MuJoCo | cloud | WP1-04 | awaiting-owner (adds third-party code: approve pinned dependency or own port) | XL330 M6 model loads; unit test vs a hand-computed torque; runner option `actuator=bam` | – |
+| WP1-07 | Official policy behaviour report (stand/walk/turn) with MJCF vs BAM actuators | cloud | WP1-05, WP1-06 | MJCF part done; BAM part blocked on WP1-06 | report JSON+MD in `docs/experiments/`; G1.3 thresholds evaluated (pass or documented fail) | `docs/experiments/2026-10-26-official-policies-mjcf-actuators.md` (G1.3 fails with MJCF actuators) |
 | WP1-08 | Sit/stand, ground pick, kick, roulade scenario support (phase commands) | cloud | WP1-07 | ready | each policy runs its documented command; report per behaviour | – |
+| WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | ready | report compares settle vs upstream init | – |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | ready | toggleable; report shows effect | – |
 | MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | awaiting-mac | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
 
