@@ -38,6 +38,13 @@ this is hardware safety evidence (S-6).
 | Sim stops sending states at 1 s | runtime watchdog after 200 ms (test) / 500 ms (default): sends torque off with the timeout bit, exits with code 3 |
 | Real time, 5 s | 250 periods, 0 deadline misses, wall 5.04 s; worst period 23–32 ms (sleep jitter of the container) |
 
+## Results (gha-linux, CI job `runtime`, PR #25 head e2db5ae)
+- `pytest -m runtime`: 7 passed, with the same fault-step numbers as in the cloud
+  (tilt fault and torque off at step 109 after the 1.5 m/s push; watchdog exit 3).
+- 30 s wall-clock run at 50 Hz: 1500/1500 periods, **0 deadline misses**, worst
+  period 20.18 ms, runtime compute 28.5 µs mean / 54 µs max, no fault.
+- G4.4 gha-linux part met; the mac-m5 part is MAC-08.
+
 ## Known limits / follow-ups
 - Only the feet of `biped_v1` collide (WP4-02), so a fallen robot sinks through
   the floor after torque off. Fine for the supervisor tests; add trunk/leg
