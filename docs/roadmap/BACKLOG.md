@@ -27,7 +27,7 @@ task matching your environment whose deps are `done`.
 | WP1-06 | BAM actuator integration (pinned Rhoban/bam) for CPU MuJoCo | cloud | WP1-04 | awaiting-owner (adds third-party code: approve pinned dependency or own port) | XL330 M6 model loads; unit test vs a hand-computed torque; runner option `actuator=bam` | – |
 | WP1-07 | Official policy behaviour report (stand/walk/turn) with MJCF vs BAM actuators | cloud | WP1-05, WP1-06 | MJCF part done; BAM part blocked on WP1-06 | report JSON+MD in `docs/experiments/`; G1.3 thresholds evaluated (pass or documented fail) | `docs/experiments/2026-10-26-official-policies-mjcf-actuators.md` (G1.3 fails with MJCF actuators) |
 | WP1-08 | Sit/stand, ground pick, kick, roulade scenario support (phase commands) | cloud | WP1-07 | ready | each policy runs its documented command; report per behaviour | – |
-| WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | ready | report compares settle vs upstream init | – |
+| WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | done | report compares settle vs upstream init | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect) |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | ready | toggleable; report shows effect | – |
 | MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | awaiting-mac | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
 
