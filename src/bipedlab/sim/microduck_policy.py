@@ -373,6 +373,10 @@ def run(
     def init_fn(m: mujoco.MjModel, d: mujoco.MjData) -> None:
         if init == "upstream":
             upstream_init(m, d)
+            if bam is not None:
+                # BAM motors take torque, not a position: upstream sets the BAM
+                # target instead (done by bam.reset on the first control step).
+                d.ctrl[bam.act_ids] = 0.0
         if after_init is not None:
             after_init(m, d)
 
