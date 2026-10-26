@@ -16,6 +16,7 @@ from bipedlab.sim import rollout as sim_rollout
 # Named shortcuts so the owner does not need to remember paths.
 MODEL_ALIASES = {
     "toy": lambda: Path("simulation/custom-biped/toy_biped_v0.xml"),
+    "biped": lambda: Path("simulation/custom-biped/biped_v1.xml"),
     "microduck": lambda: upstream.microduck_scene("scene.xml"),
     # Collision model the walking policy is trained on (MICRODUCK_WALK_ROBOT_CFG).
     "microduck-walk": lambda: upstream.microduck_scene("scene_walk.xml"),
