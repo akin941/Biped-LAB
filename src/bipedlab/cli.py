@@ -17,6 +17,8 @@ from bipedlab.sim import rollout as sim_rollout
 MODEL_ALIASES = {
     "toy": lambda: Path("simulation/custom-biped/toy_biped_v0.xml"),
     "microduck": lambda: upstream.microduck_scene("scene.xml"),
+    # Collision model the walking policy is trained on (MICRODUCK_WALK_ROBOT_CFG).
+    "microduck-walk": lambda: upstream.microduck_scene("scene_walk.xml"),
 }
 
 
@@ -64,6 +66,7 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
         path,
         init=args.init,
         post=microduck_policy.POSTPROCESS_PRESETS[args.post],
+        actuator=args.actuator,
     )
     text = json.dumps(report, indent=2)
     if args.out:
@@ -76,7 +79,9 @@ def _cmd_eval_behaviours(args: argparse.Namespace) -> int:
     from bipedlab import policies
     from bipedlab.sim import microduck_behaviours
 
-    report = microduck_behaviours.evaluate(policies.verified_path, names=args.only or None)
+    report = microduck_behaviours.evaluate(
+        policies.verified_path, names=args.only or None, actuator=args.actuator
+    )
     text = json.dumps(report, indent=2)
     if args.out:
         Path(args.out).write_text(text + "\n")
@@ -171,13 +176,14 @@ def _cmd_record(args: argparse.Namespace) -> int:
         init=args.init,
         recorder=wrap,
         post=mp.POSTPROCESS_PRESETS[args.post],
+        actuator=args.actuator,
     )
     meta = {
         "policy": path.name,
         "twist": args.twist,
         "init": args.init,
         "postprocess": args.post,
-        "actuator": "mjcf-position",
+        "actuator": args.actuator,
         "env_label": args.env_label,
     }
     out = holder["r"].save(args.out, meta=meta)
@@ -199,6 +205,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 POST_HELP = "robot-runtime action stage: none (upstream sim) or robotd-walking (0.9, LPF)"
 POST_CHOICES = ["none", "robotd-walking"]
+ACTUATOR_HELP = "joint actuator model: mjcf (position actuators) or bam (BAM XL330 M6 port)"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -223,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", help="also write the JSON report here")
     p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
     p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
+    p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
     p.set_defaults(func=_cmd_eval_policy)
 
     from bipedlab.sim.microduck_behaviours import BEHAVIOURS
@@ -232,6 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--only", nargs="+", choices=list(BEHAVIOURS), help="subset to run")
     p.add_argument("--out", help="also write the JSON report here")
+    p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
     p.set_defaults(func=_cmd_eval_behaviours)
 
     p = sub.add_parser("record", help="run a Microduck policy and save per-step telemetry")
@@ -250,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.add_argument("--html", action="store_true", help="also write an HTML report next to it")
+    p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
     p.set_defaults(func=_cmd_record)
 
     p = sub.add_parser("report", help="turn a telemetry .npz into a self-contained HTML report")

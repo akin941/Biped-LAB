@@ -49,6 +49,9 @@ class Recorder:
     control: ControlFn
     command: Callable[[], np.ndarray] = field(default=lambda: np.zeros(0))
     foot_bodies: tuple[str, str] = ("left_foot", "right_foot")
+    # Joint position targets; defaults to data.ctrl (position actuators). With a
+    # torque-level actuator model (BAM) ctrl holds torques, so the runner sets this.
+    target: Callable[[], np.ndarray] | None = None
     rows: dict[str, list[np.ndarray]] = field(default_factory=dict)
     _last_wall: float | None = None
 
@@ -100,7 +103,7 @@ class Recorder:
             "wall_dt": np.array(wall_dt),
             "joint_pos": data.qpos[self._qpos].copy(),
             "joint_vel": vel.copy(),
-            "joint_target": data.ctrl.copy(),
+            "joint_target": (data.ctrl if self.target is None else self.target()).copy(),
             "joint_torque": torque,
             "power": np.array(np.abs(torque * vel).sum()),
             "trunk_pos": data.qpos[0:3].copy(),

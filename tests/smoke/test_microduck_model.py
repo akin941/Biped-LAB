@@ -4,6 +4,7 @@ These record facts we rely on (DoF, gains, keyframes) so an upstream bump that
 changes them fails loudly instead of silently breaking sim-to-sim parity.
 """
 
+import numpy as np
 import pytest
 
 from bipedlab import upstream
@@ -60,3 +61,18 @@ def test_open_loop_stand_topples(microduck):
     result = sim_rollout.rollout(model, data, "STAND", 3.0)
     assert result.fell
     assert result.fall_time_s is not None and result.fall_time_s < 2.0
+
+
+def test_bam_model_edits(microduck_rl_path):
+    import mujoco
+
+    from bipedlab.sim import bam_xl330 as bam
+
+    model = bam.load_model(upstream.microduck_scene(), 0.005)
+    assert model.opt.timestep == 0.005
+    assert (model.actuator_biastype == mujoco.mjtBias.mjBIAS_NONE).all()  # torque motors
+    np.testing.assert_allclose(model.actuator_forcerange[:, 1], bam.force_limit())
+    ctrl = bam.Controller(model)
+    assert len(ctrl.act_ids) == 14
+    np.testing.assert_allclose(model.dof_damping[ctrl.dof_idx], 0.0)
+    np.testing.assert_allclose(model.dof_armature[ctrl.dof_idx], bam.M6["armature"])

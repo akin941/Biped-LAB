@@ -1,7 +1,15 @@
 Biped Robotics Lab
 Copyright 2026 Akın and Biped-LAB contributors
 
-This repository does not vendor third-party source code or meshes. Pinned
+This repository does not vendor third-party meshes. It contains one port of
+third-party source code:
+
+- src/bipedlab/sim/bam_xl330.py is derived from Rhoban/bam
+  (https://github.com/Rhoban/bam, commit 62bd8ce12154340be97e06f7f41a0ca8f116d967),
+  Copyright 2025 Marc Duclusaud & Grégoire Passault, licensed under the
+  Apache License, Version 2.0. Equations and the XL330 M6 parameters were
+  re-implemented from that source (see docs/decisions/ADR-0010-bam-actuator-port.md).
+ Pinned
 upstream projects are fetched into third_party/ at build/test time
 (see upstream.lock.toml) and keep their own licenses:
 

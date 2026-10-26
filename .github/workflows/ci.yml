@@ -100,6 +100,12 @@ jobs:
           uv run bipedlab eval-policy alpha_stand.onnx --out reports/alpha_stand.json
           uv run bipedlab eval-policy alpha_walking.onnx --post robotd-walking --out reports/alpha_walking_robotd.json
           uv run bipedlab eval-behaviours --out reports/behaviours.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --out reports/alpha_walking_bam.json
+          uv run bipedlab eval-policy alpha_stand.onnx --actuator bam --out reports/alpha_stand_bam.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --model microduck-walk --out reports/alpha_walking_bam_walkscene.json
+          uv run bipedlab eval-policy alpha_walking.onnx --model microduck-walk --out reports/alpha_walking_walkscene.json
+          uv run bipedlab eval-behaviours --actuator bam --out reports/behaviours_bam.json
+          uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --actuator bam --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_bam
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --post robotd-walking --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_robotd
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
