@@ -34,3 +34,20 @@ contract tests: pytest -m policy -> 9 passed (both weights load as 61->14, finit
   and the MJCF joint damping/frictionloss/armature differ. Testing this needs WP1-06.
 - Other possible contributors to check: initial state (upstream starts at z = 0.125 m
   without settling; we settle onto the floor), runtime action scale/filters (WP1-09).
+
+## Follow-up: upstream initial state (WP1-10)
+
+```
+env: gha-linux, CI run 40300195505, job pretrained-policy (PR #2)
+change: start at z = 0.125 m, level, joints = DEFAULT_POSE, no settling (as upstream)
+```
+
+| alpha_walking, 10 s | init=upstream mean vx | init=settle mean vx |
+|---|---|---|
+| walk_forward_0.2 | 0.00098 m/s | 0.00087 m/s |
+| walk_backward_0.15 | 0.00008 m/s | 0.00006 m/s |
+| turn_left_0.5 (gyro z) | 0.0005 rad/s | 0.0010 rad/s |
+
+No fall in any case. The start state is **not** the cause: locomotion still does not
+emerge. Policy actions stay small (|a| ≤ 0.24 rad), i.e. the policy does not step.
+Remaining prime suspect: actuator model (WP1-06, awaiting owner decision).

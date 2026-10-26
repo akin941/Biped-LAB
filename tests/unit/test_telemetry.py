@@ -1,0 +1,56 @@
+import numpy as np
+import pytest
+
+from bipedlab import REPO_ROOT
+from bipedlab.sim import model as sim_model
+from bipedlab.sim import rollout as sim_rollout
+from bipedlab.telemetry import recorder as rec
+
+TOY = REPO_ROOT / "simulation/custom-biped/toy_biped_v0.xml"
+
+
+@pytest.fixture
+def recorded():
+    model, data = sim_model.load(TOY)
+    mujoco_ctrl = sim_rollout.hold_ctrl(model.key("STAND").ctrl.copy())
+    r = rec.Recorder(model, mujoco_ctrl, command=lambda: np.array([0.0, 0.0, 0.0]))
+    sim_rollout.rollout(model, data, "STAND", 2.0, control=r)
+    return model, r
+
+
+def test_every_channel_recorded_each_step(recorded):
+    model, r = recorded
+    arrays = r.arrays()
+    assert set(arrays) == set(rec.CHANNELS)
+    assert all(len(a) == 100 for a in arrays.values())  # 2 s at 50 Hz
+    assert arrays["joint_pos"].shape == (100, model.nu)
+    assert arrays["foot_contact"].shape == (100, 2)
+
+
+def test_standing_toy_signals_make_sense(recorded):
+    _, r = recorded
+    s = rec.summarize(r.arrays())
+    assert not s["fell"]
+    assert s["max_tilt_deg"] < 5
+    assert s["foot_contact_ratio"] == [1.0, 1.0]  # both feet planted the whole time
+    assert abs(s["mean_vx_body_mps"]) < 0.01
+    assert s["peak_abs_torque_nm"] <= 1.5 + 1e-9  # forcerange of the fixture
+    assert s["realtime_factor"] > 1
+
+
+def test_save_and_load_roundtrip(recorded, tmp_path):
+    _, r = recorded
+    path = r.save(tmp_path / "run", meta={"env_label": "cloud"})
+    arrays, sidecar = rec.load(path)
+    assert sidecar["schema_version"] == rec.SCHEMA_VERSION
+    assert sidecar["channels"]["tilt"]["unit"] == "deg"
+    assert sidecar["meta"]["env_label"] == "cloud"
+    np.testing.assert_array_equal(arrays["joint_pos"], r.arrays()["joint_pos"])
+
+
+def test_fall_shows_up_in_summary(tmp_path):
+    model, data = sim_model.load(TOY)
+    r = rec.Recorder(model, sim_rollout.hold_ctrl(model.jnt_range[1:, 0].copy()))
+    sim_rollout.rollout(model, data, "STAND", 3.0, control=r)
+    s = rec.summarize(r.arrays())
+    assert s["fell"] and s["first_fall_s"] is not None

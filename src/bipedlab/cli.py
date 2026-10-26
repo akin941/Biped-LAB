@@ -56,7 +56,7 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
     path = Path(args.policy)
     if not path.exists():
         path = policies.verified_path(args.policy)
-    report = microduck_policy.evaluate(_resolve(args.model), path)
+    report = microduck_policy.evaluate(_resolve(args.model), path, init=args.init)
     text = json.dumps(report, indent=2)
     if args.out:
         Path(args.out).write_text(text + "\n")
@@ -143,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("policy", help="ONNX path, or a file name from the policy lock")
     p.add_argument("--model", default="microduck")
     p.add_argument("--out", help="also write the JSON report here")
+    p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
     p.set_defaults(func=_cmd_eval_policy)
 
     p = sub.add_parser("bench", help="measure CPU simulation speed (label the environment!)")

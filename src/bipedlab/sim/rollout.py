@@ -78,15 +78,20 @@ def rollout(
     control_hz: float = 50.0,
     control: ControlFn | None = None,
     settle: bool = True,
+    init: ControlFn | None = None,
 ) -> RolloutResult:
     """Reset to ``keyframe`` and simulate, calling ``control`` at ``control_hz``.
 
     The root body must be the first joint and free (qpos[0:7] = pos + quat).
-    Without ``control`` the keyframe's ctrl is held.
+    Without ``control`` the keyframe's ctrl is held. ``init`` may edit the state
+    after the keyframe reset (before optional settling).
     """
     if model.jnt_type[0] != mujoco.mjtJoint.mjJNT_FREE:
         raise ValueError("rollout expects a free-floating root as the first joint")
     mujoco.mj_resetDataKeyframe(model, data, model.key(keyframe).id)
+    if init is not None:
+        init(model, data)
+        mujoco.mj_forward(model, data)
     if settle:
         settle_onto_floor(model, data)
     control = control or hold_ctrl(data.ctrl.copy())
