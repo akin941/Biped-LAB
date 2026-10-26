@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Pinned upstream checkouts (fetched by scripts/fetch_upstream.py, never committed:
+# they contain CC BY-NC-SA 4.0 meshes, see docs/decisions/ADR-0004)
+third_party/
+
+# Experiment outputs (summaries go to docs/experiments/, raw data stays local)
+runs/
+artifacts/
+*.onnx
+!tests/fixtures/**/*.onnx
+
+# Rust
+target/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+learning/policies/cache/
