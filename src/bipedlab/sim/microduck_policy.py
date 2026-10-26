@@ -10,6 +10,7 @@ pollen-robotics/microduck_rl ``scripts/infer_policy.py`` at the pinned sha:
              + last_action(14)
              + command(13)          twist[vx, vy, wz](3) + head(4) + body pose(6)
     action (14): ctrl target = DEFAULT_POSE + action * 1.0
+                 (optional robot-runtime stage: see PostProcess)
     timing: physics dt 0.005 s, decimation 4 -> 50 Hz
 
 Joint order is the MJCF actuator order (left leg 0-4, neck/head 5-8, right leg 9-13).
@@ -61,6 +62,9 @@ OBS_SLICES = {
     "head_cmd": slice(51, 55),
     "body_cmd": slice(55, 61),
 }
+
+HEAD_JOINTS = slice(5, 9)  # neck_pitch, head_pitch, head_yaw, head_roll
+LEG_JOINTS = np.r_[0:5, 9:14]
 
 
 def quat_rotate_inverse(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
@@ -137,6 +141,68 @@ class OnnxPolicy:
         return action
 
 
+@dataclass(frozen=True)
+class PostProcess:
+    """Optional model of the robot runtime's action stage (microduck ``robotd``).
+
+    Reimplements ``robotd/src/control.rs`` at the pinned sha: ``target = DEFAULT_POSE +
+    scale * action``, then a first-order low-pass ``alpha * target + (1 - alpha) *
+    previous`` on head and leg targets (skipped on the first tick). ``scale`` is
+    ``action_scale * nominal_voltage / clamp(supply_voltage, 6.0, 9.5)`` when a supply
+    voltage is given. The observation's ``last_action`` stays the raw policy output, as
+    in robotd. ``None`` alphas mean pass-through. Upstream's own sim (infer_policy.py)
+    uses none of this, so the default instance is the identity.
+    """
+
+    action_scale: float = 1.0
+    head_lowpass: float | None = None
+    legs_lowpass: float | None = None
+    supply_voltage: float | None = None
+    nominal_voltage: float = 7.4
+
+    def __post_init__(self) -> None:
+        for name in ("head_lowpass", "legs_lowpass"):
+            alpha = getattr(self, name)
+            if alpha is not None and not 0.0 < alpha <= 1.0:
+                raise ValueError(f"{name} must be in (0, 1], got {alpha}")
+
+    @property
+    def scale(self) -> float:
+        if self.supply_voltage is None:
+            return self.action_scale
+        return self.action_scale * self.nominal_voltage / min(max(self.supply_voltage, 6.0), 9.5)
+
+    @property
+    def is_identity(self) -> bool:
+        return self.scale == 1.0 and self.head_lowpass is None and self.legs_lowpass is None
+
+    def targets(self, action: np.ndarray, previous: np.ndarray | None) -> np.ndarray:
+        target = (DEFAULT_POSE + self.scale * action).astype(np.float32)
+        if previous is not None:
+            if self.head_lowpass is not None:
+                a = self.head_lowpass
+                target[HEAD_JOINTS] = a * target[HEAD_JOINTS] + (1 - a) * previous[HEAD_JOINTS]
+            if self.legs_lowpass is not None:
+                a = self.legs_lowpass
+                target[LEG_JOINTS] = a * target[LEG_JOINTS] + (1 - a) * previous[LEG_JOINTS]
+        return target
+
+    def describe(self) -> dict[str, float | None]:
+        return {
+            "action_scale": self.action_scale,
+            "effective_scale": self.scale,
+            "head_lowpass": self.head_lowpass,
+            "legs_lowpass": self.legs_lowpass,
+            "supply_voltage": self.supply_voltage,
+        }
+
+
+# robotd walking defaults (deploy/robotd.toml): scale 0.9, low-pass 0.5 head / 0.7 legs.
+# The voltage term is left off: with a 7.4 V supply it is exactly 1.0.
+ROBOTD_WALKING = PostProcess(action_scale=0.9, head_lowpass=0.5, legs_lowpass=0.7)
+POSTPROCESS_PRESETS = {"none": PostProcess(), "robotd-walking": ROBOTD_WALKING}
+
+
 @dataclass
 class PolicyController:
     """Closed-loop controller usable as ``rollout(control=...)``."""
@@ -145,13 +211,17 @@ class PolicyController:
     observe: ObservationBuilder
     command: np.ndarray = field(default_factory=lambda: np.zeros(CMD_DIM, dtype=np.float32))
     last_action: np.ndarray = field(default_factory=lambda: np.zeros(ACT_DIM, dtype=np.float32))
+    post: PostProcess = field(default_factory=PostProcess)
     log: list[dict[str, np.ndarray]] = field(default_factory=list)
+    _previous: np.ndarray | None = field(default=None, init=False, repr=False)
 
     def __call__(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
         obs = self.observe(data, self.last_action, self.command)
         action = self.policy(obs)
         self.last_action = action
-        data.ctrl[:] = DEFAULT_POSE + action
+        target = self.post.targets(action, self._previous)
+        self._previous = target
+        data.ctrl[:] = target
         self.log.append({"obs": obs, "action": action})
 
 
@@ -184,19 +254,26 @@ def run(
     keyframe: str = "STAND",
     init: str = "upstream",
     recorder: Callable[[mujoco.MjModel, ControlFn], ControlFn] | None = None,
+    post: PostProcess | None = None,
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
     """Roll out ``policy`` with a constant twist command; return metrics.
 
     ``init="upstream"`` reproduces the upstream start state; ``"settle"`` lowers the
     keyframe pose onto the floor first. ``recorder(model, control)`` may wrap the
     control function (e.g. telemetry), receiving the policy command via closure.
+    ``post`` optionally models the robot runtime's action stage (see PostProcess).
     """
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
     model, data = load_model_for_policy(scene)
     command = np.zeros(CMD_DIM, dtype=np.float32)
     command[0:3] = twist
-    ctrl = PolicyController(policy=policy, observe=ObservationBuilder(model), command=command)
+    ctrl = PolicyController(
+        policy=policy,
+        observe=ObservationBuilder(model),
+        command=command,
+        post=post or PostProcess(),
+    )
     start = None
 
     def control(m: mujoco.MjModel, d: mujoco.MjData) -> None:
@@ -236,21 +313,28 @@ SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
 }
 
 
-def evaluate(scene: str | Path, policy_path: str | Path, init: str = "upstream") -> dict[str, Any]:
+def evaluate(
+    scene: str | Path,
+    policy_path: str | Path,
+    init: str = "upstream",
+    post: PostProcess | None = None,
+) -> dict[str, Any]:
     """Characterize a policy over SCENARIOS (labelled with the actuator model used)."""
     policy = OnnxPolicy(policy_path)
+    post = post or PostProcess()
     report: dict[str, Any] = {
         "policy": Path(policy_path).name,
         "scene": Path(scene).name,
         "actuator": "mjcf-position (not BAM; known sim-to-sim gap)",
         "init": init,
+        "postprocess": post.describe(),
         "physics_dt": PHYSICS_DT,
         "control_hz": CONTROL_HZ,
         "mujoco": mujoco.__version__,
         "scenarios": {},
     }
     for name, (twist, duration) in SCENARIOS.items():
-        result, ctrl, extra = run(scene, policy, duration, twist=twist, init=init)
+        result, ctrl, extra = run(scene, policy, duration, twist=twist, init=init, post=post)
         yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
         report["scenarios"][name] = {
             "command": twist,

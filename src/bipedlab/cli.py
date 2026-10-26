@@ -59,7 +59,12 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
     path = Path(args.policy)
     if not path.exists():
         path = policies.verified_path(args.policy)
-    report = microduck_policy.evaluate(_resolve(args.model), path, init=args.init)
+    report = microduck_policy.evaluate(
+        _resolve(args.model),
+        path,
+        init=args.init,
+        post=microduck_policy.POSTPROCESS_PRESETS[args.post],
+    )
     text = json.dumps(report, indent=2)
     if args.out:
         Path(args.out).write_text(text + "\n")
@@ -105,7 +110,11 @@ def _cmd_view(args: argparse.Namespace) -> int:
         if not path.exists():
             path = policies.verified_path(args.policy)
         model, data = mp.load_model_for_policy(scene)
-        ctrl = mp.PolicyController(policy=mp.OnnxPolicy(path), observe=mp.ObservationBuilder(model))
+        ctrl = mp.PolicyController(
+            policy=mp.OnnxPolicy(path),
+            observe=mp.ObservationBuilder(model),
+            post=mp.POSTPROCESS_PRESETS[args.post],
+        )
         ctrl.command[0:3] = args.twist
         decimation = mp.DECIMATION
     else:
@@ -149,11 +158,13 @@ def _cmd_record(args: argparse.Namespace) -> int:
         twist=tuple(args.twist),
         init=args.init,
         recorder=wrap,
+        post=mp.POSTPROCESS_PRESETS[args.post],
     )
     meta = {
         "policy": path.name,
         "twist": args.twist,
         "init": args.init,
+        "postprocess": args.post,
         "actuator": "mjcf-position",
         "env_label": args.env_label,
     }
@@ -172,6 +183,10 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
     print(report.write(args.recording, args.out))
     return 0
+
+
+POST_HELP = "robot-runtime action stage: none (upstream sim) or robotd-walking (0.9, LPF)"
+POST_CHOICES = ["none", "robotd-walking"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -195,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--model", default="microduck")
     p.add_argument("--out", help="also write the JSON report here")
     p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
+    p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.set_defaults(func=_cmd_eval_policy)
 
     p = sub.add_parser("record", help="run a Microduck policy and save per-step telemetry")
@@ -211,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         default="unlabelled",
         choices=["unlabelled", "cloud", "gha-linux", "gha-macos", "mac-m5", "self-hosted"],
     )
+    p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.add_argument("--html", action="store_true", help="also write an HTML report next to it")
     p.set_defaults(func=_cmd_record)
 
@@ -238,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--twist", type=float, nargs=3, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "WZ")
     )
+    p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.add_argument("--keyframe", default="STAND")
     p.set_defaults(func=_cmd_view)
 
