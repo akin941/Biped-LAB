@@ -113,3 +113,16 @@ def test_record_microduck_telemetry(scene, tmp_path):
     arrays = holder["r"].arrays()
     assert arrays["joint_pos"].shape == (20, 14)
     assert arrays["foot_contact"].any(axis=0).all()  # Microduck feet found via foot sites
+
+
+def test_eval_policy_cli_with_postprocess(scene, tmp_path):
+    import json
+
+    from bipedlab import cli
+
+    path = linear_policy(tmp_path / "zero.onnx", np.zeros((61, 14)), np.zeros(14))
+    out = tmp_path / "report.json"
+    assert cli.main(["eval-policy", str(path), "--post", "robotd-walking", "--out", str(out)]) == 0
+    report = json.loads(out.read_text())
+    assert report["postprocess"]["action_scale"] == 0.9
+    assert report["postprocess"]["legs_lowpass"] == 0.7
