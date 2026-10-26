@@ -8,6 +8,8 @@ bam: our port of Rhoban/bam@62bd8ce (ADR-0010), kp_fw 200, vin 7.4 V, drop gain 
 
 ## Walking (alpha_walking, scene.xml)
 
+Single runs; see the WP1-11 report for spread over perturbed starts.
+
 | scenario | MJCF mean vx / yaw rate | BAM mean vx / yaw rate | BAM max tilt |
 |---|---|---|---|
 | stand_still | 0.0002 m/s | 0.008 m/s | 6.4° |
@@ -54,4 +56,6 @@ has known, untested candidates from the training config
 - action delay of 3–6 physics steps (15–30 ms) on the actuator during training; none here;
 - one-control-step lag on the joint_vel observation during training; none here;
 - battery voltage randomized 6.5–8.2 V in training; fixed 7.4 V here.
-These are WP1-11.
+These are WP1-11; results in `2026-10-26-wp1-11-training-time-factors.md` (delay helps
+most, best 45 % of the forward command, G1.3 still fails). BAM numbers above are single
+runs and vary by a few percent between CI runner CPUs; that report uses 8 runs per row.
