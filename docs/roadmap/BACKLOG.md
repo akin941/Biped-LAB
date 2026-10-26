@@ -50,7 +50,7 @@ task matching your environment whose deps are `done`.
 | ID | Task | Env | Deps | Status | Acceptance criteria |
 |---|---|---|---|---|---|
 | WP3-01 | Choose PPO library (SB3 vs rsl-rl) by a 30-min CPU benchmark | cloud | WP1-06 | done | ADR with measured throughput (ADR-0012) |
-| WP3-02 | Training env reproducing 61/14 contract + upstream reward terms and command sampling (extends `bipedlab.rl.batch_env`, rsl-rl `VecEnv`) | cloud | WP3-01 | ready | official policies inside env reproduce upstream's numbers (ADR-0011) |
+| WP3-02 | Training env reproducing 61/14 contract + upstream reward terms and command sampling (extends `bipedlab.rl.batch_env`, rsl-rl `VecEnv`); spec in `docs/research/velocity-task-spec.md` (v1 rows) | cloud | WP3-01 | in progress | official policies inside env reproduce upstream's numbers (ADR-0011) |
 | WP3-06 | Parallel env stepping across processes (env is ≥ 84 % of PPO time, ADR-0012) | cloud | WP3-01 | partial: equivalence met; scaling 2.08× on 4 logical CPUs (gha-linux), below 2.8× — see 2026-10-26-wp3-06-parallel-env.md | samples/s scales ≥ 0.7 × cores on gha-linux; same results as the serial env for a fixed seed |
 | WP3-07 | Vectorise observation/reward over the batch (Python is ~35 % of env time) | cloud | WP3-06 | partial: identical arrays met; +28 % on gha-linux, below +30 % — see 2026-10-26-wp3-07-batched-observation.md | serial env steps/s +30 % on gha-linux, identical arrays to the per-env path |
 | WP3-03 | PPO smoke train job (nightly, ≤ 5 min) | cloud | WP3-02 | later | mean reward rises over 3 seeds |

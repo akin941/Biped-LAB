@@ -6,12 +6,17 @@ gives each of ``workers`` processes a contiguous shard of the envs, sends the ac
 over a pipe and concatenates the results. Envs are seeded by global index, so for a
 fixed seed it returns the same arrays as the serial env.
 
+``env_cls`` selects the env (``MicroduckBatchEnv`` by default, or
+``MicroduckVelocityEnv``); extra keyword arguments go to its constructor. Step results
+are concatenated field by field (dict fields key by key).
+
 Workers use the ``spawn`` start method on every platform (macOS's default; on Linux
 it avoids forking a parent that may hold torch thread pools).
 """
 
 from __future__ import annotations
 
+import dataclasses
 import multiprocessing as mpr
 from multiprocessing.connection import Connection
 from pathlib import Path
@@ -19,17 +24,17 @@ from typing import Any
 
 import numpy as np
 
-from bipedlab.rl.batch_env import MicroduckBatchEnv, StepResult
+from bipedlab.rl.batch_env import MicroduckBatchEnv
 from bipedlab.sim import microduck_policy as mp
 
 
-def _worker(conn: Connection, kwargs: dict[str, Any]) -> None:
+def _worker(conn: Connection, env_cls: type, kwargs: dict[str, Any]) -> None:
     try:
-        env = MicroduckBatchEnv(**kwargs)
+        env = env_cls(**kwargs)
     except Exception as exc:  # report construction errors to the parent
         conn.send(("error", repr(exc)))
         return
-    conn.send(("ready", (env.obs, env.max_episode_steps)))
+    conn.send(("ready", (env.obs, env.max_episode_steps, getattr(env, "critic_obs", None))))
     while True:
         cmd, payload = conn.recv()
         if cmd == "step":
@@ -52,6 +57,18 @@ def shard_sizes(num_envs: int, workers: int) -> list[int]:
     return [base + (1 if w < extra else 0) for w in range(workers)]
 
 
+def concat_results(outs: list[Any]) -> Any:
+    """Concatenate per-shard step results (dataclasses of arrays / dicts of arrays)."""
+    merged: dict[str, Any] = {}
+    for f in dataclasses.fields(outs[0]):
+        values = [getattr(o, f.name) for o in outs]
+        if isinstance(values[0], dict):
+            merged[f.name] = {k: np.concatenate([v[k] for v in values]) for k in values[0]}
+        else:
+            merged[f.name] = np.concatenate(values)
+    return type(outs[0])(**merged)
+
+
 class ParallelBatchEnv:
     def __init__(
         self,
@@ -60,6 +77,8 @@ class ParallelBatchEnv:
         workers: int,
         episode_s: float = 10.0,
         seed: int = 0,
+        env_cls: type = MicroduckBatchEnv,
+        **env_kwargs: Any,
     ) -> None:
         self.num_envs = num_envs
         self.sizes = shard_sizes(num_envs, workers)
@@ -70,8 +89,8 @@ class ParallelBatchEnv:
         for w, size in enumerate(self.sizes):
             parent, child = ctx.Pipe()
             kwargs = {"scene": str(scene), "num_envs": size, "episode_s": episode_s,
-                      "seed": seed, "first_env": int(self.bounds[w])}  # fmt: skip
-            proc = ctx.Process(target=_worker, args=(child, kwargs), daemon=True)
+                      "seed": seed, "first_env": int(self.bounds[w]), **env_kwargs}  # fmt: skip
+            proc = ctx.Process(target=_worker, args=(child, env_cls, kwargs), daemon=True)
             proc.start()
             child.close()
             self._conns.append(parent)
@@ -79,6 +98,8 @@ class ParallelBatchEnv:
         ready = [self._recv(c) for c in self._conns]
         self._obs = np.concatenate([r[0] for r in ready])
         self.max_episode_steps = int(ready[0][1])
+        has_critic = ready[0][2] is not None
+        self._critic = np.concatenate([r[2] for r in ready]) if has_critic else None
         self.episode_steps = np.zeros(num_envs, dtype=np.int64)
 
     def _recv(self, conn: Connection) -> Any:
@@ -92,7 +113,13 @@ class ParallelBatchEnv:
     def obs(self) -> np.ndarray:
         return self._obs.copy()
 
-    def step(self, actions: np.ndarray) -> StepResult:
+    @property
+    def critic_obs(self) -> np.ndarray:
+        if self._critic is None:
+            raise AttributeError("this env has no critic observation")
+        return self._critic.copy()
+
+    def step(self, actions: np.ndarray) -> Any:
         actions = np.asarray(actions, dtype=np.float32)
         if actions.shape != (self.num_envs, mp.ACT_DIM):
             raise ValueError(f"actions must have shape {(self.num_envs, mp.ACT_DIM)}")
@@ -101,16 +128,12 @@ class ParallelBatchEnv:
         for w, conn in enumerate(self._conns):
             conn.send(("step", actions[self.bounds[w] : self.bounds[w + 1]]))
         parts = [self._recv(c) for c in self._conns]
-        outs: list[StepResult] = [p[0] for p in parts]
+        outs: list[Any] = [p[0] for p in parts]
         self.episode_steps = np.concatenate([p[1] for p in parts])
-        result = StepResult(
-            obs=np.concatenate([o.obs for o in outs]),
-            reward=np.concatenate([o.reward for o in outs]),
-            terminated=np.concatenate([o.terminated for o in outs]),
-            truncated=np.concatenate([o.truncated for o in outs]),
-            final_obs=np.concatenate([o.final_obs for o in outs]),
-        )
+        result = concat_results(outs)
         self._obs = result.obs.copy()
+        if self._critic is not None:
+            self._critic = result.critic_obs.copy()
         return result
 
     def close(self) -> None:
