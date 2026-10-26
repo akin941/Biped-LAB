@@ -1,5 +1,14 @@
 # BAM XL330 M6 vs MJCF position actuators (WP1-06)
 
+> **Correction (2026-10-26, WP1-12).** Every BAM number in this report was measured
+> with a bug: `bam_xl330.Controller.reset()` called `mj_setConst` on the rollout's data,
+> which overwrote the start state with `qpos0` (all joints 0, trunk 0.12 m; in the kick
+> scenes the ball too). Upstream calls it once, before the state is set. Fixed in the
+> WP1-12 PR. Re-measured in `2026-10-26-wp1-12-bam-start-state-fix.md`: with the correct
+> start alpha_walking does **not** walk with BAM (vx 0.001 m/s), the training-time
+> factors change nothing, and the BAM behaviour results hold or improve. The BAM
+> walking numbers below are wrong; they are kept only as a record.
+
 ```
 env: gha-linux, CI run 40306731638, job pretrained-policy (PR #10)
 init: upstream (z = 0.125 m, no settle); 10 s per walking scenario

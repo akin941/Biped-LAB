@@ -101,3 +101,16 @@ def test_html_report_has_timing_histogram(recorded, tmp_path):
     out = report.write(r.save(tmp_path / "run", meta={"env_label": "cloud"}))
     text = out.read_text()
     assert "Adım süresi dağılımı" in text and "Süre aşımı oranı" in text
+
+
+def test_profile_of_standing_toy(recorded, tmp_path):
+    model, r = recorded
+    _, sidecar = rec.load(r.save(tmp_path / "run"))
+    assert sidecar["joint_names"] == r.joint_names
+    assert len(r.joint_names) == model.nu
+    out = rec.profile(r.arrays(), r.joint_names, every_s=0.5, torque_limit_nm=1.5)
+    assert [row["t"] for row in out["timeline"]][:2] == [0.0, 0.5]
+    assert len(out["timeline"]) == 4  # 2 s sampled every 0.5 s
+    assert all(abs(row["pitch_deg"]) <= row["tilt_deg"] + 0.1 for row in out["timeline"])
+    assert set(out["joints"]) == set(r.joint_names)
+    assert all(0.0 <= j["at_limit"] <= 1.0 for j in out["joints"].values())

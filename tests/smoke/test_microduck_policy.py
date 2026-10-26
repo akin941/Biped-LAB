@@ -215,3 +215,37 @@ def test_evaluate_rejects_zero_repeats(scene, tmp_path):
     path = linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14))
     with pytest.raises(ValueError):
         mp.evaluate(scene, path, repeats=0)
+
+
+def test_trunk_roll_pitch_from_projected_gravity():
+    p = np.radians(12.0)
+    r = np.radians(-7.0)
+    assert mp.trunk_roll_pitch_deg(np.array([np.sin(p), 0.0, -np.cos(p)])) == pytest.approx(
+        (0.0, 12.0)
+    )
+    assert mp.trunk_roll_pitch_deg(np.array([0.0, -np.sin(r), -np.cos(r)])) == pytest.approx(
+        (-7.0, 0.0)
+    )
+
+
+def test_standing_scenarios_send_zero_twist_and_body_pose(scene, tmp_path):
+    path = linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14))
+    report = mp.evaluate(scene, path, scenario_set="standing")
+    assert report["scenario_set"] == "standing"
+    assert list(report["scenarios"]) == list(mp.STAND_SCENARIOS)
+    pitch = report["scenarios"]["body_pitch_+10deg"]["command"]
+    assert pitch[0:3] == [0.0, 0.0, 0.0]
+    assert pitch[11] == pytest.approx(np.radians(10.0))
+    still = report["scenarios"]["stand_still"]
+    # The zero policy falls (open loop); the mean pitch cannot exceed the peak tilt.
+    assert abs(still["trunk_pitch_deg_second_half"]) <= still["max_tilt_deg"] + 0.5
+    with pytest.raises(ValueError):
+        mp.evaluate(scene, path, scenario_set="dancing")
+
+
+def test_bam_kp_requires_bam(scene, tmp_path):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14)))
+    with pytest.raises(ValueError):
+        mp.run(scene, policy, 0.1, match=mp.TrainingMatch(bam_kp=160.0))
+    _, ctrl, _ = mp.run(scene, policy, 0.1, actuator="bam", match=mp.TrainingMatch(bam_kp=160.0))
+    assert ctrl.bam is not None and ctrl.bam.kp == 160.0

@@ -2,6 +2,7 @@
 
 import math
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -58,3 +59,23 @@ def test_friction_budget_fades_with_speed():
     p = bam.M6
     # Far above the Stribeck velocity only base + direct load friction remain.
     assert fast[0] == pytest.approx(p["friction_base"] + 0.5 * p["load_friction_motor"], rel=1e-6)
+
+
+def test_reset_keeps_the_start_state():
+    # Regression: reset() used to call mj_setConst on the rollout's data, which
+    # overwrote the start pose with qpos0 (all joints 0).
+    from bipedlab import upstream
+    from bipedlab.sim import microduck_policy as mp
+
+    try:
+        scene = upstream.microduck_scene()
+    except upstream.UpstreamError as exc:
+        pytest.skip(str(exc))
+    model, data = mp.load_model_for_policy(scene, actuator="bam")
+    ctrl = bam.Controller(model)
+    mp.upstream_init(model, data)
+    mujoco.mj_forward(model, data)
+    before = data.qpos.copy()
+    ctrl.reset(data)
+    np.testing.assert_array_equal(data.qpos, before)
+    np.testing.assert_allclose(ctrl.q_target, mp.DEFAULT_POSE)

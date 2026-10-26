@@ -68,9 +68,13 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
         post=microduck_policy.POSTPROCESS_PRESETS[args.post],
         actuator=args.actuator,
         match=microduck_policy.TrainingMatch(
-            bam_delay_steps=args.bam_delay, vin=args.vin, joint_vel_lag=args.vel_lag
+            bam_delay_steps=args.bam_delay,
+            vin=args.vin,
+            joint_vel_lag=args.vel_lag,
+            bam_kp=args.bam_kp,
         ),
         repeats=args.repeats,
+        scenario_set=args.scenarios,
     )
     text = json.dumps(report, indent=2)
     if args.out:
@@ -200,6 +204,17 @@ def _cmd_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_profile(args: argparse.Namespace) -> int:
+    from bipedlab.sim import bam_xl330
+    from bipedlab.telemetry import recorder as rec
+
+    arrays, sidecar = rec.load(args.recording)
+    limit = bam_xl330.force_limit() if sidecar["meta"].get("actuator") == "bam" else None
+    out = rec.profile(arrays, sidecar.get("joint_names"), args.every, limit)
+    print(json.dumps({"recording": args.recording, "meta": sidecar["meta"], **out}, indent=1))
+    return 0
+
+
 def _cmd_report(args: argparse.Namespace) -> int:
     from bipedlab.telemetry import report
 
@@ -238,8 +253,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bam-delay", type=int, default=0, help="BAM command delay, physics steps")
     p.add_argument("--vin", type=float, default=7.4, help="BAM supply voltage, V")
     p.add_argument("--vel-lag", type=int, default=0, help="joint_vel observation lag, steps")
+    p.add_argument("--bam-kp", type=float, default=200.0, help="BAM firmware P gain (kp_fw)")
     p.add_argument(
         "--repeats", type=int, default=1, help="runs per scenario; >1 adds perturbed starts"
+    )
+    p.add_argument(
+        "--scenarios",
+        choices=["walking", "standing"],
+        default="walking",
+        help="walking: twist commands; standing: zero twist + body roll/pitch (alpha_stand)",
     )
     p.set_defaults(func=_cmd_eval_policy)
 
@@ -271,6 +293,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--html", action="store_true", help="also write an HTML report next to it")
     p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
     p.set_defaults(func=_cmd_record)
+
+    p = sub.add_parser("profile", help="print a text profile of a telemetry .npz (for CI logs)")
+    p.add_argument("recording")
+    p.add_argument("--every", type=float, default=0.5, help="timeline sample period, s")
+    p.set_defaults(func=_cmd_profile)
 
     p = sub.add_parser("report", help="turn a telemetry .npz into a self-contained HTML report")
     p.add_argument("recording")

@@ -23,6 +23,7 @@ position actuators (upstream's ``--no-bam`` path, a known sim-to-sim gap);
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -258,12 +259,16 @@ class TrainingMatch:
     bam_delay_steps: int = 0
     vin: float = bam_xl330.VIN
     joint_vel_lag: int = 0
+    # Firmware P gain. Training and upstream's simulator use 200; the robot
+    # runtime's standing preset scales it by 0.8 (WP1-12 tests that).
+    bam_kp: float = bam_xl330.KP_FW
 
     def describe(self) -> dict[str, float]:
         return {
             "bam_delay_steps": self.bam_delay_steps,
             "vin": self.vin,
             "joint_vel_lag": self.joint_vel_lag,
+            "bam_kp": self.bam_kp,
         }
 
 
@@ -332,11 +337,14 @@ def run(
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
     match = match or TrainingMatch()
-    if actuator != "bam" and (match.bam_delay_steps or match.vin != bam_xl330.VIN):
-        raise ValueError("bam_delay_steps and vin apply to actuator='bam' only")
+    bam_only = (match.bam_delay_steps, match.vin != bam_xl330.VIN, match.bam_kp != bam_xl330.KP_FW)
+    if actuator != "bam" and any(bam_only):
+        raise ValueError("bam_delay_steps, vin and bam_kp apply to actuator='bam' only")
     model, data = load_model_for_policy(scene, actuator, vin=match.vin)
     bam = (
-        bam_xl330.Controller(model, vin=match.vin, delay_steps=match.bam_delay_steps)
+        bam_xl330.Controller(
+            model, kp=match.bam_kp, vin=match.vin, delay_steps=match.bam_delay_steps
+        )
         if actuator == "bam"
         else None
     )
@@ -365,6 +373,10 @@ def run(
     def init_fn(m: mujoco.MjModel, d: mujoco.MjData) -> None:
         if init == "upstream":
             upstream_init(m, d)
+            if bam is not None:
+                # BAM motors take torque, not a position: upstream sets the BAM
+                # target instead (done by bam.reset on the first control step).
+                d.ctrl[bam.act_ids] = 0.0
         if after_init is not None:
             after_init(m, d)
 
@@ -403,6 +415,44 @@ SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
     "turn_left_0.5": ((0.0, 0.0, 0.5), 10.0),
 }
 
+# Standing policies (alpha_stand) never saw a twist command: its training obs
+# normaliser has twist std 0.005 (microduck_rl distill.py), so the walking
+# scenarios above feed it 40-sigma inputs. Upstream gives it twist 0 and drives
+# the body-pose slots instead (cmd[7:13] = x, y, z, roll, pitch, yaw; m / rad).
+BODY_TILT_RAD = math.radians(10.0)
+
+
+def _body_command(roll: float = 0.0, pitch: float = 0.0) -> np.ndarray:
+    cmd = np.zeros(CMD_DIM, dtype=np.float32)
+    cmd[10], cmd[11] = roll, pitch
+    return cmd
+
+
+STAND_SCENARIOS: dict[str, tuple[np.ndarray, float]] = {
+    "stand_still": (_body_command(), 10.0),
+    "body_pitch_+10deg": (_body_command(pitch=BODY_TILT_RAD), 10.0),
+    "body_pitch_-10deg": (_body_command(pitch=-BODY_TILT_RAD), 10.0),
+    "body_roll_+10deg": (_body_command(roll=BODY_TILT_RAD), 10.0),
+}
+SCENARIO_SETS = ("walking", "standing")
+
+
+def _constant(command: np.ndarray) -> Callable[[float], np.ndarray]:
+    return lambda t: command
+
+
+def trunk_roll_pitch_deg(gravity_body: np.ndarray) -> tuple[float, float]:
+    """Roll, pitch of the trunk from the projected-gravity observation.
+
+    For g_b = R^T (0, 0, -1): pitch about y gives g_b = (sin p, 0, -cos p), roll
+    about x gives g_b = (0, -sin r, -cos r). Positive pitch = nose down.
+    """
+    gx, gy = float(gravity_body[0]), float(gravity_body[1])
+    return (
+        math.degrees(math.asin(max(-1.0, min(1.0, -gy)))),
+        math.degrees(math.asin(max(-1.0, min(1.0, gx)))),
+    )
+
 
 # Start-state perturbation for repeat runs: below one XL330 encoder count
 # (2 pi / 4096 = 1.5e-3 rad), so every repeat is a start the real robot cannot tell apart.
@@ -438,8 +488,12 @@ def evaluate(
     actuator: str = "mjcf",
     match: TrainingMatch | None = None,
     repeats: int = 1,
+    scenario_set: str = "walking",
 ) -> dict[str, Any]:
     """Characterize a policy over SCENARIOS (labelled with the actuator model used).
+
+    ``scenario_set="standing"`` uses STAND_SCENARIOS (zero twist, body-pose
+    commands) for standing policies instead of the walking twists.
 
     ``repeats > 1`` adds runs from perturbed starts (``perturb_joints`` with seeds
     1..repeats-1) and reports the spread of the tracking metrics. The BAM gait is
@@ -448,6 +502,8 @@ def evaluate(
     """
     if repeats < 1:
         raise ValueError("repeats must be >= 1")
+    if scenario_set not in SCENARIO_SETS:
+        raise ValueError(f"scenario_set must be one of {SCENARIO_SETS}")
     match = match or TrainingMatch()
     policy = OnnxPolicy(policy_path)
     post = post or PostProcess()
@@ -462,10 +518,22 @@ def evaluate(
         "control_hz": CONTROL_HZ,
         "mujoco": mujoco.__version__,
         "repeats": repeats,
+        "scenario_set": scenario_set,
         "scenarios": {},
     }
-    for name, (twist, duration) in SCENARIOS.items():
-        samples: dict[str, list[float]] = {"vx_mps": [], "vy_mps": [], "yaw_rate": []}
+    scenarios: dict[str, tuple[tuple[float, float, float], np.ndarray | None, float]] = (
+        {n: (tw, None, d) for n, (tw, d) in SCENARIOS.items()}
+        if scenario_set == "walking"
+        else {n: ((0.0, 0.0, 0.0), c, d) for n, (c, d) in STAND_SCENARIOS.items()}
+    )
+    for name, (twist, full_command, duration) in scenarios.items():
+        samples: dict[str, list[float]] = {
+            "vx_mps": [],
+            "vy_mps": [],
+            "yaw_rate": [],
+            "roll_deg": [],
+            "pitch_deg": [],
+        }
         falls = 0
         for k in range(repeats):
             result, ctrl, extra = run(
@@ -478,18 +546,26 @@ def evaluate(
                 actuator=actuator,
                 match=match,
                 after_init=perturb_joints(k) if k else None,
+                command_fn=None if full_command is None else _constant(full_command),
             )
-            yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
+            second_half = ctrl.log[len(ctrl.log) // 2 :]
+            yaw_rate = float(np.mean([e["obs"][2] for e in second_half]))
+            gravity = np.mean([e["obs"][OBS_SLICES["projected_gravity"]] for e in second_half], 0)
+            roll_deg, pitch_deg = trunk_roll_pitch_deg(gravity)
             if k == 0:
                 report["scenarios"][name] = {
-                    "command": twist,
+                    "command": twist if full_command is None else full_command.tolist(),
                     **result.summary(),
                     **extra,
                     "mean_gyro_z_second_half": yaw_rate,
+                    "trunk_roll_deg_second_half": roll_deg,
+                    "trunk_pitch_deg_second_half": pitch_deg,
                 }
             samples["vx_mps"].append(extra["mean_speed_x_mps"])
             samples["vy_mps"].append(extra["displacement_y_m"] / duration)
             samples["yaw_rate"].append(yaw_rate)
+            samples["roll_deg"].append(roll_deg)
+            samples["pitch_deg"].append(pitch_deg)
             falls += int(result.fell)
         if repeats > 1:
             report["scenarios"][name]["spread"] = {

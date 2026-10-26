@@ -170,6 +170,10 @@ class Controller:
         self.qpos_idx = m.jnt_qposadr[self.joint_ids].astype(int)
         self.dof_idx = m.jnt_dofadr[self.joint_ids].astype(int)
         m.dof_armature[self.dof_idx] = M6["armature"]
+        # Recompute constants that depend on armature. Upstream does this once in
+        # the constructor; mj_setConst also overwrites the qpos of the data it is
+        # given with qpos0, so it runs on scratch data, never on the rollout's.
+        mujoco.mj_setConst(m, mujoco.MjData(m))
         self.q_target = np.zeros(len(self.act_ids))
         self.last_torque = np.zeros(len(self.act_ids))
         self.last_vin = self.vin
@@ -179,7 +183,6 @@ class Controller:
 
     def reset(self, data: mujoco.MjData) -> None:
         """Call after the start state is set (upstream: ``bam_ctrl.reset(data.qpos)``)."""
-        mujoco.mj_setConst(self.model, data)
         self.q_target = data.qpos[self.qpos_idx].copy()
         self.last_torque[:] = 0.0
         self._history = []
