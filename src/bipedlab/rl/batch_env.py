@@ -83,26 +83,41 @@ class MicroduckBatchEnv:
         self.last_action[i] = 0.0
         self._obs[i] = self.observe(d, self.last_action[i], self.command)
 
+    def _observe_all(self) -> np.ndarray:
+        """Batched ``ObservationBuilder`` (same arithmetic, so bitwise-equal rows)."""
+        o = self.observe
+        gyro = np.array([d.sensordata[o.gyro_adr : o.gyro_adr + 3] for d in self.datas])
+        quat = np.array([d.xquat[o.trunk_id] for d in self.datas])
+        qpos = np.array([d.qpos[o.qpos_idx] for d in self.datas])
+        qvel = np.array([d.qvel[o.qvel_idx] for d in self.datas])
+        w, xyz = quat[:, :1], quat[:, 1:4]
+        down = np.array([0.0, 0.0, -1.0])
+        t = np.cross(xyz, down) * 2.0
+        gravity = down - w * t + np.cross(xyz, t)
+        command = np.broadcast_to(self.command, (self.num_envs, mp.CMD_DIM))
+        parts = [gyro, gravity, qpos - mp.DEFAULT_POSE, qvel, self.last_action, command]
+        return np.concatenate(parts, axis=1).astype(np.float32)
+
     def step(self, actions: np.ndarray) -> StepResult:
         actions = np.asarray(actions, dtype=np.float32)
         if actions.shape != (self.num_envs, mp.ACT_DIM):
             raise ValueError(f"actions must have shape {(self.num_envs, mp.ACT_DIM)}")
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
-        reward = np.empty(self.num_envs, dtype=np.float32)
-        terminated = np.zeros(self.num_envs, dtype=bool)
-        for i, d in enumerate(self.datas):
-            d.ctrl[:] = mp.DEFAULT_POSE + actions[i]
-            for _ in range(mp.DECIMATION):
-                mujoco.mj_step(self.model, d)
-            rate = float(np.sum(np.square(actions[i] - self.last_action[i])))
-            self.last_action[i] = actions[i]
-            obs = self.observe(d, self.last_action[i], self.command)
-            gravity_z = float(obs[mp.OBS_SLICES["projected_gravity"]][2])
-            finite = bool(np.all(np.isfinite(obs)))
-            terminated[i] = (not finite) or gravity_z > FALL_GRAVITY_Z
-            reward[i] = 1.0 - gravity_z - ACTION_RATE_WEIGHT * rate if finite else 0.0
-            self._obs[i] = obs if finite else 0.0
+        targets = mp.DEFAULT_POSE + actions
+        for d, target in zip(self.datas, targets, strict=True):
+            d.ctrl[:] = target
+            mujoco.mj_step(self.model, d, nstep=mp.DECIMATION)
+        rate = np.sum(np.square(actions - self.last_action), axis=1)
+        self.last_action[:] = actions
+        obs = self._observe_all()
+        gravity_z = obs[:, mp.OBS_SLICES["projected_gravity"].start + 2].astype(np.float64)
+        finite = np.all(np.isfinite(obs), axis=1)
+        terminated = ~finite | (gravity_z > FALL_GRAVITY_Z)
+        reward = (1.0 - gravity_z - ACTION_RATE_WEIGHT * rate.astype(np.float64)).astype(np.float32)
+        reward[~finite] = 0.0
+        obs[~finite] = 0.0
+        self._obs[:] = obs
         self.episode_steps += 1
         truncated = ~terminated & (self.episode_steps >= self.max_episode_steps)
         final_obs = self._obs.copy()
