@@ -104,8 +104,9 @@ class MicroduckBatchEnv:
             raise ValueError(f"actions must have shape {(self.num_envs, mp.ACT_DIM)}")
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
-        for i, d in enumerate(self.datas):
-            d.ctrl[:] = mp.DEFAULT_POSE + actions[i]
+        targets = mp.DEFAULT_POSE + actions
+        for d, target in zip(self.datas, targets, strict=True):
+            d.ctrl[:] = target
             mujoco.mj_step(self.model, d, nstep=mp.DECIMATION)
         rate = np.sum(np.square(actions - self.last_action), axis=1)
         self.last_action[:] = actions
