@@ -270,7 +270,7 @@ class TrainingMatch:
 ACTUATORS = ("mjcf", "bam")
 ACTUATOR_LABELS = {
     "mjcf": "mjcf-position (not BAM; known sim-to-sim gap)",
-    "bam": f"bam-xl330-m6 (CPU port of {bam_xl330.BAM_SOURCE}; vin 7.4 V, drop gain 0.1)",
+    "bam": f"bam-xl330-m6 (CPU port of {bam_xl330.BAM_SOURCE}; drop gain 0.1)",
 }
 
 
@@ -404,6 +404,32 @@ SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
 }
 
 
+# Start-state perturbation for repeat runs: below one XL330 encoder count
+# (2 pi / 4096 = 1.5e-3 rad), so every repeat is a start the real robot cannot tell apart.
+REPEAT_PERTURB_RAD = 1.0e-3
+
+
+def perturb_joints(seed: int, amplitude_rad: float = REPEAT_PERTURB_RAD) -> ControlFn:
+    """``after_init`` hook: add seeded uniform noise to the actuated joint positions."""
+
+    def init(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+        idx = ObservationBuilder(model).qpos_idx
+        rng = np.random.default_rng(seed)
+        data.qpos[idx] += rng.uniform(-amplitude_rad, amplitude_rad, len(idx))
+
+    return init
+
+
+def _spread(values: list[float]) -> dict[str, float]:
+    a = np.asarray(values, dtype=float)
+    return {
+        "mean": float(a.mean()),
+        "std": float(a.std()),
+        "min": float(a.min()),
+        "max": float(a.max()),
+    }
+
+
 def evaluate(
     scene: str | Path,
     policy_path: str | Path,
@@ -411,8 +437,17 @@ def evaluate(
     post: PostProcess | None = None,
     actuator: str = "mjcf",
     match: TrainingMatch | None = None,
+    repeats: int = 1,
 ) -> dict[str, Any]:
-    """Characterize a policy over SCENARIOS (labelled with the actuator model used)."""
+    """Characterize a policy over SCENARIOS (labelled with the actuator model used).
+
+    ``repeats > 1`` adds runs from perturbed starts (``perturb_joints`` with seeds
+    1..repeats-1) and reports the spread of the tracking metrics. The BAM gait is
+    sensitive enough that last-bit differences between CPUs change a single run's
+    numbers by several percent, so a single run is one sample, not a measurement.
+    """
+    if repeats < 1:
+        raise ValueError("repeats must be >= 1")
     match = match or TrainingMatch()
     policy = OnnxPolicy(policy_path)
     post = post or PostProcess()
@@ -426,24 +461,39 @@ def evaluate(
         "physics_dt": PHYSICS_DT,
         "control_hz": CONTROL_HZ,
         "mujoco": mujoco.__version__,
+        "repeats": repeats,
         "scenarios": {},
     }
     for name, (twist, duration) in SCENARIOS.items():
-        result, ctrl, extra = run(
-            scene,
-            policy,
-            duration,
-            twist=twist,
-            init=init,
-            post=post,
-            actuator=actuator,
-            match=match,
-        )
-        yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
-        report["scenarios"][name] = {
-            "command": twist,
-            **result.summary(),
-            **extra,
-            "mean_gyro_z_second_half": yaw_rate,
-        }
+        samples: dict[str, list[float]] = {"vx_mps": [], "vy_mps": [], "yaw_rate": []}
+        falls = 0
+        for k in range(repeats):
+            result, ctrl, extra = run(
+                scene,
+                policy,
+                duration,
+                twist=twist,
+                init=init,
+                post=post,
+                actuator=actuator,
+                match=match,
+                after_init=perturb_joints(k) if k else None,
+            )
+            yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
+            if k == 0:
+                report["scenarios"][name] = {
+                    "command": twist,
+                    **result.summary(),
+                    **extra,
+                    "mean_gyro_z_second_half": yaw_rate,
+                }
+            samples["vx_mps"].append(extra["mean_speed_x_mps"])
+            samples["vy_mps"].append(extra["displacement_y_m"] / duration)
+            samples["yaw_rate"].append(yaw_rate)
+            falls += int(result.fell)
+        if repeats > 1:
+            report["scenarios"][name]["spread"] = {
+                "falls": falls,
+                **{key: _spread(v) for key, v in samples.items()},
+            }
     return report

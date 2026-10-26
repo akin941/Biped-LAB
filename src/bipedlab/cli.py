@@ -70,6 +70,7 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
         match=microduck_policy.TrainingMatch(
             bam_delay_steps=args.bam_delay, vin=args.vin, joint_vel_lag=args.vel_lag
         ),
+        repeats=args.repeats,
     )
     text = json.dumps(report, indent=2)
     if args.out:
@@ -237,6 +238,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bam-delay", type=int, default=0, help="BAM command delay, physics steps")
     p.add_argument("--vin", type=float, default=7.4, help="BAM supply voltage, V")
     p.add_argument("--vel-lag", type=int, default=0, help="joint_vel observation lag, steps")
+    p.add_argument(
+        "--repeats", type=int, default=1, help="runs per scenario; >1 adds perturbed starts"
+    )
     p.set_defaults(func=_cmd_eval_policy)
 
     from bipedlab.sim.microduck_behaviours import BEHAVIOURS

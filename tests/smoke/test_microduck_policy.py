@@ -191,3 +191,27 @@ def test_training_match_requires_bam_for_delay(scene, tmp_path):
         match=mp.TrainingMatch(bam_delay_steps=4, vin=6.5, joint_vel_lag=1),
     )
     assert result.finite
+
+
+def test_perturb_joints_is_seeded_and_below_one_encoder_count(scene):
+    model, data = mp.load_model_for_policy(scene)
+    idx = mp.ObservationBuilder(model).qpos_idx
+    starts = []
+    for _ in range(2):
+        mujoco.mj_resetDataKeyframe(model, data, model.key("STAND").id)
+        before = data.qpos.copy()
+        mp.perturb_joints(3)(model, data)
+        delta = data.qpos - before
+        assert np.abs(delta[idx]).max() <= mp.REPEAT_PERTURB_RAD
+        assert np.abs(delta[idx]).max() > 0
+        np.testing.assert_array_equal(np.delete(delta, idx), 0.0)
+        starts.append(data.qpos.copy())
+    np.testing.assert_array_equal(starts[0], starts[1])
+    encoder_count_rad = 2 * np.pi / 4096
+    assert encoder_count_rad > mp.REPEAT_PERTURB_RAD
+
+
+def test_evaluate_rejects_zero_repeats(scene, tmp_path):
+    path = linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14))
+    with pytest.raises(ValueError):
+        mp.evaluate(scene, path, repeats=0)
