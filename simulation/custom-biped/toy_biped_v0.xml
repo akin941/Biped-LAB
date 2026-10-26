@@ -1,0 +1,87 @@
+<!--
+  toy_biped_v0: an original, deliberately simple planar-ish biped used as a
+  deterministic CI fixture and as a starting sketch for our own robot.
+  NOT a design: dimensions are placeholders until Phase 4 analysis
+  (see docs/roadmap/ROADMAP.md). ~25 cm tall, ~0.8 kg, 8 position-controlled
+  joints (hip roll, hip pitch, knee, ankle pitch per leg).
+  License: Apache-2.0 (this repository).
+-->
+<mujoco model="toy_biped_v0">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+
+  <default>
+    <joint damping="0.05" armature="0.002" frictionloss="0.01"/>
+    <position kp="6" kv="0.1" forcerange="-1.5 1.5"/>
+    <geom contype="0" conaffinity="0" rgba="0.8 0.6 0.2 1"/>
+    <default class="foot">
+      <geom type="box" size="0.045 0.025 0.006" contype="1" conaffinity="1" friction="1.0 0.005 0.0001"
+            rgba="0.2 0.2 0.2 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1" directional="true"/>
+    <geom name="floor" type="plane" size="0 0 0.05" contype="1" conaffinity="1" rgba="0.3 0.4 0.5 1"/>
+
+    <body name="trunk" pos="0 0 0.25">
+      <freejoint name="root"/>
+      <geom name="trunk" type="box" size="0.04 0.06 0.04" mass="0.4"/>
+      <site name="imu" pos="0 0 0"/>
+
+      <body name="left_thigh" pos="0 0.035 -0.045">
+        <joint name="left_hip_roll" axis="1 0 0" range="-0.4 0.4"/>
+        <joint name="left_hip_pitch" axis="0 1 0" range="-1.5 1.5"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.08" size="0.012" mass="0.08"/>
+        <body name="left_shin" pos="0 0 -0.08">
+          <joint name="left_knee" axis="0 1 0" range="-0.1 2.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.08" size="0.011" mass="0.06"/>
+          <body name="left_foot" pos="0 0 -0.09">
+            <joint name="left_ankle_pitch" axis="0 1 0" range="-1.2 1.2"/>
+            <geom name="left_foot" class="foot" mass="0.06"/>
+            <site name="left_foot" pos="0 0 -0.006"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="right_thigh" pos="0 -0.035 -0.045">
+        <joint name="right_hip_roll" axis="1 0 0" range="-0.4 0.4"/>
+        <joint name="right_hip_pitch" axis="0 1 0" range="-1.5 1.5"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.08" size="0.012" mass="0.08"/>
+        <body name="right_shin" pos="0 0 -0.08">
+          <joint name="right_knee" axis="0 1 0" range="-0.1 2.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.08" size="0.011" mass="0.06"/>
+          <body name="right_foot" pos="0 0 -0.09">
+            <joint name="right_ankle_pitch" axis="0 1 0" range="-1.2 1.2"/>
+            <geom name="right_foot" class="foot" mass="0.06"/>
+            <site name="right_foot" pos="0 0 -0.006"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="left_hip_roll" joint="left_hip_roll"/>
+    <position name="left_hip_pitch" joint="left_hip_pitch"/>
+    <position name="left_knee" joint="left_knee"/>
+    <position name="left_ankle_pitch" joint="left_ankle_pitch"/>
+    <position name="right_hip_roll" joint="right_hip_roll"/>
+    <position name="right_hip_pitch" joint="right_hip_pitch"/>
+    <position name="right_knee" joint="right_knee"/>
+    <position name="right_ankle_pitch" joint="right_ankle_pitch"/>
+  </actuator>
+
+  <sensor>
+    <framequat name="orientation" objtype="site" objname="imu"/>
+    <gyro name="gyro" site="imu"/>
+    <accelerometer name="accel" site="imu"/>
+  </sensor>
+
+  <keyframe>
+    <!-- Slight crouch: hip -0.3, knee 0.6, ankle -0.3 keeps feet flat. -->
+    <key name="STAND"
+         qpos="0 0 0.25 1 0 0 0  0 -0.3 0.6 -0.3  0 -0.3 0.6 -0.3"
+         ctrl="0 -0.3 0.6 -0.3  0 -0.3 0.6 -0.3"/>
+  </keyframe>
+</mujoco>

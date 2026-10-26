@@ -1,0 +1,100 @@
+# Tiered CI (docs/testing/TESTING_STRATEGY.md):
+#   static  -> ruff + mypy                      (seconds)
+#   unit    -> pytest, no upstream              (seconds)
+#   smoke   -> pytest -m upstream, CPU MuJoCo on the pinned Microduck model
+#   macos   -> same suite on GitHub-hosted macOS arm64. This is NOT the owner's
+#              M5 MacBook; Mac verification is tracked in docs/handoffs/.
+# Never runs RL training. Third-party actions are pinned by commit sha.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - name: Unit tests
+        run: uv run pytest -m "not upstream and not slow" --junitxml=reports/unit.xml
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: third_party
+          key: upstream-${{ hashFiles('upstream.lock.toml') }}
+      - name: Fetch pinned upstream sources
+        run: uv run python scripts/fetch_upstream.py microduck_rl
+      - name: Upstream CPU smoke tests
+        run: uv run pytest -m "upstream and not slow" -rs --junitxml=reports/smoke.xml
+      - name: Environment record
+        if: always()
+        run: |
+          uname -a
+          uv run python -c "import platform, mujoco, numpy; print(platform.platform(), platform.machine(), 'mujoco', mujoco.__version__, 'numpy', numpy.__version__)"
+
+  pretrained-policy:
+    # Downloads the pinned official policies (sha256-verified) and records how
+    # they behave in CPU MuJoCo. The report is evidence (gha-linux), not a Mac result.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            third_party
+            learning/policies/cache
+          key: upstream-policies-${{ hashFiles('upstream.lock.toml', 'learning/policies/*.lock.toml') }}
+      - run: uv run python scripts/fetch_upstream.py microduck_rl
+      - run: uv run python scripts/fetch_policies.py alpha_walking.onnx alpha_stand.onnx
+      - name: Contract tests on real weights
+        run: uv run pytest -m policy -rs
+      - name: Behaviour report
+        run: |
+          mkdir -p reports
+          uv run bipedlab eval-policy alpha_walking.onnx --out reports/alpha_walking.json
+          uv run bipedlab eval-policy alpha_stand.onnx --out reports/alpha_stand.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: policy-reports
+          path: reports/

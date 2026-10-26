@@ -1,0 +1,23 @@
+# Pinned upstream sources. Reviewed revisions only: bump a sha in its own PR,
+# after re-reading the upstream diff (see docs/security/SECURITY_AND_SAFETY.md).
+# Checkouts land in third_party/<name>/ and are never committed.
+# Upstream code is treated as data: we load MJCF/ONNX files from it but do not
+# import or execute its Python/Rust code or scripts.
+
+[repos.microduck]
+url = "https://github.com/pollen-robotics/microduck.git"
+rev = "942e58e3aa6dbb28e7037203fff11866122c7567"
+license = "Apache-2.0"
+reviewed = "2026-10-26"
+
+[repos.microduck_rl]
+url = "https://github.com/pollen-robotics/microduck_rl.git"
+rev = "b02fdea4902c2b93b7d34a83a6f05da4ececb7d3"
+license = "Apache-2.0 (code, MJCF); CC BY-NC-SA 4.0 (STL meshes)"
+reviewed = "2026-10-26"
+
+[repos.microduck-lab]
+url = "https://github.com/jonathanhawkins/microduck-lab.git"
+rev = "8dad9218062f7b0ad29ae6d564305411f5a117c2"
+license = "see docs/research/microduck-lab.md"
+reviewed = "2026-10-26"

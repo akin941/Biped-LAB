@@ -1,0 +1,63 @@
+[project]
+name = "bipedlab"
+version = "0.1.0"
+description = "Biped Robotics Lab: simulation-first tooling to study Microduck and build an original biped"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12,<3.13"
+# Versions match pollen-robotics/microduck_rl uv.lock (see upstream.lock.toml)
+# so CPU MuJoCo here behaves like the upstream training simulator.
+dependencies = [
+    "mujoco==3.10.0",
+    "numpy==2.4.1",
+]
+
+[project.optional-dependencies]
+policy = ["onnxruntime==1.24.4", "onnx==1.22.0"]
+
+[project.scripts]
+bipedlab = "bipedlab.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.3",
+    "ruff==0.14.1",
+    "mypy==1.18.2",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bipedlab"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101", "S603", "S607"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/bipedlab"]
+
+[[tool.mypy.overrides]]
+module = ["mujoco", "mujoco.*", "onnxruntime", "onnx", "onnx.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "upstream: needs pinned upstream sources in third_party/ (run scripts/fetch_upstream.py)",
+    "policy: needs the [policy] extra (onnxruntime)",
+    "slow: longer than ~10 s; excluded from the fast CI job",
+]
