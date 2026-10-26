@@ -158,14 +158,36 @@ def load_model_for_policy(scene: str | Path) -> tuple[mujoco.MjModel, mujoco.MjD
     return model, mujoco.MjData(model)
 
 
+# Upstream infer_policy.py:1376-1386 starts the trunk 0.125 m up, level, joints at
+# DEFAULT_POSE, without settling onto the floor.
+UPSTREAM_INIT_HEIGHT = 0.125
+INIT_MODES = ("upstream", "settle")
+
+
+def upstream_init(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+    observe = ObservationBuilder(model)
+    data.qpos[0:3] = [0.0, 0.0, UPSTREAM_INIT_HEIGHT]
+    data.qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
+    data.qpos[observe.qpos_idx] = DEFAULT_POSE
+    data.qvel[:] = 0.0
+    data.ctrl[:] = DEFAULT_POSE
+
+
 def run(
     scene: str | Path,
     policy: Any,
     duration_s: float,
     twist: tuple[float, float, float] = (0.0, 0.0, 0.0),
     keyframe: str = "STAND",
+    init: str = "upstream",
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
-    """Roll out ``policy`` with a constant twist command; return metrics."""
+    """Roll out ``policy`` with a constant twist command; return metrics.
+
+    ``init="upstream"`` reproduces the upstream start state; ``"settle"`` lowers the
+    keyframe pose onto the floor first.
+    """
+    if init not in INIT_MODES:
+        raise ValueError(f"init must be one of {INIT_MODES}")
     model, data = load_model_for_policy(scene)
     command = np.zeros(CMD_DIM, dtype=np.float32)
     command[0:3] = twist
@@ -179,7 +201,14 @@ def run(
         ctrl(m, d)
 
     result = sim_rollout.rollout(
-        model, data, keyframe, duration_s, control_hz=CONTROL_HZ, control=control
+        model,
+        data,
+        keyframe,
+        duration_s,
+        control_hz=CONTROL_HZ,
+        control=control,
+        settle=init == "settle",
+        init=upstream_init if init == "upstream" else None,
     )
     assert start is not None
     displacement = data.qpos[0:2] - start
@@ -201,20 +230,21 @@ SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
 }
 
 
-def evaluate(scene: str | Path, policy_path: str | Path) -> dict[str, Any]:
+def evaluate(scene: str | Path, policy_path: str | Path, init: str = "upstream") -> dict[str, Any]:
     """Characterize a policy over SCENARIOS (labelled with the actuator model used)."""
     policy = OnnxPolicy(policy_path)
     report: dict[str, Any] = {
         "policy": Path(policy_path).name,
         "scene": Path(scene).name,
         "actuator": "mjcf-position (not BAM; known sim-to-sim gap)",
+        "init": init,
         "physics_dt": PHYSICS_DT,
         "control_hz": CONTROL_HZ,
         "mujoco": mujoco.__version__,
         "scenarios": {},
     }
     for name, (twist, duration) in SCENARIOS.items():
-        result, ctrl, extra = run(scene, policy, duration, twist=twist)
+        result, ctrl, extra = run(scene, policy, duration, twist=twist, init=init)
         yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
         report["scenarios"][name] = {
             "command": twist,

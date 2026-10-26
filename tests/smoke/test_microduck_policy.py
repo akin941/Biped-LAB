@@ -81,3 +81,19 @@ def test_bench_reports_rates(scene, tmp_path):
     policy = linear_policy(tmp_path / "p.onnx", np.zeros((61, 14)), np.zeros(14))
     assert bench.physics_steps_per_s(scene, seconds=0.2) > 100
     assert bench.policy_loop_hz(scene, policy, seconds=0.2) > 50  # faster than real time
+
+
+@pytest.mark.parametrize("init", ["upstream", "settle"])
+def test_init_modes(scene, tmp_path, init):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "p.onnx", np.zeros((61, 14)), np.zeros(14)))
+    result, ctrl, _ = mp.run(scene, policy, duration_s=0.04, init=init)
+    rel = ctrl.log[0]["obs"][mp.OBS_SLICES["joint_pos_rel"]]
+    assert result.finite
+    if init == "upstream":
+        np.testing.assert_allclose(rel, 0, atol=0.05)  # starts at DEFAULT_POSE, one step in
+
+
+def test_unknown_init_rejected(scene, tmp_path):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "p.onnx", np.zeros((61, 14)), np.zeros(14)))
+    with pytest.raises(ValueError, match="init"):
+        mp.run(scene, policy, duration_s=0.04, init="bogus")
