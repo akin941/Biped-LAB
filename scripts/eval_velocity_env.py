@@ -8,7 +8,8 @@ iterations), the regime a finished policy was trained in.
 
 Pass criterion (ADR-0011, spec "Validation"): with the BAM actuator and a 0.4 m/s
 command, ``alpha_walking`` reproduces upstream's sim number (~0.17 m/s, no falls) and
-scores a reward profile consistent with a trained policy.
+scores a reward profile consistent with a trained policy. ``--dr`` repeats the cases
+with domain randomization on, the conditions ``alpha_walking`` was trained under.
 
 Usage: python scripts/eval_velocity_env.py alpha_walking.onnx --out reports/g3-1.json
 """
@@ -38,10 +39,11 @@ def run_case(
     num_envs: int,
     seconds: float,
     seed: int,
+    dr: bool = False,
 ) -> dict[str, Any]:
     env = MicroduckVelocityEnv(
         scene, num_envs, seed=seed, actuator=actuator, episode_s=seconds + 1.0,
-        noise=noise, common_step=2000 * 24,
+        noise=noise, common_step=2000 * 24, dr=dr,
     )  # fmt: skip
     env.freeze_commands(np.array(twist))
     steps = round(seconds * mp.CONTROL_HZ)
@@ -70,6 +72,7 @@ def run_case(
         "actuator": actuator,
         "twist": list(twist),
         "noise": noise,
+        "dr": dr,
         "num_envs": num_envs,
         "seconds": seconds,
         "falls": int((~alive).sum()),
@@ -91,6 +94,9 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=10.0)
     parser.add_argument("--actuators", nargs="+", default=["bam", "mjcf"])
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--dr", action="store_true", help="domain randomization on (end-of-curriculum ranges)"
+    )
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     scene = upstream.microduck_scene("scene_walk.xml")
@@ -102,9 +108,9 @@ def main() -> None:
         for twist in [(0.4, 0.0, 0.0), (0.0, 0.0, 0.0)]:
             for noise in (True, False):
                 cases.append(run_case(scene, policy, actuator, twist, noise, args.envs,
-                                      args.seconds, args.seed))  # fmt: skip
+                                      args.seconds, args.seed, args.dr))  # fmt: skip
         cases.append(run_case(scene, None, actuator, (0.4, 0.0, 0.0), True, args.envs,
-                              args.seconds, args.seed))  # fmt: skip
+                              args.seconds, args.seed, args.dr))  # fmt: skip
     report = {"environment": bench.environment(), "policy": args.policy, "cases": cases}
     text = json.dumps(report, indent=2)
     print(text)

@@ -55,7 +55,8 @@ task matching your environment whose deps are `done`.
 | WP3-07 | Vectorise observation/reward over the batch (Python is ~35 % of env time) | cloud | WP3-06 | partial: identical arrays met; +28 % on gha-linux, below +30 % — see 2026-10-26-wp3-07-batched-observation.md | serial env steps/s +30 % on gha-linux, identical arrays to the per-env path |
 | WP3-03 | PPO smoke train job (nightly, ≤ 5 min): `scripts/train_ppo.py`, `.github/workflows/nightly-train.yml` | cloud | WP3-02 | done: rose on all 3 seeds on gha-linux, ~1 min per job — see 2026-10-26-wp3-03-ppo-smoke.md | mean reward rises over 3 seeds |
 | WP3-04 | Full training run on M5 (CPU, then MPS comparison); checkpoint/resume/ONNX export ready, task MAC-06 in the Mac handoff | mac-m5 | WP3-03 | awaiting-mac | G3.3 |
-| WP3-05 | DR ablation, ONNX export, comparison with official | mac-m5 | WP3-04 | later | G3.4, G3.5 |
+| WP3-08 | Domain randomization in the velocity env (cloud part of WP3-05): spec **DR** rows, opt-in `dr=True`, `--dr` in train/eval scripts | cloud | WP3-02 | done: alpha_walking under DR 0.4 → 0.18–0.19 m/s, 0/16 falls; DR PPO smoke rose (gha-linux) — see 2026-10-26-wp3-08-domain-randomization.md | every DR row implemented with upstream ranges; `dr=False` unchanged; alpha_walking (trained with DR) walks under it without falls; PPO smoke with DR rises |
+| WP3-05 | DR ablation, ONNX export, comparison with official (env side done in WP3-08) | mac-m5 | WP3-04, WP3-08 | later | G3.4, G3.5 |
 
 ## Phase 4–6 (outline; detailed at Phase 3 exit)
 

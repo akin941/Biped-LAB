@@ -3,7 +3,8 @@
 # of the last quarter of iterations beats the first quarter. It checks that env,
 # adapter and PPO learn together; it does not judge walking quality. The per-commit
 # ci workflow never trains (see ci.yml); this runs nightly, on demand, and on PRs
-# that change the training path.
+# that change the training path. One extra job trains seed 0 with domain
+# randomization on (WP3-05 env part).
 name: nightly-train
 
 on:
@@ -28,11 +29,15 @@ env:
 
 jobs:
   ppo-smoke:
-    name: ppo-smoke (seed ${{ matrix.seed }})
+    name: ppo-smoke (seed ${{ matrix.seed }}${{ matrix.dr && ', dr' || '' }})
     strategy:
       fail-fast: false
       matrix:
         seed: [0, 1, 2]
+        dr: [""]
+        include:
+          - seed: 0
+            dr: --dr
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -57,15 +62,15 @@ jobs:
         run: |
           lscpu | grep -E "Model name|^CPU\(s\)|Thread" || true
           .venv/bin/python scripts/train_ppo.py --envs 64 --iters 60 --workers 2 \
-            --seed ${{ matrix.seed }} --require-rise --out reports/wp3-03/seed${{ matrix.seed }}.json \
-            --run-dir runs/seed${{ matrix.seed }} --save-every 30
+            --seed ${{ matrix.seed }} ${{ matrix.dr }} --require-rise --out reports/wp3-03/seed${{ matrix.seed }}${{ matrix.dr }}.json \
+            --run-dir runs/seed${{ matrix.seed }}${{ matrix.dr }} --save-every 30
       - name: Exported ONNX runs in the evaluation runner (contract + finite rollout)
         run: |
-          .venv/bin/python scripts/eval_velocity_env.py runs/seed${{ matrix.seed }}/policy.onnx \
-            --envs 2 --seconds 2 --actuators mjcf --out reports/wp3-03/eval_seed${{ matrix.seed }}.json > /dev/null
-          cp runs/seed${{ matrix.seed }}/run.json reports/wp3-03/run_seed${{ matrix.seed }}.json
+          .venv/bin/python scripts/eval_velocity_env.py runs/seed${{ matrix.seed }}${{ matrix.dr }}/policy.onnx \
+            --envs 2 --seconds 2 --actuators mjcf --out reports/wp3-03/eval_seed${{ matrix.seed }}${{ matrix.dr }}.json > /dev/null
+          cp runs/seed${{ matrix.seed }}${{ matrix.dr }}/run.json reports/wp3-03/run_seed${{ matrix.seed }}${{ matrix.dr }}.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: ppo-smoke-seed${{ matrix.seed }}
+          name: ppo-smoke-seed${{ matrix.seed }}${{ matrix.dr }}
           path: reports/

@@ -5,14 +5,22 @@ trained on (``microduck_rl`` ``make_microduck_velocity_env_cfg``, flat terrain, 
 mjlab 1.3.0): the same model (``scene_walk.xml``), timing, reset distribution, command
 sampling and curricula, actor observation noise and delays, reward terms and
 terminations. Every row of ``docs/research/velocity-task-spec.md`` marked **v1** is
-implemented here; rows marked **DR** (domain randomization) come with WP3-05.
+implemented here. The rows marked **DR** (domain randomization) are implemented too
+and switched on with ``dr=True``; with ``dr=False`` (default) the env is the v1 task,
+bit for bit.
 
 Known approximations, all recorded in the spec:
 - contact, air time and swing peaks are sampled once per control step (20 ms), not
   every 5 ms physics substep as mjlab's contact sensor does;
 - self-collisions count robot-robot contacts at the control step, not substeps with
   a contact force above 10 N;
-- CPU MuJoCo instead of MuJoCo-Warp (same model, timestep and solver iterations).
+- CPU MuJoCo instead of MuJoCo-Warp (same model, timestep and solver iterations);
+- DR changes mass, CoM, armature and foot friction in place without recomputing
+  MuJoCo's derived constants (``mj_setConst``); pushes take effect from the next step.
+
+All envs share one ``MjModel`` (a copy is ~85 MB). With DR each env's physical
+parameters are written into it before that env is stepped or reset; envs are stepped
+one after another, so no env sees another env's values.
 
 Arrays are NumPy (no torch import). Each env draws its randomness from its own stream
 seeded by ``(seed, first_env + i)``, so shards in worker processes reproduce a serial
@@ -82,6 +90,22 @@ ACTION_RATE_STAGES = [(0, -0.1), (500 * IT, -0.2), (750 * IT, -0.4), (1000 * IT,
                       (1250 * IT, -0.8), (1500 * IT, -1.0)]  # fmt: skip
 HEAD_BIAS_STAGES = [(0, 0.0), (600 * IT, 1.0), (1000 * IT, 2.0), (1500 * IT, 3.0)]
 
+# Domain randomization (upstream flags that are on for the velocity task).
+PUSH_INTERVAL_S = (3.0, 6.0)  # per env, resampled after each push and at reset
+PUSH_DV = 0.3  # world-frame x/y velocity added, uniform in +-0.3 m/s
+FOOT_FRICTION = (0.7, 1.3)  # startup, absolute, one value for both feet (axis 0)
+ENCODER_BIAS = 0.015  # startup, per joint, actor joint_pos only
+MASS_SCALE = (0.95, 1.05)  # startup, trunk mass and inertia together
+TRUNK_COM_STAGES = [(0, 0.003), (500 * IT, 0.005), (1000 * IT, 0.01), (1500 * IT, 0.015)]
+HEAD_COM_STAGES = [(0, 0.003), (500 * IT, 0.005), (1000 * IT, 0.01)]
+# Upstream's head bodies; the head-roll body is bottom_head_shell or jaw_soft by model
+# version. bearing_roll is a hip link that upstream lists by mistake and keeps.
+HEAD_BODIES = ("neck", "neck_pitch", "yaw_roll_motion", "bottom_head_shell", "jaw_soft",
+               "bearing_roll")  # fmt: skip
+BAM_FRICTION_SCALE = (0.9, 1.1)  # reset, per env
+ARMATURE_SCALE = (0.9, 1.1)  # reset, per dof (all hinge joints)
+IMU_MAX_ANGLE_DEG = 6.0  # startup, random axis, actor gyro and gravity only
+
 # Reward weights (fixed ones; curriculum weights above).
 WEIGHTS = {
     "track_linear_velocity": 2.0,
@@ -130,6 +154,12 @@ def rotate_inverse(quat: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return np.asarray(vec - w * t + np.cross(xyz, t))
 
 
+def axis_angle_matrix(axis: np.ndarray, angle: float) -> np.ndarray:
+    """Rotation matrix about the unit ``axis`` by ``angle`` (Rodrigues)."""
+    k = np.array([[0.0, -axis[2], axis[1]], [axis[2], 0.0, -axis[0]], [-axis[1], axis[0], 0.0]])
+    return np.asarray(np.eye(3) + math.sin(angle) * k + (1 - math.cos(angle)) * k @ k)
+
+
 def rotate(quat: np.ndarray, vec: np.ndarray) -> np.ndarray:
     """Rotate body-frame vectors (N, 3) into the world by quaternions (N, 4) wxyz."""
     w, xyz = quat[:, :1], quat[:, 1:4]
@@ -158,6 +188,7 @@ class MicroduckVelocityEnv:
     episode_s: float = EPISODE_S
     noise: bool = True  # actor observation noise and delays
     common_step: int = 0
+    dr: bool = False  # domain randomization (spec rows marked DR)
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -178,6 +209,8 @@ class MicroduckVelocityEnv:
         self._ids(m)
         self.max_episode_steps = round(self.episode_s / STEP_DT)
         self._rngs = [np.random.default_rng([self.seed, self.first_env + i]) for i in range(n)]
+        if self.dr:
+            self._init_dr()
 
         z = np.zeros
         self.episode_steps = z(n, dtype=np.int64)
@@ -226,8 +259,75 @@ class MicroduckVelocityEnv:
             [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, g) for g in FOOT_GEOMS]
         )
         self.floor_geom = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+        heads = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, b) for b in HEAD_BODIES]
+        self.head_bodies = np.array([b for b in heads if b >= 0])
+        self.hinge_dofs = np.flatnonzero(m.jnt_type[m.dof_jntid] != mujoco.mjtJoint.mjJNT_FREE)
         if min(self.trunk_id, *self.site_ids, *self.foot_geoms, self.floor_geom) < 0:
             raise ValueError("model lacks trunk_base, foot sites, foot geoms or floor")
+
+    # ----- domain randomization -----------------------------------------------------
+
+    def _init_dr(self) -> None:
+        """Defaults and startup draws. DR has its own streams, so commands match dr=False."""
+        m, n = self.model, self.num_envs
+        if len(self.head_bodies) != len(HEAD_BODIES) - 1:
+            raise ValueError("model lacks the head bodies DR randomizes")
+        self._dr_rngs = [
+            np.random.default_rng([self.seed, self.first_env + i, 1]) for i in range(n)
+        ]
+        self._default_ipos = m.body_ipos.copy()
+        self._default_mass = float(m.body_mass[self.trunk_id])
+        self._default_inertia = m.body_inertia[self.trunk_id].copy()
+        self._default_armature = m.dof_armature[self.hinge_dofs].copy()
+        self.foot_friction = np.zeros(n)
+        self.encoder_bias = np.zeros((n, mp.ACT_DIM))
+        self.mass_scale = np.zeros(n)
+        self.imu_rot = np.zeros((n, 3, 3))
+        self.trunk_com = np.zeros((n, 3))
+        self.head_com = np.zeros((n, len(self.head_bodies), 3))
+        self.armature_scale = np.ones((n, len(self.hinge_dofs)))
+        self.bam_friction_scale = np.ones(n)
+        self.push_left = np.zeros(n)
+        for i, rng in enumerate(self._dr_rngs):
+            self.foot_friction[i] = rng.uniform(*FOOT_FRICTION)
+            self.encoder_bias[i] = rng.uniform(-ENCODER_BIAS, ENCODER_BIAS, mp.ACT_DIM)
+            self.mass_scale[i] = rng.uniform(*MASS_SCALE)
+            axis = rng.normal(size=3)
+            axis /= np.linalg.norm(axis) + 1e-8
+            angle = rng.uniform(0.0, math.radians(IMU_MAX_ANGLE_DEG))
+            self.imu_rot[i] = axis_angle_matrix(axis, angle)
+
+    def _sample_dr_reset(self, i: int) -> None:
+        rng = self._dr_rngs[i]
+        trunk = stage_value(TRUNK_COM_STAGES, self.common_step)
+        head = stage_value(HEAD_COM_STAGES, self.common_step)
+        self.trunk_com[i] = rng.uniform(-trunk, trunk, 3)
+        self.head_com[i] = rng.uniform(-head, head, self.head_com[i].shape)
+        self.armature_scale[i] = rng.uniform(*ARMATURE_SCALE, len(self.hinge_dofs))
+        self.bam_friction_scale[i] = rng.uniform(*BAM_FRICTION_SCALE)
+        if self.bams:
+            self.bams[i].friction_scale = float(self.bam_friction_scale[i])
+        self.push_left[i] = rng.uniform(*PUSH_INTERVAL_S)
+
+    def _apply_physics(self, i: int) -> None:
+        """Write env ``i``'s physical parameters into the shared model."""
+        if not self.dr:
+            return
+        m, t = self.model, self.trunk_id
+        m.geom_friction[self.foot_geoms, 0] = self.foot_friction[i]
+        m.body_ipos[t] = self._default_ipos[t] + self.trunk_com[i]
+        m.body_ipos[self.head_bodies] = self._default_ipos[self.head_bodies] + self.head_com[i]
+        m.body_mass[t] = self._default_mass * self.mass_scale[i]
+        m.body_inertia[t] = self._default_inertia * self.mass_scale[i]
+        m.dof_armature[self.hinge_dofs] = self._default_armature * self.armature_scale[i]
+
+    def _push(self) -> None:
+        """mjlab push_by_setting_velocity: add a random x/y world velocity to the base."""
+        self.push_left -= STEP_DT
+        for i in np.flatnonzero(self.push_left < 1e-6):
+            rng = self._dr_rngs[int(i)]
+            self.datas[int(i)].qvel[0:2] += rng.uniform(-PUSH_DV, PUSH_DV, 2)
+            self.push_left[i] = rng.uniform(*PUSH_INTERVAL_S)
 
     @property
     def obs(self) -> np.ndarray:
@@ -309,6 +409,9 @@ class MicroduckVelocityEnv:
 
     def _reset_env(self, i: int) -> None:
         m, d, rng = self.model, self.datas[i], self._rngs[i]
+        if self.dr:
+            self._sample_dr_reset(i)
+            self._apply_physics(i)
         mujoco.mj_resetData(m, d)
         x, y = rng.uniform(-RESET_XY, RESET_XY, 2)
         yaw = rng.uniform(-math.pi, math.pi)
@@ -391,8 +494,14 @@ class MicroduckVelocityEnv:
         gyro = np.where(self.lag[envs, 0:1], self.prev_gyro[envs], s["gyro"])
         gravity = np.where(self.lag[envs, 1:2], self.prev_gravity[envs], s["gravity"])
         joint_vel = self.prev_joint_vel[envs] if self.noise else s["joint_vel"]
+        actor_joint = joint_rel
+        if self.dr:
+            # A constant mounting rotation commutes with the one-step lag.
+            gyro = np.einsum("nij,nj->ni", self.imu_rot[envs], gyro)
+            gravity = np.einsum("nij,nj->ni", self.imu_rot[envs], gravity)
+            actor_joint = joint_rel + self.encoder_bias[envs]
         actor = np.concatenate(
-            [gyro, gravity, joint_rel, joint_vel, self.last_action[envs], cmd], axis=1
+            [gyro, gravity, actor_joint, joint_vel, self.last_action[envs], cmd], axis=1
         )
         if self.noise:
             half = NOISE_HALF_WIDTH
@@ -461,6 +570,7 @@ class MicroduckVelocityEnv:
         m = self.model
         targets = mp.DEFAULT_POSE + actions
         for i, d in enumerate(self.datas):
+            self._apply_physics(i)
             if self.bams:
                 bam = self.bams[i]
                 bam.q_target[:] = targets[i]
@@ -505,6 +615,8 @@ class MicroduckVelocityEnv:
             self._reset_env(int(j))
         if done.size:
             self._observe_into(done)
+        if self.dr:
+            self._push()
         return VelocityStepResult(
             self.obs, self.critic_obs, reward, terminated, truncated, final_obs, terms
         )

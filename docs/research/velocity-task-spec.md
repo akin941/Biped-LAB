@@ -107,6 +107,21 @@ consistent with a trained policy (tracking and upright terms near their maxima).
 - The actor's joint_vel delay is applied only with noise on; `noise=False` gives the
   clean critic terms (used by tests and diagnostics).
 
+Domain randomization (`dr=True`, off by default) implements every **DR** row with
+upstream's ranges, sampling modes and curricula. Its draws come from separate per-env
+streams, so commands and reset poses are the same as with `dr=False`. Additional
+approximations:
+- All envs share one `MjModel` (a copy is ~85 MB); each env's mass, CoM, armature and
+  foot friction are written into it before that env is reset or stepped. MuJoCo's
+  derived constants (`mj_setConst`) are not recomputed after these writes.
+- Pushes are applied at the end of a control step, after observations, so they act
+  from the next physics step; mjlab applies them just before observing.
+- Foot friction sets axis 0 of both foot geoms. MuJoCo takes the larger of the two
+  geoms' friction, and our floor has 1.0, so the effective range is [1.0, 1.3];
+  upstream trains on mjlab's terrain plane, whose friction we have not checked.
+- Upstream's base-template `base_com` event names no body for Microduck and is left
+  out.
+
 Throughput (cloud container, 8 envs, zero actions, serial): ~2600 env steps/s with
 MJCF position actuators, ~1100 with BAM. `ParallelBatchEnv(env_cls=MicroduckVelocityEnv)`
 shards it across processes with identical results.
