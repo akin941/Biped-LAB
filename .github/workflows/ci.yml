@@ -138,7 +138,7 @@ jobs:
         run: |
           mkdir -p reports/g3-1
           uv run python scripts/eval_velocity_env.py alpha_walking.onnx --envs 8 --out reports/g3-1/alpha_walking.json > /dev/null
-          uv run python -c "import json; r = json.load(open('reports/g3-1/alpha_walking.json')); [print(c['policy'], c['actuator'], c['twist'][0], 'noise' if c['noise'] else 'clean', 'falls', c['falls'], 'vx', c['vx_mean'], 'r/step', round(c['reward_per_step'], 4)) for c in r['cases']]"
+          uv run python -c "import json; r = json.load(open('reports/g3-1/alpha_walking.json')); [print(c['policy'], c['actuator'], c['twist'][0], 'noise' if c['noise'] else 'clean', 'falls', c['falls'], 'vx', c['vx_mean'], 'r/step', round(c['reward_per_step'], 4), {k: round(v / 0.02, 3) for k, v in c['terms_per_step'].items()}) for c in r['cases']]"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: policy-reports
