@@ -67,6 +67,9 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
         init=args.init,
         post=microduck_policy.POSTPROCESS_PRESETS[args.post],
         actuator=args.actuator,
+        match=microduck_policy.TrainingMatch(
+            bam_delay_steps=args.bam_delay, vin=args.vin, joint_vel_lag=args.vel_lag
+        ),
     )
     text = json.dumps(report, indent=2)
     if args.out:
@@ -231,6 +234,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
     p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
+    p.add_argument("--bam-delay", type=int, default=0, help="BAM command delay, physics steps")
+    p.add_argument("--vin", type=float, default=7.4, help="BAM supply voltage, V")
+    p.add_argument("--vel-lag", type=int, default=0, help="joint_vel observation lag, steps")
     p.set_defaults(func=_cmd_eval_policy)
 
     from bipedlab.sim.microduck_behaviours import BEHAVIOURS

@@ -94,7 +94,7 @@ jobs:
         run: uv run pytest -m policy -rs
       - name: Behaviour report
         run: |
-          mkdir -p reports
+          mkdir -p reports/wp1-11
           uv run bipedlab eval-policy alpha_walking.onnx --out reports/alpha_walking.json
           uv run bipedlab eval-policy alpha_walking.onnx --init settle --out reports/alpha_walking_settle.json
           uv run bipedlab eval-policy alpha_stand.onnx --out reports/alpha_stand.json
@@ -105,6 +105,12 @@ jobs:
           uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --model microduck-walk --out reports/alpha_walking_bam_walkscene.json
           uv run bipedlab eval-policy alpha_walking.onnx --model microduck-walk --out reports/alpha_walking_walkscene.json
           uv run bipedlab eval-behaviours --actuator bam --out reports/behaviours_bam.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 3 --out reports/wp1-11/delay3.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 6 --out reports/wp1-11/delay6.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vel-lag 1 --out reports/wp1-11/vellag1.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vin 6.5 --out reports/wp1-11/vin6.5.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vin 8.2 --out reports/wp1-11/vin8.2.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 4 --vel-lag 1 --out reports/wp1-11/delay4_vellag1.json
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --actuator bam --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_bam
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --post robotd-walking --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_robotd

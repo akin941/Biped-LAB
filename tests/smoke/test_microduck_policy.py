@@ -1,5 +1,6 @@
 """Observation/action contract checks for running Microduck ONNX policies."""
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -141,3 +142,52 @@ def test_bam_rollout_holds_default_pose(scene, tmp_path):
 def test_unknown_actuator_rejected(scene):
     with pytest.raises(ValueError):
         mp.load_model_for_policy(scene, actuator="hydraulic")
+
+
+def test_bam_command_delay_in_physics_steps(scene):
+    from bipedlab.sim import bam_xl330 as bam
+
+    model, data = mp.load_model_for_policy(scene, actuator="bam")
+    ctrl = bam.Controller(model, delay_steps=2)
+    mujoco.mj_resetDataKeyframe(model, data, model.key("STAND").id)
+    mujoco.mj_forward(model, data)
+    ctrl.reset(data)
+    start = ctrl.q_target.copy()
+    ctrl.q_target = start + 0.1
+    seen = [ctrl._delayed_target().copy() for _ in range(4)]
+    np.testing.assert_allclose(seen[0], start + 0.1)  # nothing older yet
+    ctrl2 = bam.Controller(model, delay_steps=2)
+    ctrl2.reset(data)
+    outs = []
+    for k in range(4):
+        ctrl2.q_target = start + 0.1 * k
+        outs.append(ctrl2._delayed_target()[0] - start[0])
+    np.testing.assert_allclose(outs, [0.0, 0.0, 0.0, 0.1], atol=1e-9)  # 2-step lag
+    assert len(seen) == 4
+
+
+def test_joint_vel_lag_returns_previous_step(scene):
+    model, data = mp.load_model_for_policy(scene)
+    mujoco.mj_resetDataKeyframe(model, data, model.key("STAND").id)
+    build = mp.ObservationBuilder(model, joint_vel_lag=1)
+    s = mp.OBS_SLICES["joint_vel"]
+    data.qvel[build.qvel_idx] = 1.0
+    first = build(data, np.zeros(14), np.zeros(13))[s]
+    data.qvel[build.qvel_idx] = 2.0
+    second = build(data, np.zeros(14), np.zeros(13))[s]
+    np.testing.assert_allclose(first, 1.0)  # no history: current value
+    np.testing.assert_allclose(second, 1.0)  # one control step old
+
+
+def test_training_match_requires_bam_for_delay(scene, tmp_path):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14)))
+    with pytest.raises(ValueError):
+        mp.run(scene, policy, 0.1, match=mp.TrainingMatch(bam_delay_steps=3))
+    result, _, _ = mp.run(
+        scene,
+        policy,
+        0.4,
+        actuator="bam",
+        match=mp.TrainingMatch(bam_delay_steps=4, vin=6.5, joint_vel_lag=1),
+    )
+    assert result.finite
