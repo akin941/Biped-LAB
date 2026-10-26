@@ -147,6 +147,10 @@ class Controller:
     # Command delay in physics steps (training: uniform 3..6, bam.mjlab.BamActuator
     # delay_min_lag/delay_max_lag). Upstream's CPU simulator uses none.
     delay_steps: int = 0
+    # Multiplies the velocity-independent friction budget (upstream's
+    # FrictionDRBamActuator.friction_scale, domain randomization). Viscous damping
+    # is not scaled.
+    friction_scale: float = 1.0
     act_ids: np.ndarray = field(init=False)
     joint_ids: np.ndarray = field(init=False)
     qpos_idx: np.ndarray = field(init=False)
@@ -220,5 +224,5 @@ class Controller:
                 friction[k] = forces[ids == joint].sum()
         external = external - friction
         frictionloss, damping = compute_frictions(data.qfrc_actuator[self.dof_idx], external, dq)
-        self.model.dof_frictionloss[self.dof_idx] = frictionloss
+        self.model.dof_frictionloss[self.dof_idx] = frictionloss * self.friction_scale
         self.model.dof_damping[self.dof_idx] = damping

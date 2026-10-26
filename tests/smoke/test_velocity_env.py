@@ -170,3 +170,92 @@ def test_bam_actuator_runs(scene):
     for a in small_actions(5, 2, seed=3, scale=0.1):
         out = env.step(a)
         assert np.isfinite(out.obs).all() and np.isfinite(out.reward).all()
+
+
+def test_dr_off_by_default_and_commands_unchanged_by_dr(scene):
+    plain = MicroduckVelocityEnv(scene, num_envs=3, seed=4)
+    dr = MicroduckVelocityEnv(scene, num_envs=3, seed=4, dr=True)
+    assert not plain.dr
+    # DR draws from its own streams: commands and reset poses are those of dr=False.
+    np.testing.assert_array_equal(plain.command, dr.command)
+    for a, b in zip(plain.datas, dr.datas, strict=True):
+        np.testing.assert_array_equal(a.qpos, b.qpos)
+
+
+def test_dr_parameters_in_range_and_written_per_env(scene):
+    env = MicroduckVelocityEnv(scene, num_envs=6, seed=2, dr=True, actuator="bam")
+    m = env.model
+    assert np.all((env.foot_friction >= 0.7) & (env.foot_friction <= 1.3))
+    assert np.all(np.abs(env.encoder_bias) <= 0.015)
+    assert np.all((env.mass_scale >= 0.95) & (env.mass_scale <= 1.05))
+    assert np.all(np.abs(env.trunk_com) <= 0.003) and np.all(np.abs(env.head_com) <= 0.003)
+    assert np.all((env.armature_scale >= 0.9) & (env.armature_scale <= 1.1))
+    assert len(env.head_bodies) == 5
+    for i in range(env.num_envs):
+        # A mounting rotation of at most 6 degrees.
+        angle = math.acos((np.trace(env.imu_rot[i]) - 1) / 2)
+        assert angle <= math.radians(6.0) + 1e-9
+        np.testing.assert_allclose(env.imu_rot[i] @ env.imu_rot[i].T, np.eye(3), atol=1e-12)
+        assert env.bams[i].friction_scale == env.bam_friction_scale[i]
+        assert 0.9 <= env.bam_friction_scale[i] <= 1.1
+        env._apply_physics(i)
+        t = env.trunk_id
+        assert np.all(m.geom_friction[env.foot_geoms, 0] == env.foot_friction[i])
+        np.testing.assert_allclose(m.body_mass[t], env._default_mass * env.mass_scale[i])
+        np.testing.assert_allclose(m.body_ipos[t], env._default_ipos[t] + env.trunk_com[i])
+        np.testing.assert_allclose(
+            m.dof_armature[env.hinge_dofs], env._default_armature * env.armature_scale[i]
+        )
+    assert np.ptp(env.foot_friction) > 0 and np.ptp(env.mass_scale) > 0
+    late = MicroduckVelocityEnv(scene, num_envs=16, seed=2, dr=True, common_step=1500 * 24)
+    assert np.all(np.abs(late.trunk_com) <= 0.015) and np.abs(late.trunk_com).max() > 0.01
+    assert np.all(np.abs(late.head_com) <= 0.01) and np.abs(late.head_com).max() > 0.005
+
+
+def test_dr_actor_sees_imu_rotation_and_encoder_bias(scene):
+    env = MicroduckVelocityEnv(scene, num_envs=3, seed=6, noise=False, dr=True)
+    for a in small_actions(5, 3, seed=1, scale=0.1):
+        out = env.step(a)
+        c = out.critic_obs.astype(np.float64)
+        for i in range(3):
+            for key in ("base_ang_vel", "projected_gravity"):
+                np.testing.assert_allclose(
+                    out.obs[i, S[key]], env.imu_rot[i] @ c[i, S[key]], atol=1e-5
+                )
+        np.testing.assert_allclose(
+            out.obs[:, S["joint_pos_rel"]] - c[:, S["joint_pos_rel"]], env.encoder_bias, atol=1e-5
+        )
+        np.testing.assert_array_equal(out.obs[:, S["joint_vel"]], out.critic_obs[:, S["joint_vel"]])
+
+
+def test_dr_push_adds_bounded_planar_velocity(scene):
+    env = MicroduckVelocityEnv(scene, num_envs=2, seed=3, dr=True)
+    assert np.all((env.push_left >= 3.0) & (env.push_left <= 6.0))
+    env.push_left[:] = [0.01, 10.0]
+    before = [d.qvel.copy() for d in env.datas]
+    env._push()
+    dv = env.datas[0].qvel - before[0]
+    assert np.all(np.abs(dv[0:2]) <= 0.3) and np.any(dv[0:2] != 0) and np.all(dv[2:] == 0)
+    np.testing.assert_array_equal(env.datas[1].qvel, before[1])
+    assert 3.0 <= env.push_left[0] <= 6.0
+
+
+def test_dr_deterministic_shards_and_parallel(scene):
+    actions = small_actions(20, 4, seed=5)
+    kw = {"seed": 8, "dr": True, "actuator": "bam"}
+    full = MicroduckVelocityEnv(scene, num_envs=4, **kw)
+    a = MicroduckVelocityEnv(scene, num_envs=2, first_env=0, **kw)
+    b = MicroduckVelocityEnv(scene, num_envs=2, first_env=2, **kw)
+    plain = MicroduckVelocityEnv(scene, num_envs=4, seed=8, actuator="bam")
+    with ParallelBatchEnv(
+        scene, 4, workers=2, episode_s=20.0, env_cls=MicroduckVelocityEnv, **kw
+    ) as par:
+        differs = False
+        for act in actions:
+            out, p = full.step(act), par.step(act)
+            oa, ob = a.step(act[:2]), b.step(act[2:])
+            np.testing.assert_array_equal(out.obs, p.obs)
+            halves = np.concatenate([oa.critic_obs, ob.critic_obs])
+            np.testing.assert_array_equal(out.critic_obs, halves)
+            differs |= not np.array_equal(out.critic_obs, plain.step(act).critic_obs)
+    assert differs  # DR changes the physics

@@ -210,7 +210,12 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     infos = (resume or {}).get("infos") or {}
     common_step = int(infos.get("common_step", 0))
     first_iter = int(infos.get("iterations", 0))
-    kwargs = {"seed": args.seed, "actuator": args.actuator, "common_step": common_step}
+    kwargs = {
+        "seed": args.seed,
+        "actuator": args.actuator,
+        "common_step": common_step,
+        "dr": args.dr,
+    }
     env: Any = (
         ParallelBatchEnv(
             scene, args.envs, args.workers, episode_s=20.0, env_cls=MicroduckVelocityEnv, **kwargs
@@ -246,6 +251,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "envs": args.envs,
         "workers": args.workers,
         "actuator": args.actuator,
+        "dr": args.dr,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -263,6 +269,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=0, help="env processes (0 = serial)")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf")
+    parser.add_argument("--dr", action="store_true", help="domain randomization on")
     parser.add_argument("--threads", type=int, default=None, help="torch.set_num_threads")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
