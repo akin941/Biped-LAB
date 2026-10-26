@@ -95,6 +95,7 @@ jobs:
           uv run bipedlab eval-policy alpha_walking.onnx --out reports/alpha_walking.json
           uv run bipedlab eval-policy alpha_walking.onnx --init settle --out reports/alpha_walking_settle.json
           uv run bipedlab eval-policy alpha_stand.onnx --out reports/alpha_stand.json
+          uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: policy-reports

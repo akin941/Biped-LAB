@@ -6,6 +6,9 @@ import argparse
 import json
 from pathlib import Path
 
+import mujoco
+import numpy as np
+
 from bipedlab import upstream
 from bipedlab.sim import model as sim_model
 from bipedlab.sim import rollout as sim_rollout
@@ -123,6 +126,54 @@ def _cmd_view(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_record(args: argparse.Namespace) -> int:
+    from bipedlab import policies
+    from bipedlab.sim import microduck_policy as mp
+    from bipedlab.telemetry import recorder as rec
+
+    path = Path(args.policy)
+    if not path.exists():
+        path = policies.verified_path(args.policy)
+    command = np.zeros(mp.CMD_DIM, dtype=np.float32)
+    command[0:3] = args.twist
+    holder: dict[str, rec.Recorder] = {}
+
+    def wrap(model: mujoco.MjModel, control: rec.ControlFn) -> rec.ControlFn:
+        holder["r"] = rec.Recorder(model, control, command=lambda: command)
+        return holder["r"]
+
+    mp.run(
+        _resolve(args.model),
+        mp.OnnxPolicy(path),
+        args.seconds,
+        twist=tuple(args.twist),
+        init=args.init,
+        recorder=wrap,
+    )
+    meta = {
+        "policy": path.name,
+        "twist": args.twist,
+        "init": args.init,
+        "actuator": "mjcf-position",
+        "env_label": args.env_label,
+    }
+    out = holder["r"].save(args.out, meta=meta)
+    if args.html:
+        from bipedlab.telemetry import report
+
+        report.write(out)
+    summary = rec.summarize(holder["r"].arrays())
+    print(json.dumps({"file": str(out), **meta, "summary": summary}, indent=2))
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    from bipedlab.telemetry import report
+
+    print(report.write(args.recording, args.out))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="bipedlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -145,6 +196,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", help="also write the JSON report here")
     p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
     p.set_defaults(func=_cmd_eval_policy)
+
+    p = sub.add_parser("record", help="run a Microduck policy and save per-step telemetry")
+    p.add_argument("policy", help="ONNX path, or a file name from the policy lock")
+    p.add_argument("--model", default="microduck")
+    p.add_argument(
+        "--twist", type=float, nargs=3, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "WZ")
+    )
+    p.add_argument("--seconds", type=float, default=10.0)
+    p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
+    p.add_argument("--out", default="runs/record.npz")
+    p.add_argument(
+        "--env-label",
+        default="unlabelled",
+        choices=["unlabelled", "cloud", "gha-linux", "gha-macos", "mac-m5", "self-hosted"],
+    )
+    p.add_argument("--html", action="store_true", help="also write an HTML report next to it")
+    p.set_defaults(func=_cmd_record)
+
+    p = sub.add_parser("report", help="turn a telemetry .npz into a self-contained HTML report")
+    p.add_argument("recording")
+    p.add_argument("--out")
+    p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("bench", help="measure CPU simulation speed (label the environment!)")
     p.add_argument("model", nargs="?", default="microduck")

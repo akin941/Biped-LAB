@@ -97,3 +97,19 @@ def test_unknown_init_rejected(scene, tmp_path):
     policy = mp.OnnxPolicy(linear_policy(tmp_path / "p.onnx", np.zeros((61, 14)), np.zeros(14)))
     with pytest.raises(ValueError, match="init"):
         mp.run(scene, policy, duration_s=0.04, init="bogus")
+
+
+def test_record_microduck_telemetry(scene, tmp_path):
+    from bipedlab.telemetry import recorder as rec
+
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "p.onnx", np.zeros((61, 14)), np.zeros(14)))
+    holder = {}
+
+    def wrap(model, control):
+        holder["r"] = rec.Recorder(model, control)
+        return holder["r"]
+
+    mp.run(scene, policy, duration_s=0.4, recorder=wrap)
+    arrays = holder["r"].arrays()
+    assert arrays["joint_pos"].shape == (20, 14)
+    assert arrays["foot_contact"].any(axis=0).all()  # Microduck feet found via foot sites
