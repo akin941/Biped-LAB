@@ -193,5 +193,32 @@ notes:
 
 ---
 
+## MAC-08 — Rust runtime drives the sim on the M5 (WP4-04, gate G4.4)
+Status: `awaiting-mac` · Deps: MAC-01
+
+G4.4 needs the runtime-in-the-loop run on the M5 as well as on gha-linux. Rust
+from Homebrew (review: Homebrew formula; do **not** use the rustup curl-pipe
+script):
+```bash
+brew install rust
+rustc --version && cargo --version
+(cd runtime && cargo test --locked && cargo build --locked --release)
+BIPEDLAB_REQUIRE_RUNTIME=1 uv run pytest -m runtime -rs
+uv run python scripts/runtime_sim.py --seconds 30 --realtime --out /tmp/mac08-realtime.json
+```
+**Acceptance (G4.4, mac-m5 part):** all `runtime` tests pass; in the 30 s
+real-time run, 1500 periods, `deadline_misses` ≤ 15 (1 %), no latched fault.
+
+Result:
+```
+revision:
+rustc version:
+pytest -m runtime:
+realtime 30 s (periods, deadline_misses, period_max_us, compute_mean_us):
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
