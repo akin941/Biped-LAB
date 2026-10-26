@@ -61,3 +61,20 @@ def test_rejects_bad_actions(scene):
         env.step(np.zeros((1, mp.ACT_DIM)))
     with pytest.raises(ValueError, match="finite"):
         env.step(np.full((2, mp.ACT_DIM), np.nan))
+
+
+def test_batched_observation_matches_observation_builder(scene):
+    env = MicroduckBatchEnv(scene, num_envs=4, seed=5)
+    actions = np.random.default_rng(2).uniform(-0.4, 0.4, (15, 4, mp.ACT_DIM))
+    for a in actions:
+        last = env.last_action.copy()
+        out = env.step(a)
+        for i, d in enumerate(env.datas):
+            if out.terminated[i] or out.truncated[i]:
+                continue  # env i was reset after the step
+            # Bitwise equal to the per-env builder the ONNX evaluation uses.
+            expected = env.observe(d, env.last_action[i], env.command)
+            np.testing.assert_array_equal(out.obs[i], expected)
+            gz = float(expected[mp.OBS_SLICES["projected_gravity"]][2])
+            rate = float(np.sum(np.square(a[i].astype(np.float32) - last[i])))
+            np.testing.assert_allclose(out.reward[i], 1.0 - gz - 0.05 * rate, rtol=1e-6)

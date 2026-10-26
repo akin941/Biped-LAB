@@ -70,6 +70,11 @@ jobs:
           else sysctl hw.physicalcpu hw.logicalcpu machdep.cpu.brand_string; fi
           uv run bipedlab bench microduck --env-label "$label" --seconds 4 \
             --num-envs 128 --env-workers 0 1 2 "$cores"
+      - name: Batch env speed A/B against main (evidence only)
+        run: |
+          git fetch --depth 1 origin main
+          git show FETCH_HEAD:src/bipedlab/rl/batch_env.py > "$RUNNER_TEMP/old_batch_env.py"
+          uv run python scripts/ab_batch_env.py "$RUNNER_TEMP/old_batch_env.py" --rounds 3
       - name: Environment record
         if: always()
         run: |
