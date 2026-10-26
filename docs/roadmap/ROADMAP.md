@@ -19,6 +19,9 @@ gate item has evidence in the named environment.
   - G1.2 official `alpha_walking`/`alpha_stand` run through our 61/14 runner, contract verified — `gha-linux`
   - G1.3 with the BAM actuator, `alpha_stand` stands ≥ 20 s and `alpha_walking` tracks
     vx = 0.2 m/s within ±30 % over 10 s without falling — `gha-linux` and `mac-m5`
+    - Status 2026-10-26 (`gha-linux`): **fails** with the official `alpha_walking`; its own
+      upstream sim eval gives 0.4 → 0.17 m/s, which we reproduce (0.155). The gate stays as
+      written; it needs a better policy (see `docs/experiments/2026-10-26-wp1-13-walking-command-response.md`).
   - G1.4 walking, turning, sit/stand, recovery behaviours characterized in a report — `gha-linux`
   - G1.5 interactive viewer of the policy on the M5 — `mac-m5`
   - G1.6 cross-check against the official HF Space visually (owner) — `mac-m5`
