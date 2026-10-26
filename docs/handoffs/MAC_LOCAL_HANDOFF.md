@@ -109,6 +109,32 @@ Result:
 notes:
 ```
 
+## MAC-07 — PPO library throughput on Apple Silicon (WP3-01)
+Status: `awaiting-mac` · Deps: MAC-01
+
+Same benchmark that chose rsl-rl in ADR-0012 (cloud numbers there). torch and the
+libraries are not project dependencies yet, so they go into the project venv by hand
+(PyPI wheels only; macOS torch is CPU/MPS, no CUDA download):
+```bash
+uv pip install torch==2.9.1 tensordict==0.10.0 rsl-rl-lib==5.0.1 torchvision==0.24.1 \
+    onnxscript==0.5.7 gitpython==3.1.46 stable-baselines3==2.7.1
+uv run python scripts/bench_ppo.py --envs 16 64 256 --iters 20 --out /tmp/wp3-01-mac.json
+uv run python scripts/bench_ppo.py --envs 256 --iters 20 --threads 1 --out /tmp/wp3-01-mac-t1.json
+```
+**Expected:** two JSON reports. Cloud (4 vCPU Xeon 2.1 GHz) measured ~2.2–2.9k raw env
+steps/s and ~1.8–1.9k PPO samples/s at 256 envs for both libraries — reference only.
+**Acceptance:** both JSONs pasted below (or committed under `docs/experiments/`); note
+whether rsl-rl and SB3 stay within ~10 % of each other on the M5. If SB3 is clearly
+faster on the Mac, reopen ADR-0012.
+
+Result:
+```
+revision:
+raw_env (num_envs: steps/s):
+ppo (library, num_envs: samples/s, non_env_fraction):
+threads=1 run:
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
