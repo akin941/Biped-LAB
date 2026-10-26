@@ -72,6 +72,18 @@ def _cmd_eval_policy(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_eval_behaviours(args: argparse.Namespace) -> int:
+    from bipedlab import policies
+    from bipedlab.sim import microduck_behaviours
+
+    report = microduck_behaviours.evaluate(policies.verified_path, names=args.only or None)
+    text = json.dumps(report, indent=2)
+    if args.out:
+        Path(args.out).write_text(text + "\n")
+    print(text)
+    return 0
+
+
 def _cmd_bench(args: argparse.Namespace) -> int:
     from bipedlab import bench
 
@@ -212,6 +224,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
     p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.set_defaults(func=_cmd_eval_policy)
+
+    from bipedlab.sim.microduck_behaviours import BEHAVIOURS
+
+    p = sub.add_parser(
+        "eval-behaviours", help="run sit/stand, ground pick, kicks and roulade policies"
+    )
+    p.add_argument("--only", nargs="+", choices=list(BEHAVIOURS), help="subset to run")
+    p.add_argument("--out", help="also write the JSON report here")
+    p.set_defaults(func=_cmd_eval_behaviours)
 
     p = sub.add_parser("record", help="run a Microduck policy and save per-step telemetry")
     p.add_argument("policy", help="ONNX path, or a file name from the policy lock")
