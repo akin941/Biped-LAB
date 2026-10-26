@@ -138,8 +138,60 @@ threads=1 run:
 workers=4 PPO run, env scaling (bench --env-workers):
 ```
 
+## MAC-06 — First full PPO training run on the M5 (WP3-04, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-01 (MAC-07 helps choose `--workers`)
+
+Trains a walking policy from scratch on the WP3-02 velocity env (upstream's flat
+velocity task, CPU MuJoCo). The training stack is the same as MAC-07 (PyPI wheels;
+on macOS torch is CPU/MPS only). The run is resumable, so it can be split over
+several sessions. Plug the Mac in and keep it awake (`caffeinate -dims` in a second
+terminal).
+
+```bash
+uv sync --extra policy
+uv pip install torch==2.9.1 tensordict==0.10.0 rsl-rl-lib==5.0.1 torchvision==0.24.1 \
+    onnxscript==0.5.7 gitpython==3.1.46
+uv run python scripts/fetch_upstream.py microduck_rl
+# 1) quick timing: 20 iterations, pick the --workers value with the best samples/s
+for w in 4 8; do
+  uv run python scripts/train_ppo.py --envs 256 --iters 20 --workers $w --out /tmp/mac06-w$w.json
+done
+# 2) the run itself: 3000 iterations (~18 M samples), checkpoint every 100
+uv run python scripts/train_ppo.py --envs 256 --iters 3000 --workers <best> --seed 0 \
+    --run-dir runs/mac06-seed0 --save-every 100 --out runs/mac06-seed0/report.json
+# resume after an interruption (from the newest model_<n>.pt):
+#   uv run python scripts/train_ppo.py --envs 256 --iters <3000-n> --workers <best> \
+#       --seed 0 --run-dir runs/mac06-seed0 --save-every 100 --resume runs/mac06-seed0/model_<n>.pt
+# 3) evaluate the exported policy in the same runner as the official one (G3.5)
+uv run python scripts/eval_velocity_env.py runs/mac06-seed0/policy.onnx --envs 8 \
+    --out runs/mac06-seed0/eval.json
+uv run bipedlab eval-policy runs/mac06-seed0/policy.onnx --model microduck-walk --actuator bam \
+    --repeats 4 --out runs/mac06-seed0/g1-3.json
+```
+Upstream trained `alpha_walking` with ~4.9 × 10⁹ samples on a GPU. 18 M samples is
+about 0.4 % of that, so this first run may only learn to stand or shuffle. That is a
+result too: record it honestly. **Do not** commit `runs/` (large binaries). Commit
+only `run.json`, `report.json` and the eval JSONs under
+`docs/experiments/mac06/`, and record the sha256 of `policy.onnx` from `run.json`.
+
+**Acceptance (G3.3):** the trained policy stands, and walks forward at the G1.3
+thresholds (ADR-0011), on the M5. MPS is not tried in this task: the network is
+small and the env runs on CPU. If CPU training is clearly too slow, note it and we
+add a `--device mps` option.
+
+Result:
+```
+revision:
+timing (workers: samples/s):
+wall time for 3000 iterations:
+reward/step first -> last quarter:
+eval.json (vx at 0.4 cmd, falls):
+g1-3.json summary:
+policy.onnx sha256:
+notes:
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
-- MAC-06 PPO training on CPU vs MPS (after WP3-03)
