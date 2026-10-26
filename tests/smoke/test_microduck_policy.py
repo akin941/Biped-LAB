@@ -126,3 +126,18 @@ def test_eval_policy_cli_with_postprocess(scene, tmp_path):
     report = json.loads(out.read_text())
     assert report["postprocess"]["action_scale"] == 0.9
     assert report["postprocess"]["legs_lowpass"] == 0.7
+
+
+def test_bam_rollout_holds_default_pose(scene, tmp_path):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14)))
+    result, ctrl, _ = mp.run(scene, policy, duration_s=1.0, actuator="bam")
+    assert result.finite
+    assert ctrl.bam is not None
+    np.testing.assert_allclose(ctrl.bam.q_target, mp.DEFAULT_POSE)
+    assert 6.0 <= ctrl.bam.last_vin <= 7.4  # voltage sag model active and floored
+    assert np.abs(ctrl.bam.last_torque).max() <= 0.97
+
+
+def test_unknown_actuator_rejected(scene):
+    with pytest.raises(ValueError):
+        mp.load_model_for_policy(scene, actuator="hydraulic")

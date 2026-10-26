@@ -79,6 +79,7 @@ def rollout(
     control: ControlFn | None = None,
     settle: bool = True,
     init: ControlFn | None = None,
+    substep: ControlFn | None = None,
 ) -> RolloutResult:
     """Reset to ``keyframe`` and simulate, calling ``control`` at ``control_hz``.
 
@@ -87,7 +88,8 @@ def rollout(
 
     The root body must be the first joint and free (qpos[0:7] = pos + quat).
     Without ``control`` the keyframe's ctrl is held. ``init`` may edit the state
-    after the keyframe reset (before optional settling).
+    after the keyframe reset (before optional settling). ``substep`` runs before
+    every physics step (e.g. an actuator model that recomputes torque each step).
     """
     if model.jnt_type[0] != mujoco.mjtJoint.mjJNT_FREE:
         raise ValueError("rollout expects a free-floating root as the first joint")
@@ -113,7 +115,12 @@ def rollout(
     fall_time = None
     for i in range(n):
         control(model, data)
-        mujoco.mj_step(model, data, nstep=substeps)
+        if substep is None:
+            mujoco.mj_step(model, data, nstep=substeps)
+        else:
+            for _ in range(substeps):
+                substep(model, data)
+                mujoco.mj_step(model, data)
         times[i] = data.time
         heights[i] = data.qpos[2]
         tilts[i] = tilt_deg(data.qpos[3:7])

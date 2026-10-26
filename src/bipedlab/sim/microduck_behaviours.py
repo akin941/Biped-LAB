@@ -12,8 +12,8 @@ pinned sha drives each behaviour policy through the 13-D command:
 
 Upstream hands control back to the walking/standing policy when a behaviour ends;
 here each run stops at that point and reports the state, so a result describes
-the behaviour policy alone. The actuator caveat of ``microduck_policy`` applies
-(MJCF position actuators, not BAM).
+the behaviour policy alone. Runs with MJCF position actuators by default or
+the BAM XL330 port (``actuator="bam"``), as in ``microduck_policy``.
 """
 
 from __future__ import annotations
@@ -143,7 +143,7 @@ def place_ball(side: str) -> mp.ControlFn:
 
 
 def run_behaviour(
-    name: str, policy_path: str | Path, scene_dir: Path | None = None
+    name: str, policy_path: str | Path, scene_dir: Path | None = None, actuator: str = "mjcf"
 ) -> dict[str, Any]:
     """Run one behaviour from the upstream start state; return plain-number metrics."""
     b = BEHAVIOURS[name]
@@ -178,6 +178,7 @@ def run_behaviour(
         recorder=recorder,
         command_fn=b.command,
         after_init=after,
+        actuator=actuator,
     )
     final_tilt = float(result.tilt_deg[-1])
     report: dict[str, Any] = {
@@ -200,14 +201,18 @@ def run_behaviour(
     return report
 
 
-def evaluate(lookup: Callable[[str], Path], names: list[str] | None = None) -> dict[str, Any]:
+def evaluate(
+    lookup: Callable[[str], Path], names: list[str] | None = None, actuator: str = "mjcf"
+) -> dict[str, Any]:
     """Run the named behaviours (default: all); ``lookup(file)`` gives the weights."""
     out: dict[str, Any] = {
-        "actuator": "mjcf-position (not BAM; known sim-to-sim gap)",
+        "actuator": mp.ACTUATOR_LABELS[actuator],
         "init": "upstream",
         "mujoco": mujoco.__version__,
         "behaviours": {},
     }
     for name in names or list(BEHAVIOURS):
-        out["behaviours"][name] = run_behaviour(name, lookup(BEHAVIOURS[name].policy))
+        out["behaviours"][name] = run_behaviour(
+            name, lookup(BEHAVIOURS[name].policy), actuator=actuator
+        )
     return out

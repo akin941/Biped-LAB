@@ -15,10 +15,10 @@ pollen-robotics/microduck_rl ``scripts/infer_policy.py`` at the pinned sha:
 
 Joint order is the MJCF actuator order (left leg 0-4, neck/head 5-8, right leg 9-13).
 
-Actuator caveat: training uses the BAM XL330 model; here we drive MuJoCo's
-position actuators (upstream's ``--no-bam`` path). That is a known sim-to-sim
-gap, so results from this module are labelled ``actuator="mjcf-position"``.
-See docs/research/microduck_rl.md.
+Actuators: training uses the BAM XL330 model. ``actuator="mjcf"`` drives MuJoCo's
+position actuators (upstream's ``--no-bam`` path, a known sim-to-sim gap);
+``actuator="bam"`` uses our port of BAM M6 (upstream's default CPU path, see
+``bam_xl330``). Every report names the actuator it used.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from typing import Any
 import mujoco
 import numpy as np
 
+from bipedlab.sim import bam_xl330
 from bipedlab.sim import rollout as sim_rollout
 
 ControlFn = Callable[[mujoco.MjModel, mujoco.MjData], None]
@@ -212,8 +213,13 @@ class PolicyController:
     command: np.ndarray = field(default_factory=lambda: np.zeros(CMD_DIM, dtype=np.float32))
     last_action: np.ndarray = field(default_factory=lambda: np.zeros(ACT_DIM, dtype=np.float32))
     post: PostProcess = field(default_factory=PostProcess)
+    bam: bam_xl330.Controller | None = None
     log: list[dict[str, np.ndarray]] = field(default_factory=list)
     _previous: np.ndarray | None = field(default=None, init=False, repr=False)
+
+    @property
+    def last_target(self) -> np.ndarray:
+        return DEFAULT_POSE.copy() if self._previous is None else self._previous
 
     def __call__(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
         obs = self.observe(data, self.last_action, self.command)
@@ -221,13 +227,31 @@ class PolicyController:
         self.last_action = action
         target = self.post.targets(action, self._previous)
         self._previous = target
-        data.ctrl[:] = target
+        if self.bam is None:
+            data.ctrl[:] = target
+        else:
+            self.bam.q_target[:] = target
         self.log.append({"obs": obs, "action": action})
 
 
-def load_model_for_policy(scene: str | Path) -> tuple[mujoco.MjModel, mujoco.MjData]:
-    model = mujoco.MjModel.from_xml_path(str(scene))
-    model.opt.timestep = PHYSICS_DT  # upstream infer_policy.py overrides 0.002 -> 0.005
+ACTUATORS = ("mjcf", "bam")
+ACTUATOR_LABELS = {
+    "mjcf": "mjcf-position (not BAM; known sim-to-sim gap)",
+    "bam": f"bam-xl330-m6 (CPU port of {bam_xl330.BAM_SOURCE}; vin 7.4 V, drop gain 0.1)",
+}
+
+
+def load_model_for_policy(
+    scene: str | Path, actuator: str = "mjcf"
+) -> tuple[mujoco.MjModel, mujoco.MjData]:
+    """Load ``scene`` at the policy timestep with MJCF position actuators or BAM motors."""
+    if actuator not in ACTUATORS:
+        raise ValueError(f"actuator must be one of {ACTUATORS}")
+    if actuator == "bam":
+        model = bam_xl330.load_model(scene, PHYSICS_DT)
+    else:
+        model = mujoco.MjModel.from_xml_path(str(scene))
+        model.opt.timestep = PHYSICS_DT  # upstream infer_policy.py overrides 0.002 -> 0.005
     return model, mujoco.MjData(model)
 
 
@@ -257,6 +281,7 @@ def run(
     post: PostProcess | None = None,
     command_fn: Callable[[float], np.ndarray] | None = None,
     after_init: ControlFn | None = None,
+    actuator: str = "mjcf",
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
     """Roll out ``policy`` with a constant twist command; return metrics.
 
@@ -267,10 +292,12 @@ def run(
     ``command_fn(t)`` replaces the constant twist with a full 13-D command as a
     function of seconds since the first control step (phase-encoded behaviours).
     ``after_init`` edits the state after the start pose is set (e.g. place a ball).
+    ``actuator="bam"`` drives BAM XL330 motors (torque recomputed every physics step).
     """
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
-    model, data = load_model_for_policy(scene)
+    model, data = load_model_for_policy(scene, actuator)
+    bam = bam_xl330.Controller(model) if actuator == "bam" else None
     command = np.zeros(CMD_DIM, dtype=np.float32)
     command[0:3] = twist
     ctrl = PolicyController(
@@ -278,6 +305,7 @@ def run(
         observe=ObservationBuilder(model),
         command=command,
         post=post or PostProcess(),
+        bam=bam,
     )
     start = None
     t0 = 0.0
@@ -286,6 +314,8 @@ def run(
         nonlocal start, t0
         if start is None:
             start, t0 = d.qpos[0:2].copy(), d.time
+            if bam is not None:
+                bam.reset(d)  # after init/settle, as upstream resets after its init
         if command_fn is not None:
             ctrl.command[:] = command_fn(d.time - t0)
         ctrl(m, d)
@@ -297,6 +327,10 @@ def run(
             after_init(m, d)
 
     loop: ControlFn = control if recorder is None else recorder(model, control)
+    from bipedlab.telemetry.recorder import Recorder
+
+    if isinstance(loop, Recorder) and loop.target is None:
+        loop.target = lambda: ctrl.last_target
     result = sim_rollout.rollout(
         model,
         data,
@@ -306,6 +340,7 @@ def run(
         control=loop,
         settle=init == "settle",
         init=init_fn if init == "upstream" or after_init is not None else None,
+        substep=None if bam is None else (lambda m, d: bam.update(d)),
     )
     assert start is not None
     displacement = data.qpos[0:2] - start
@@ -332,6 +367,7 @@ def evaluate(
     policy_path: str | Path,
     init: str = "upstream",
     post: PostProcess | None = None,
+    actuator: str = "mjcf",
 ) -> dict[str, Any]:
     """Characterize a policy over SCENARIOS (labelled with the actuator model used)."""
     policy = OnnxPolicy(policy_path)
@@ -339,7 +375,7 @@ def evaluate(
     report: dict[str, Any] = {
         "policy": Path(policy_path).name,
         "scene": Path(scene).name,
-        "actuator": "mjcf-position (not BAM; known sim-to-sim gap)",
+        "actuator": ACTUATOR_LABELS[actuator],
         "init": init,
         "postprocess": post.describe(),
         "physics_dt": PHYSICS_DT,
@@ -348,7 +384,9 @@ def evaluate(
         "scenarios": {},
     }
     for name, (twist, duration) in SCENARIOS.items():
-        result, ctrl, extra = run(scene, policy, duration, twist=twist, init=init, post=post)
+        result, ctrl, extra = run(
+            scene, policy, duration, twist=twist, init=init, post=post, actuator=actuator
+        )
         yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
         report["scenarios"][name] = {
             "command": twist,

@@ -14,3 +14,4 @@ update the old one's status line only.
 | [0007](ADR-0007-rust-scope.md) | Rust only for the on-robot runtime, adopted in Phase 4 | accepted |
 | [0008](ADR-0008-evidence-environments.md) | Every result is labelled with the environment that produced it | accepted |
 | [0009](ADR-0009-no-ros2-docker-yet.md) | No ROS 2 now; Docker only for reproducible Linux CI if needed | accepted |
+| [0010](ADR-0010-bam-actuator-port.md) | BAM XL330 actuator as a reviewed in-repo port, not an installed package | accepted |

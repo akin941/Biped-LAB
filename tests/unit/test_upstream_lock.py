@@ -5,7 +5,7 @@ from bipedlab import upstream
 
 def test_lockfile_pins_full_shas():
     repos = upstream.load_lock()
-    assert set(repos) == {"microduck", "microduck_rl", "microduck-lab"}
+    assert set(repos) == {"microduck", "microduck_rl", "microduck-lab", "bam"}
     for repo in repos.values():
         assert len(repo.rev) == 40
 
