@@ -36,5 +36,29 @@ spec's Implementation section.
 - `alpha_walking` under DR: run in CI (gha-linux) because the weights cannot be
   fetched in the cloud container. Results below.
 
-## alpha_walking under DR (gha-linux)
-Pending the CI run of this PR.
+## alpha_walking under DR (gha-linux, PR #21 CI, job `pretrained-policy`)
+`eval_velocity_env.py alpha_walking.onnx --envs 16 --actuators bam --dr`: BAM, 16 envs,
+10 s, frozen commands, end-of-curriculum DR ranges (CoM ±15 / ±10 mm).
+
+| Policy | Command vx | Obs noise | Falls / 16 | Mean vx (m/s) | Reward / step |
+|---|---|---|---|---|---|
+| alpha_walking | 0.4 | on | 0 | 0.187 | 0.140 |
+| alpha_walking | 0.4 | off | 0 | 0.182 | 0.128 |
+| alpha_walking | 0 | on | 0 | −0.004 | 0.172 |
+| alpha_walking | 0 | off | 0 | −0.008 | 0.171 |
+| zero action | 0.4 | on | 16 | — | 0.119 |
+
+Without DR (same CI run, 8 envs) the 0.4 m/s rows give 0.182 / 0.169 m/s and 0.147 /
+0.132 reward per step. Under DR the official policy still walks at the same speed with
+no falls, and loses ~5 % reward per step: upright 1.82 vs 1.89 and angular tracking
+0.76 vs 0.85 (per second, of 2.0). At a zero command it still holds still, with every
+positive term within 5 % of its maximum. That is what a policy trained under these
+randomizations should show, so the DR magnitudes are consistent with upstream's.
+The zero-action baseline falls in every env.
+
+The PPO smoke job with DR (`ppo-smoke (seed 0, dr)`, gha-linux) passed its
+`--require-rise` check.
+
+## Verdict
+WP3-08 acceptance criteria are met. The DR ablation itself (train with and without,
+G3.4) needs a full training run and stays in WP3-05 (Mac).
