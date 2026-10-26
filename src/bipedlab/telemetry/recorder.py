@@ -61,6 +61,7 @@ class Recorder:
         self._qpos = m.jnt_qposadr[joints].astype(int)
         self._qvel = m.jnt_dofadr[joints].astype(int)
         self._feet = [self._body_id(name) for name in self.foot_bodies]
+        self.joint_names = [m.joint(int(j)).name for j in joints]
         self.rows = {name: [] for name in CHANNELS}
 
     def _body_id(self, name: str) -> int:
@@ -135,6 +136,7 @@ class Recorder:
                 }
                 for name in arrays
             },
+            "joint_names": self.joint_names,
             "meta": meta or {},
         }
         path.with_suffix(".json").write_text(json.dumps(sidecar, indent=2) + "\n")
@@ -177,6 +179,58 @@ def summarize(arrays: dict[str, np.ndarray], fall_tilt_deg: float = 60.0) -> dic
         )
         summary["yaw_tracking_error_rps"] = float(np.abs(arrays["gyro"][:, 2] - cmd[:, 2]).mean())
     return summary
+
+
+def profile(
+    arrays: dict[str, np.ndarray],
+    joint_names: list[str] | None = None,
+    every_s: float = 0.5,
+    torque_limit_nm: float | None = None,
+) -> dict[str, Any]:
+    """Text-sized view of a recording: trunk state over time and per-joint effort.
+
+    ``timeline`` samples tilt, height, forward speed and the largest |target - pos|
+    every ``every_s``. ``joints`` gives, per joint, the target range, the mean
+    tracking error and (with ``torque_limit_nm``) the fraction of steps at the limit.
+    """
+    t = arrays["time"]
+    pos, target, torque = arrays["joint_pos"], arrays["joint_target"], arrays["joint_torque"]
+    err = target - pos
+    period = float(np.median(np.diff(t))) if len(t) > 1 else every_s
+    stride = max(1, round(every_s / period))
+    quat = arrays["trunk_quat"]
+    # Signed forward pitch from the quaternion (w, x, y, z); positive = nose down.
+    pitch = np.degrees(
+        np.arcsin(np.clip(2 * (quat[:, 0] * quat[:, 2] - quat[:, 3] * quat[:, 1]), -1, 1))
+    )
+    timeline = [
+        {
+            "t": round(float(t[i]), 2),
+            "tilt_deg": round(float(arrays["tilt"][i]), 1),
+            "pitch_deg": round(float(pitch[i]), 1),
+            "height_m": round(float(arrays["trunk_pos"][i, 2]), 3),
+            "vx_mps": round(float(arrays["lin_vel_body"][i, 0]), 3),
+            "worst_joint_err_rad": round(float(np.abs(err[i]).max()), 3),
+        }
+        for i in range(0, len(t), stride)
+    ]
+    names = joint_names or [f"j{k}" for k in range(pos.shape[1])]
+    joints: dict[str, dict[str, float]] = {}
+    for k, name in enumerate(names):
+        row = {
+            "target_min": round(float(target[:, k].min()), 3),
+            "target_max": round(float(target[:, k].max()), 3),
+            "pos_min": round(float(pos[:, k].min()), 3),
+            "pos_max": round(float(pos[:, k].max()), 3),
+            "mean_abs_err": round(float(np.abs(err[:, k]).mean()), 3),
+            "peak_abs_torque": round(float(np.abs(torque[:, k]).max()), 3),
+        }
+        if torque_limit_nm is not None:
+            row["at_limit"] = round(
+                float((np.abs(torque[:, k]) >= 0.99 * torque_limit_nm).mean()), 3
+            )
+        joints[name] = row
+    return {"timeline": timeline, "joints": joints}
 
 
 def timing(arrays: dict[str, np.ndarray], control_hz: float = 50.0) -> dict[str, Any]:
