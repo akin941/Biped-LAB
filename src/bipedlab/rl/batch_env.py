@@ -42,6 +42,10 @@ class MicroduckBatchEnv:
     num_envs: int
     episode_s: float = 10.0
     seed: int = 0
+    # Global index of this batch's first env. Each env draws reset noise from its own
+    # stream seeded by (seed, global index), so a batch split into shards (see
+    # ``parallel_env``) produces exactly the same episodes as one serial batch.
+    first_env: int = 0
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
     episode_steps: np.ndarray = field(init=False, repr=False)
@@ -57,7 +61,9 @@ class MicroduckBatchEnv:
         self.datas = [mujoco.MjData(self.model) for _ in range(self.num_envs)]
         self.episode_steps = np.zeros(self.num_envs, dtype=np.int64)
         self.last_action = np.zeros((self.num_envs, mp.ACT_DIM), dtype=np.float32)
-        self._rng = np.random.default_rng(self.seed)
+        self._rngs = [
+            np.random.default_rng([self.seed, self.first_env + i]) for i in range(self.num_envs)
+        ]
         self._obs = np.zeros((self.num_envs, mp.OBS_DIM), dtype=np.float32)
         for i in range(self.num_envs):
             self._reset_env(i)
@@ -70,7 +76,7 @@ class MicroduckBatchEnv:
         d = self.datas[i]
         mujoco.mj_resetData(self.model, d)
         mp.upstream_init(self.model, d)
-        noise = self._rng.uniform(-RESET_NOISE_RAD, RESET_NOISE_RAD, mp.ACT_DIM)
+        noise = self._rngs[i].uniform(-RESET_NOISE_RAD, RESET_NOISE_RAD, mp.ACT_DIM)
         d.qpos[self.observe.qpos_idx] += noise
         mujoco.mj_forward(self.model, d)
         self.episode_steps[i] = 0

@@ -115,6 +115,21 @@ def _cmd_bench(args: argparse.Namespace) -> int:
             path = policies.verified_path(args.policy)
         report["policy"] = path.name
         report["policy_loop_hz"] = round(bench.policy_loop_hz(scene, path, seconds=args.seconds))
+    if args.env_workers:
+        rates = {
+            w: bench.batch_env_steps_per_s(scene, args.num_envs, w, seconds=args.seconds)
+            for w in args.env_workers
+        }
+        serial = rates.get(0)
+        report["batch_env"] = [
+            {
+                "num_envs": args.num_envs,
+                "workers": w,
+                "env_steps_per_s": round(r),
+                "speedup_vs_serial": None if not serial else round(r / serial, 2),
+            }
+            for w, r in rates.items()
+        ]
     print(json.dumps(report, indent=2))
     return 0
 
@@ -309,6 +324,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("model", nargs="?", default="microduck")
     p.add_argument("--policy", help="also time the policy-in-the-loop control rate")
     p.add_argument("--seconds", type=float, default=3.0)
+    p.add_argument(
+        "--env-workers",
+        type=int,
+        nargs="+",
+        help="also time the RL batch env with these worker counts (0 = serial, in-process)",
+    )
+    p.add_argument("--num-envs", type=int, default=64, help="batch size for --env-workers")
     p.add_argument(
         "--env-label",
         required=True,

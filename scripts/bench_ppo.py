@@ -29,6 +29,7 @@ import torch
 
 from bipedlab import bench, upstream
 from bipedlab.rl.batch_env import MicroduckBatchEnv
+from bipedlab.rl.parallel_env import ParallelBatchEnv
 from bipedlab.sim import microduck_policy as mp
 
 HIDDEN = [512, 256, 128]
@@ -41,7 +42,7 @@ ACTION_BOUND = 10.0
 class Timed:
     """Wraps ``MicroduckBatchEnv.step`` to accumulate time spent inside the env."""
 
-    def __init__(self, env: MicroduckBatchEnv) -> None:
+    def __init__(self, env: MicroduckBatchEnv | ParallelBatchEnv) -> None:
         self.env = env
         self.seconds = 0.0
         self.steps = 0
@@ -211,19 +212,31 @@ def make_sb3(timed: Timed) -> Any:
     return lambda iters: model.learn(total_timesteps=iters * batch, reset_num_timesteps=False)
 
 
-def bench_library(name: str, scene: Path, num_envs: int, iters: int) -> dict[str, Any]:
+def bench_library(
+    name: str, scene: Path, num_envs: int, iters: int, workers: int = 0
+) -> dict[str, Any]:
     torch.manual_seed(0)
-    timed = Timed(MicroduckBatchEnv(scene, num_envs))
-    learn = {"rsl_rl": make_rsl_rl, "sb3": make_sb3}[name](timed)
-    learn(1)  # warm-up iteration: allocations, first-touch, thread pools
-    timed.seconds, timed.steps, timed.reward_sum = 0.0, 0, 0.0
-    start = time.perf_counter()
-    learn(iters)
-    total = time.perf_counter() - start
+    env = (
+        ParallelBatchEnv(scene, num_envs, workers)
+        if workers
+        else MicroduckBatchEnv(scene, num_envs)
+    )
+    timed = Timed(env)
+    try:
+        learn = {"rsl_rl": make_rsl_rl, "sb3": make_sb3}[name](timed)
+        learn(1)  # warm-up iteration: allocations, first-touch, thread pools
+        timed.seconds, timed.steps, timed.reward_sum = 0.0, 0, 0.0
+        start = time.perf_counter()
+        learn(iters)
+        total = time.perf_counter() - start
+    finally:
+        if isinstance(env, ParallelBatchEnv):
+            env.close()
     samples = timed.steps * num_envs
     return {
         "library": name,
         "num_envs": num_envs,
+        "env_workers": workers,
         "iterations": iters,
         "samples": samples,
         "wall_s": total,
@@ -241,6 +254,9 @@ def main() -> None:
     parser.add_argument("--iters", type=int, default=10)
     parser.add_argument("--raw-seconds", type=float, default=5.0)
     parser.add_argument("--libraries", nargs="+", default=["rsl_rl", "sb3"])
+    parser.add_argument(
+        "--workers", type=int, default=0, help="env worker processes (0 = serial env)"
+    )
     parser.add_argument("--threads", type=int, default=None, help="torch.set_num_threads")
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
@@ -263,7 +279,9 @@ def main() -> None:
         },
         "raw_env": [raw_env_rate(scene, n, args.raw_seconds) for n in args.envs],
         "ppo": [
-            bench_library(lib, scene, n, args.iters) for n in args.envs for lib in args.libraries
+            bench_library(lib, scene, n, args.iters, args.workers)
+            for n in args.envs
+            for lib in args.libraries
         ],
     }
     text = json.dumps(report, indent=2)

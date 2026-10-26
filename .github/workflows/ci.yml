@@ -61,6 +61,13 @@ jobs:
         run: uv run python scripts/fetch_upstream.py microduck_rl
       - name: Upstream CPU smoke tests
         run: uv run pytest -m "upstream and not slow" -rs --junitxml=reports/smoke.xml
+      - name: Batch env scaling (WP3-06, evidence only)
+        run: |
+          label=${{ startsWith(matrix.os, 'macos') && 'gha-macos' || 'gha-linux' }}
+          cores=$(uv run python -c "import os; print(os.cpu_count())")
+          echo "cpu_count=$cores"
+          uv run bipedlab bench microduck --env-label "$label" --seconds 4 \
+            --num-envs 128 --env-workers 0 1 2 "$cores"
       - name: Environment record
         if: always()
         run: |
