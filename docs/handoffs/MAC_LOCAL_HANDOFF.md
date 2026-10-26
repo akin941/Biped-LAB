@@ -120,6 +120,8 @@ uv pip install torch==2.9.1 tensordict==0.10.0 rsl-rl-lib==5.0.1 torchvision==0.
     onnxscript==0.5.7 gitpython==3.1.46 stable-baselines3==2.7.1
 uv run python scripts/bench_ppo.py --envs 16 64 256 --iters 20 --out /tmp/wp3-01-mac.json
 uv run python scripts/bench_ppo.py --envs 256 --iters 20 --threads 1 --out /tmp/wp3-01-mac-t1.json
+uv run python scripts/bench_ppo.py --envs 256 --iters 20 --libraries rsl_rl --workers 4 --out /tmp/wp3-06-mac-w4.json
+uv run bipedlab bench microduck --env-label mac-m5 --num-envs 256 --env-workers 0 2 4 8 --seconds 4
 ```
 **Expected:** two JSON reports. Cloud (4 vCPU Xeon 2.1 GHz) measured ~2.2–2.9k raw env
 steps/s and ~1.8–1.9k PPO samples/s at 256 envs for both libraries — reference only.
@@ -133,6 +135,7 @@ revision:
 raw_env (num_envs: steps/s):
 ppo (library, num_envs: samples/s, non_env_fraction):
 threads=1 run:
+workers=4 PPO run, env scaling (bench --env-workers):
 ```
 
 ---

@@ -66,6 +66,8 @@ jobs:
           label=${{ startsWith(matrix.os, 'macos') && 'gha-macos' || 'gha-linux' }}
           cores=$(uv run python -c "import os; print(os.cpu_count())")
           echo "cpu_count=$cores"
+          if command -v lscpu >/dev/null; then lscpu | grep -E "^CPU\(s\)|Thread|Core|Model name"; \
+          else sysctl hw.physicalcpu hw.logicalcpu machdep.cpu.brand_string; fi
           uv run bipedlab bench microduck --env-label "$label" --seconds 4 \
             --num-envs 128 --env-workers 0 1 2 "$cores"
       - name: Environment record
