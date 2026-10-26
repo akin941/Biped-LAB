@@ -296,7 +296,10 @@ def load_model_for_policy(
 # Upstream infer_policy.py:1376-1386 starts the trunk 0.125 m up, level, joints at
 # DEFAULT_POSE, without settling onto the floor.
 UPSTREAM_INIT_HEIGHT = 0.125
-INIT_MODES = ("upstream", "settle")
+# "straight" reproduces the start every BAM run had before the WP1-12 fix (all
+# joints 0, trunk 0.12 m, level): a diagnostic, not a valid start for the policy.
+STRAIGHT_INIT_HEIGHT = 0.12
+INIT_MODES = ("upstream", "settle", "straight")
 
 
 def upstream_init(model: mujoco.MjModel, data: mujoco.MjData) -> None:
@@ -371,6 +374,12 @@ def run(
         ctrl(m, d)
 
     def init_fn(m: mujoco.MjModel, d: mujoco.MjData) -> None:
+        if init == "straight":
+            upstream_init(m, d)
+            d.qpos[2] = STRAIGHT_INIT_HEIGHT
+            d.qpos[ctrl.observe.qpos_idx] = 0.0
+            if bam is not None:
+                d.ctrl[bam.act_ids] = 0.0
         if init == "upstream":
             upstream_init(m, d)
             if bam is not None:
@@ -393,7 +402,7 @@ def run(
         control_hz=CONTROL_HZ,
         control=loop,
         settle=init == "settle",
-        init=init_fn if init == "upstream" or after_init is not None else None,
+        init=init_fn if init != "settle" or after_init is not None else None,
         substep=None if bam is None else (lambda m, d: bam.update(d)),
     )
     assert start is not None
@@ -434,7 +443,17 @@ STAND_SCENARIOS: dict[str, tuple[np.ndarray, float]] = {
     "body_pitch_-10deg": (_body_command(pitch=-BODY_TILT_RAD), 10.0),
     "body_roll_+10deg": (_body_command(roll=BODY_TILT_RAD), 10.0),
 }
-SCENARIO_SETS = ("walking", "standing")
+# Command response of a walking policy across its training range
+# (lin x +-0.4, lin y +-0.3, yaw +-1.0; microduck_velocity_env_cfg.py).
+SWEEP_SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
+    "forward_0.1": ((0.1, 0.0, 0.0), 10.0),
+    "forward_0.3": ((0.3, 0.0, 0.0), 10.0),
+    "forward_0.4": ((0.4, 0.0, 0.0), 10.0),
+    "backward_0.3": ((-0.3, 0.0, 0.0), 10.0),
+    "lateral_0.3": ((0.0, 0.3, 0.0), 10.0),
+    "turn_1.0": ((0.0, 0.0, 1.0), 10.0),
+}
+SCENARIO_SETS = ("walking", "standing", "sweep")
 
 
 def _constant(command: np.ndarray) -> Callable[[float], np.ndarray]:
@@ -521,11 +540,12 @@ def evaluate(
         "scenario_set": scenario_set,
         "scenarios": {},
     }
-    scenarios: dict[str, tuple[tuple[float, float, float], np.ndarray | None, float]] = (
-        {n: (tw, None, d) for n, (tw, d) in SCENARIOS.items()}
-        if scenario_set == "walking"
-        else {n: ((0.0, 0.0, 0.0), c, d) for n, (c, d) in STAND_SCENARIOS.items()}
-    )
+    scenarios: dict[str, tuple[tuple[float, float, float], np.ndarray | None, float]]
+    if scenario_set == "standing":
+        scenarios = {n: ((0.0, 0.0, 0.0), c, d) for n, (c, d) in STAND_SCENARIOS.items()}
+    else:
+        table = SCENARIOS if scenario_set == "walking" else SWEEP_SCENARIOS
+        scenarios = {n: (tw, None, d) for n, (tw, d) in table.items()}
     for name, (twist, full_command, duration) in scenarios.items():
         samples: dict[str, list[float]] = {
             "vx_mps": [],

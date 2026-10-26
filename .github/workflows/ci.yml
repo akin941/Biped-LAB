@@ -94,16 +94,17 @@ jobs:
         run: uv run pytest -m policy -rs
       - name: Behaviour report
         run: |
-          mkdir -p reports/wp1-11 reports/wp1-12
+          mkdir -p reports/wp1-11 reports/wp1-12 reports/wp1-13
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --scenarios sweep --repeats 2 --out reports/wp1-13/sweep_bam.json
+          uv run bipedlab eval-policy alpha_walking.onnx --scenarios sweep --out reports/wp1-13/sweep_mjcf.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --init straight --repeats 4 --out reports/wp1-13/straight_bam.json
+          uv run bipedlab eval-policy alpha_walking.onnx --init straight --out reports/wp1-13/straight_mjcf.json
+          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --init straight --bam-delay 4 --vel-lag 1 --repeats 4 --out reports/wp1-13/straight_bam_delay4_vellag1.json
           uv run bipedlab eval-policy alpha_stand.onnx --scenarios standing --out reports/wp1-12/stand_mjcf.json
           uv run bipedlab eval-policy alpha_stand.onnx --scenarios standing --actuator bam --repeats 4 --out reports/wp1-12/stand_bam.json
           uv run bipedlab eval-policy alpha_stand.onnx --scenarios standing --actuator bam --bam-kp 160 --repeats 4 --out reports/wp1-12/stand_bam_kp160.json
           uv run bipedlab eval-policy alpha_stand.onnx --scenarios standing --actuator bam --bam-delay 4 --vel-lag 1 --repeats 4 --out reports/wp1-12/stand_bam_delay4_vellag1.json
           uv run bipedlab eval-policy alpha_stand.onnx --scenarios standing --actuator bam --init settle --out reports/wp1-12/stand_bam_settle.json
-          uv run bipedlab record alpha_stand.onnx --seconds 10 --actuator bam --env-label gha-linux --out reports/wp1-12/stand_bam_rec
-          uv run bipedlab profile reports/wp1-12/stand_bam_rec.npz --every 0.25
-          uv run bipedlab record alpha_stand.onnx --seconds 10 --env-label gha-linux --out reports/wp1-12/stand_mjcf_rec
-          uv run bipedlab profile reports/wp1-12/stand_mjcf_rec.npz --every 1.0
           grep -m1 "model name" /proc/cpuinfo
           uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --repeats 8 --out reports/wp1-11/baseline.json
           uv run bipedlab eval-policy alpha_walking.onnx --out reports/alpha_walking.json
@@ -116,12 +117,6 @@ jobs:
           uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --model microduck-walk --out reports/alpha_walking_bam_walkscene.json
           uv run bipedlab eval-policy alpha_walking.onnx --model microduck-walk --out reports/alpha_walking_walkscene.json
           uv run bipedlab eval-behaviours --actuator bam --out reports/behaviours_bam.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 3 --repeats 8 --out reports/wp1-11/delay3.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 6 --repeats 8 --out reports/wp1-11/delay6.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vel-lag 1 --repeats 8 --out reports/wp1-11/vellag1.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vin 6.5 --repeats 8 --out reports/wp1-11/vin6.5.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --vin 8.2 --repeats 8 --out reports/wp1-11/vin8.2.json
-          uv run bipedlab eval-policy alpha_walking.onnx --actuator bam --bam-delay 4 --vel-lag 1 --repeats 8 --out reports/wp1-11/delay4_vellag1.json
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --actuator bam --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_bam
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd
           uv run bipedlab record alpha_walking.onnx --twist 0.2 0 0 --seconds 10 --post robotd-walking --env-label gha-linux --html --out reports/telemetry/alpha_walking_fwd_robotd

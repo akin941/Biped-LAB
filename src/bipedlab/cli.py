@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("policy", help="ONNX path, or a file name from the policy lock")
     p.add_argument("--model", default="microduck")
     p.add_argument("--out", help="also write the JSON report here")
-    p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
+    p.add_argument("--init", choices=["upstream", "settle", "straight"], default="upstream")
     p.add_argument("--post", choices=POST_CHOICES, default="none", help=POST_HELP)
     p.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf", help=ACTUATOR_HELP)
     p.add_argument("--bam-delay", type=int, default=0, help="BAM command delay, physics steps")
@@ -259,9 +259,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--scenarios",
-        choices=["walking", "standing"],
+        choices=["walking", "standing", "sweep"],
         default="walking",
-        help="walking: twist commands; standing: zero twist + body roll/pitch (alpha_stand)",
+        help="walking: twist commands; standing: zero twist + body roll/pitch (alpha_stand); "
+        "sweep: commands across the training range",
     )
     p.set_defaults(func=_cmd_eval_policy)
 
@@ -282,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         "--twist", type=float, nargs=3, default=[0.0, 0.0, 0.0], metavar=("VX", "VY", "WZ")
     )
     p.add_argument("--seconds", type=float, default=10.0)
-    p.add_argument("--init", choices=["upstream", "settle"], default="upstream")
+    p.add_argument("--init", choices=["upstream", "settle", "straight"], default="upstream")
     p.add_argument("--out", default="runs/record.npz")
     p.add_argument(
         "--env-label",

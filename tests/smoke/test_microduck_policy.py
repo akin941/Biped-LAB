@@ -249,3 +249,27 @@ def test_bam_kp_requires_bam(scene, tmp_path):
         mp.run(scene, policy, 0.1, match=mp.TrainingMatch(bam_kp=160.0))
     _, ctrl, _ = mp.run(scene, policy, 0.1, actuator="bam", match=mp.TrainingMatch(bam_kp=160.0))
     assert ctrl.bam is not None and ctrl.bam.kp == 160.0
+
+
+@pytest.mark.parametrize("actuator", ["mjcf", "bam"])
+def test_straight_init_starts_with_joints_at_zero(scene, tmp_path, actuator):
+    policy = mp.OnnxPolicy(linear_policy(tmp_path / "z.onnx", np.zeros((61, 14)), np.zeros(14)))
+    seen = []
+
+    def wrap(model, control):
+        def wrapped(m, d):
+            seen.append((d.qpos[2], d.qpos[7:21].copy()))
+            control(m, d)
+
+        return wrapped
+
+    mp.run(scene, policy, 0.04, init="straight", recorder=wrap, actuator=actuator)
+    height, joints = seen[0]
+    assert height == pytest.approx(mp.STRAIGHT_INIT_HEIGHT)
+    np.testing.assert_array_equal(joints, 0.0)
+
+
+def test_sweep_scenarios_cover_training_range():
+    commands = np.array([tw for tw, _ in mp.SWEEP_SCENARIOS.values()])
+    assert commands[:, 0].max() == pytest.approx(0.4)
+    assert commands[:, 2].max() == pytest.approx(1.0)
