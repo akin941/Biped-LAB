@@ -144,6 +144,9 @@ class Controller:
     vin: float = VIN
     vin_drop_gain: float | None = VIN_DROP_GAIN
     vin_min: float | None = VIN_MIN
+    # Command delay in physics steps (training: uniform 3..6, bam.mjlab.BamActuator
+    # delay_min_lag/delay_max_lag). Upstream's CPU simulator uses none.
+    delay_steps: int = 0
     act_ids: np.ndarray = field(init=False)
     joint_ids: np.ndarray = field(init=False)
     qpos_idx: np.ndarray = field(init=False)
@@ -151,6 +154,7 @@ class Controller:
     q_target: np.ndarray = field(init=False)
     last_torque: np.ndarray = field(init=False)
     last_vin: float = field(init=False)
+    _history: list[np.ndarray] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         m = self.model
@@ -169,12 +173,23 @@ class Controller:
         self.q_target = np.zeros(len(self.act_ids))
         self.last_torque = np.zeros(len(self.act_ids))
         self.last_vin = self.vin
+        if self.delay_steps < 0:
+            raise ValueError("delay_steps must be >= 0")
+        self._history = []
 
     def reset(self, data: mujoco.MjData) -> None:
         """Call after the start state is set (upstream: ``bam_ctrl.reset(data.qpos)``)."""
         mujoco.mj_setConst(self.model, data)
         self.q_target = data.qpos[self.qpos_idx].copy()
         self.last_torque[:] = 0.0
+        self._history = []
+
+    def _delayed_target(self) -> np.ndarray:
+        """q_target as set ``delay_steps`` physics steps ago (oldest available at start)."""
+        self._history.append(self.q_target.copy())
+        if len(self._history) > self.delay_steps + 1:
+            self._history.pop(0)
+        return self._history[0]
 
     def update(self, data: mujoco.MjData) -> None:
         q = data.qpos[self.qpos_idx]
@@ -185,7 +200,8 @@ class Controller:
             if self.vin_min is not None:
                 vin = max(vin, self.vin_min)
         self.last_vin = vin
-        torque = compute_torque(compute_control(self.q_target, q, self.kp, vin), dq)
+        target = self._delayed_target() if self.delay_steps else self.q_target
+        torque = compute_torque(compute_control(target, q, self.kp, vin), dq)
         self.last_torque = torque.copy()
         data.ctrl[self.act_ids] = torque
 

@@ -81,6 +81,10 @@ class PolicyError(RuntimeError):
 @dataclass
 class ObservationBuilder:
     model: mujoco.MjModel
+    # Control steps of lag on joint_vel. Training uses exactly 1
+    # (microduck_velocity_env_cfg.py: Dynamixel velocity is ~1 period old);
+    # upstream's CPU simulator uses 0.
+    joint_vel_lag: int = 0
     qpos_idx: np.ndarray = field(init=False)
     qvel_idx: np.ndarray = field(init=False)
     gyro_adr: int = field(init=False)
@@ -99,17 +103,24 @@ class ObservationBuilder:
             raise PolicyError("model lacks imu_ang_vel sensor or trunk_base body")
         self.gyro_adr = int(m.sensor_adr[sensor])
         self.trunk_id = body
+        self._vel_history: list[np.ndarray] = []
 
     def __call__(
         self, data: mujoco.MjData, last_action: np.ndarray, command: np.ndarray
     ) -> np.ndarray:
         gravity = quat_rotate_inverse(data.xquat[self.trunk_id], np.array([0.0, 0.0, -1.0]))
+        joint_vel = data.qvel[self.qvel_idx].copy()
+        if self.joint_vel_lag:
+            self._vel_history.append(joint_vel)
+            if len(self._vel_history) > self.joint_vel_lag + 1:
+                self._vel_history.pop(0)
+            joint_vel = self._vel_history[0]
         obs = np.concatenate(
             [
                 data.sensordata[self.gyro_adr : self.gyro_adr + 3],
                 gravity,
                 data.qpos[self.qpos_idx] - DEFAULT_POSE,
-                data.qvel[self.qvel_idx],
+                joint_vel,
                 last_action,
                 command,
             ]
@@ -234,21 +245,43 @@ class PolicyController:
         self.log.append({"obs": obs, "action": action})
 
 
+@dataclass(frozen=True)
+class TrainingMatch:
+    """Training-time effects upstream's CPU simulator leaves out (backlog WP1-11).
+
+    Defaults reproduce upstream's simulator. Training values, from
+    microduck_constants.py / microduck_velocity_env_cfg.py at the pinned sha:
+    BAM command delay uniform 3..6 physics steps, supply 6.5..8.2 V, and a
+    1-control-step lag on the joint_vel observation.
+    """
+
+    bam_delay_steps: int = 0
+    vin: float = bam_xl330.VIN
+    joint_vel_lag: int = 0
+
+    def describe(self) -> dict[str, float]:
+        return {
+            "bam_delay_steps": self.bam_delay_steps,
+            "vin": self.vin,
+            "joint_vel_lag": self.joint_vel_lag,
+        }
+
+
 ACTUATORS = ("mjcf", "bam")
 ACTUATOR_LABELS = {
     "mjcf": "mjcf-position (not BAM; known sim-to-sim gap)",
-    "bam": f"bam-xl330-m6 (CPU port of {bam_xl330.BAM_SOURCE}; vin 7.4 V, drop gain 0.1)",
+    "bam": f"bam-xl330-m6 (CPU port of {bam_xl330.BAM_SOURCE}; drop gain 0.1)",
 }
 
 
 def load_model_for_policy(
-    scene: str | Path, actuator: str = "mjcf"
+    scene: str | Path, actuator: str = "mjcf", vin: float = bam_xl330.VIN
 ) -> tuple[mujoco.MjModel, mujoco.MjData]:
     """Load ``scene`` at the policy timestep with MJCF position actuators or BAM motors."""
     if actuator not in ACTUATORS:
         raise ValueError(f"actuator must be one of {ACTUATORS}")
     if actuator == "bam":
-        model = bam_xl330.load_model(scene, PHYSICS_DT)
+        model = bam_xl330.load_model(scene, PHYSICS_DT, vin=vin)
     else:
         model = mujoco.MjModel.from_xml_path(str(scene))
         model.opt.timestep = PHYSICS_DT  # upstream infer_policy.py overrides 0.002 -> 0.005
@@ -282,6 +315,7 @@ def run(
     command_fn: Callable[[float], np.ndarray] | None = None,
     after_init: ControlFn | None = None,
     actuator: str = "mjcf",
+    match: TrainingMatch | None = None,
 ) -> tuple[sim_rollout.RolloutResult, PolicyController, dict[str, float]]:
     """Roll out ``policy`` with a constant twist command; return metrics.
 
@@ -293,16 +327,24 @@ def run(
     function of seconds since the first control step (phase-encoded behaviours).
     ``after_init`` edits the state after the start pose is set (e.g. place a ball).
     ``actuator="bam"`` drives BAM XL330 motors (torque recomputed every physics step).
+    ``match`` adds training-time effects (see TrainingMatch); delay and vin need BAM.
     """
     if init not in INIT_MODES:
         raise ValueError(f"init must be one of {INIT_MODES}")
-    model, data = load_model_for_policy(scene, actuator)
-    bam = bam_xl330.Controller(model) if actuator == "bam" else None
+    match = match or TrainingMatch()
+    if actuator != "bam" and (match.bam_delay_steps or match.vin != bam_xl330.VIN):
+        raise ValueError("bam_delay_steps and vin apply to actuator='bam' only")
+    model, data = load_model_for_policy(scene, actuator, vin=match.vin)
+    bam = (
+        bam_xl330.Controller(model, vin=match.vin, delay_steps=match.bam_delay_steps)
+        if actuator == "bam"
+        else None
+    )
     command = np.zeros(CMD_DIM, dtype=np.float32)
     command[0:3] = twist
     ctrl = PolicyController(
         policy=policy,
-        observe=ObservationBuilder(model),
+        observe=ObservationBuilder(model, joint_vel_lag=match.joint_vel_lag),
         command=command,
         post=post or PostProcess(),
         bam=bam,
@@ -362,14 +404,51 @@ SCENARIOS: dict[str, tuple[tuple[float, float, float], float]] = {
 }
 
 
+# Start-state perturbation for repeat runs: below one XL330 encoder count
+# (2 pi / 4096 = 1.5e-3 rad), so every repeat is a start the real robot cannot tell apart.
+REPEAT_PERTURB_RAD = 1.0e-3
+
+
+def perturb_joints(seed: int, amplitude_rad: float = REPEAT_PERTURB_RAD) -> ControlFn:
+    """``after_init`` hook: add seeded uniform noise to the actuated joint positions."""
+
+    def init(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+        idx = ObservationBuilder(model).qpos_idx
+        rng = np.random.default_rng(seed)
+        data.qpos[idx] += rng.uniform(-amplitude_rad, amplitude_rad, len(idx))
+
+    return init
+
+
+def _spread(values: list[float]) -> dict[str, float]:
+    a = np.asarray(values, dtype=float)
+    return {
+        "mean": float(a.mean()),
+        "std": float(a.std()),
+        "min": float(a.min()),
+        "max": float(a.max()),
+    }
+
+
 def evaluate(
     scene: str | Path,
     policy_path: str | Path,
     init: str = "upstream",
     post: PostProcess | None = None,
     actuator: str = "mjcf",
+    match: TrainingMatch | None = None,
+    repeats: int = 1,
 ) -> dict[str, Any]:
-    """Characterize a policy over SCENARIOS (labelled with the actuator model used)."""
+    """Characterize a policy over SCENARIOS (labelled with the actuator model used).
+
+    ``repeats > 1`` adds runs from perturbed starts (``perturb_joints`` with seeds
+    1..repeats-1) and reports the spread of the tracking metrics. The BAM gait is
+    sensitive enough that last-bit differences between CPUs change a single run's
+    numbers by several percent, so a single run is one sample, not a measurement.
+    """
+    if repeats < 1:
+        raise ValueError("repeats must be >= 1")
+    match = match or TrainingMatch()
     policy = OnnxPolicy(policy_path)
     post = post or PostProcess()
     report: dict[str, Any] = {
@@ -378,20 +457,43 @@ def evaluate(
         "actuator": ACTUATOR_LABELS[actuator],
         "init": init,
         "postprocess": post.describe(),
+        "training_match": match.describe(),
         "physics_dt": PHYSICS_DT,
         "control_hz": CONTROL_HZ,
         "mujoco": mujoco.__version__,
+        "repeats": repeats,
         "scenarios": {},
     }
     for name, (twist, duration) in SCENARIOS.items():
-        result, ctrl, extra = run(
-            scene, policy, duration, twist=twist, init=init, post=post, actuator=actuator
-        )
-        yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
-        report["scenarios"][name] = {
-            "command": twist,
-            **result.summary(),
-            **extra,
-            "mean_gyro_z_second_half": yaw_rate,
-        }
+        samples: dict[str, list[float]] = {"vx_mps": [], "vy_mps": [], "yaw_rate": []}
+        falls = 0
+        for k in range(repeats):
+            result, ctrl, extra = run(
+                scene,
+                policy,
+                duration,
+                twist=twist,
+                init=init,
+                post=post,
+                actuator=actuator,
+                match=match,
+                after_init=perturb_joints(k) if k else None,
+            )
+            yaw_rate = float(np.mean([e["obs"][2] for e in ctrl.log[len(ctrl.log) // 2 :]]))
+            if k == 0:
+                report["scenarios"][name] = {
+                    "command": twist,
+                    **result.summary(),
+                    **extra,
+                    "mean_gyro_z_second_half": yaw_rate,
+                }
+            samples["vx_mps"].append(extra["mean_speed_x_mps"])
+            samples["vy_mps"].append(extra["displacement_y_m"] / duration)
+            samples["yaw_rate"].append(yaw_rate)
+            falls += int(result.fell)
+        if repeats > 1:
+            report["scenarios"][name]["spread"] = {
+                "falls": falls,
+                **{key: _spread(v) for key, v in samples.items()},
+            }
     return report
