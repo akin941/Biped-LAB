@@ -65,12 +65,14 @@ task matching your environment whose deps are `done`.
 | WP4-02 | Parametric MJCF generator for our biped (`bipedlab.design.biped`, `scripts/gen_biped.py`, `simulation/custom-biped/biped_v1.xml`) | cloud | – | done (PR #22, cloud) — see 2026-10-26-wp4-02-parametric-biped.md | 6–10 DoF, 20–30 cm, primitive geometry only; committed XML equals generator output; stands open-loop across leg lengths (tests) |
 | WP4-01 | Requirements & sizing calculations (mass, CoM, torque/speed from sim with ≥ 2× margin, power, battery, thermal): `bipedlab.design.sizing`, `scripts/size_biped.py` | cloud | WP4-02 | done (calcs, gha-linux): knee needs 0.68 N·m with 2× margin, XL330-class placeholder fails at the knee — see 2026-10-26-wp4-01-sizing.md; owner review pending (`docs/learning/03-boyutlandirma-ozeti.md`) | G4.1 report, owner review |
 | WP4-03 | Actuator survey + identification plan (BAM-style): `bipedlab.design.actuators`, `scripts/actuator_survey.py` | cloud | WP4-01 | done (survey, cloud): only XC330-M288-T at 6 V passes the knee; recommended mixed set (XC330-M288 knees, XL330-M288 elsewhere) — see 2026-10-26-wp4-03-actuator-survey.md; owner picks at WP4-05 (`docs/learning/04-servo-secenekleri.md`) | every joint type has a passing candidate with 2× torque and speed margin; identification plan written; no purchase |
+| WP4-06 | Velocity env for biped_v1 (`bipedlab.rl.biped_velocity_env`), `train_ppo.py --robot biped_v1`, `scripts/eval_biped.py`, nightly `biped-ppo-smoke` | cloud | WP4-02, WP3-03 | done (cloud): 10 unit tests; PPO smoke rose on 3 seeds and with DR — see 2026-11-05-wp4-06-biped-velocity-env.md; gha-linux via `nightly-train` | contract 39/48 → 10; serial = parallel; PPO smoke rises on 3 seeds |
+| WP4-07 | Full biped_v1 training run with DR on M5 + robustness and knee-torque report (task MAC-08) | mac-m5 | WP4-06 | awaiting-mac | G4.3: walks at 0.15/0.25 m/s with DR, no falls; knee p95 reported |
 
 ## Phase 4–6 (outline)
 
 | ID | Task | Env | Status |
 |---|---|---|---|
 | WP4-04 | Rust runtime skeleton + sim bridge + safety supervisor model | cloud | ready |
-| WP4-05 | BOM draft (no purchase) | cloud | later → awaiting-owner |
+| WP4-05 | BOM draft (no purchase): `hardware/bom/biped_v1_bom.md` | cloud | awaiting-owner (draft done, cloud web research 2026-10-26; owner decides bus voltage, e-stop form, purchase timing; nothing bought) |
 | WP5-xx | Hardware tasks (all `hw`, owner approval) | hw | later |
 | WP6-xx | Autonomy | – | later |
