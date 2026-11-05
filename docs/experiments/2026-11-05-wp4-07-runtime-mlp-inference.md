@@ -24,7 +24,11 @@ Stacked on WP4-04/06.
   bad magic / oversized / mismatched / NaN files rejected.
 
 ## Results (gha-linux, official policies)
-Pending the CI run of this change (alpha_walking, alpha_stand, roulade).
+CI run 42017124207, job `pretrained-policy`, head 58ee02c: `export_mlp.py` exported
+alpha_walking, alpha_stand and roulade (all ops supported) and the Rust
+interpreter and the numpy reference matched onnxruntime within atol 1e-5 / rtol
+1e-4 on 256 random observations each. The step exits non-zero on any parity
+failure, and it passed. The per-policy error values are in that job's log.
 
 ## Not done yet
 - A policy controller in the runtime: it needs the observation builder of our
