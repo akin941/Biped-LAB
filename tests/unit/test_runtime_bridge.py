@@ -11,10 +11,11 @@ from bipedlab import runtime_bridge as rb
 
 def test_frame_sizes_match_the_rust_protocol():
     # Sizes asserted in runtime/src/protocol.rs tests for n = 2.
-    assert len(rb.encode_hello(0.02, [-1, -0.1], [1, 2.2], [0, 0.6])) == 4 + 2 + 2 + 8 + 2 * 24
+    hello = rb.encode_hello(0.02, [-1, -0.1], [1, 2.2], [0, 0.6], [5, 5], [0.52, 0.52])
+    assert len(hello) == rb.hello_size(2) == 4 + 2 + 2 + 8 + 2 * 40
     assert rb.action_size(2) == 1 + 8 + 1 + 4 + 16
     state = rb.encode_state(7, 0.14, [1, 0, 0, 0], [0.1, -0.2, 0.3], [0.5, 0.6], [-1, 1])
-    assert len(state) == 1 + 8 + 8 * (1 + 4 + 3 + 4)
+    assert len(state) == rb.state_size(2) == 1 + 8 + 8 * (1 + 4 + 3 + 2 + 4) + 1
 
 
 def test_decode_action():
@@ -33,9 +34,9 @@ def test_tilt_from_quat():
 
 def _python_runtime(conn: socket.socket, n: int, torque_off_after: int | None) -> None:
     """Holds the stand pose from the hello; optionally sends torque off."""
-    hello = rb._recv_exact(conn, 4 + 2 + 2 + 8 + 24 * n)
-    default = np.array(struct.unpack_from(f"<{3 * n}d", hello, 16))[2::3]
-    state_size = 1 + 8 + 8 * (1 + 4 + 3 + 2 * n)
+    hello = rb._recv_exact(conn, rb.hello_size(n))
+    default = np.array(struct.unpack_from(f"<{rb.JOINT_FIELDS * n}d", hello, 16))[2::5]
+    state_size = rb.state_size(n)
     while True:
         try:
             frame = rb._recv_exact(conn, state_size)

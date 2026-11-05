@@ -83,3 +83,38 @@ def test_realtime_pacing_holds_50_hz():
     assert rt["periods"] == 250
     assert rt["deadline_misses"] <= 2  # <= 1 % of periods on a shared CI runner
     assert 4.9 < r["sim"]["wall_s"] < 5.5
+
+
+def test_software_estop_turns_torque_off_in_the_same_period():
+    r = run(seconds=3.0, estop_at=1.0)
+    sim, rt = r["sim"], r["runtime"]
+    assert sim["torque_off_step"] == 51  # first state at t >= 1 s
+    assert rt["first_fault_step"]["estop"] == 51
+    # Limp after the stop, the open-loop robot may then also tip over (tilt bit).
+    assert rt["latched"] & rb.FAULT_ESTOP
+
+
+def test_battery_sag_derates_then_stops():
+    # 7.4 V falling 0.5 V/s: derate below 6.8 V (t = 1.2 s), stop below 6.4 V (t = 2 s).
+    r = run(seconds=3.0, voltage_drift=-0.5)
+    sim, rt = r["sim"], r["runtime"]
+    assert rt["latched"] & rb.FAULT_UNDERVOLTAGE
+    assert sim["first_bits_step"][str(12)] in (61, 62)  # EVENT_DERATE
+    assert rt["first_fault_step"]["undervoltage"] in (101, 102)
+    assert sim["torque_off_step"] == rt["first_fault_step"]["undervoltage"]
+
+
+def test_overtemperature_stops():
+    r = run(seconds=3.0, temperature=60.5, temperature_drift=5.0)  # 68 deg C at t = 1.5 s
+    rt, sim = r["runtime"], r["sim"]
+    assert rt["latched"] & rb.FAULT_OVERTEMPERATURE
+    assert rt["events"]["derate"] > 0
+    assert sim["torque_off_step"] == rt["first_fault_step"]["overtemperature"]
+
+
+def test_low_torque_mode_bounds_torque_demand():
+    # First power-on mode (S-5): 30 % of the servo torque limit.
+    r = run(["--torque-fraction", "0.3", "--controller", "jump-at:1.0:3:1.0"], seconds=3.0)
+    sim, rt = r["sim"], r["runtime"]
+    assert rt["events"]["torque_clamp"] > 0
+    assert sim["max_torque_demand"] <= 0.3 + 1e-9

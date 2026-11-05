@@ -5,15 +5,19 @@
 //! period and waits for the matching `Action`.
 //!
 //! ```text
-//! Hello  : magic "BPLB" | version u16 | n u16 | control_dt f64 | n x (lower, upper, default) f64
-//! State  : tag 1 u8 | step u64 | time f64 | quat 4 f64 | gyro 3 f64 | qpos n f64 | qvel n f64
+//! Hello  : magic "BPLB" | version u16 | n u16 | control_dt f64
+//!          | n x (lower, upper, default, kp, torque_limit) f64
+//! State  : tag 1 u8 | step u64 | time f64 | quat 4 f64 | gyro 3 f64 | bus_voltage f64
+//!          | max_temperature f64 | qpos n f64 | qvel n f64 | estop u8
 //! Action : tag 2 u8 | step u64 | torque_enable u8 | fault_bits u32 | targets n f64
 //! ```
 
 use std::io::{self, Read, Write};
 
 pub const MAGIC: &[u8; 4] = b"BPLB";
-pub const VERSION: u16 = 1;
+pub const VERSION: u16 = 2;
+/// f64 fields per joint in `Hello`.
+const JOINT_FIELDS: usize = 5;
 pub const TAG_STATE: u8 = 1;
 pub const TAG_ACTION: u8 = 2;
 /// Upper bound on joints, so a corrupt header cannot make us allocate much.
@@ -24,6 +28,10 @@ pub struct JointSpec {
     pub lower: f64,
     pub upper: f64,
     pub default: f64,
+    /// Position-servo stiffness (N*m/rad), as the servo firmware is set.
+    pub kp: f64,
+    /// Servo torque limit (N*m), stall torque at the bus voltage.
+    pub torque_limit: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,8 +46,15 @@ pub struct State {
     pub time: f64,
     pub quat: [f64; 4],
     pub gyro: [f64; 3],
+    /// Servo bus voltage (V).
+    pub bus_voltage: f64,
+    /// Hottest servo (deg C).
+    pub max_temperature: f64,
     pub qpos: Vec<f64>,
     pub qvel: Vec<f64>,
+    /// Software stop from the host or gamepad (S-3); the hardware e-stop cuts
+    /// motor power on its own and is never seen here.
+    pub estop: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,18 +114,28 @@ impl Hello {
         if !(control_dt.is_finite() && control_dt > 0.0 && control_dt < 1.0) {
             return Err(bad("control_dt out of range"));
         }
-        let v = read_f64s(r, 3 * n)?;
+        let v = read_f64s(r, JOINT_FIELDS * n)?;
         let joints = v
-            .chunks_exact(3)
+            .chunks_exact(JOINT_FIELDS)
             .map(|c| JointSpec {
                 lower: c[0],
                 upper: c[1],
                 default: c[2],
+                kp: c[3],
+                torque_limit: c[4],
             })
             .collect::<Vec<_>>();
         for j in &joints {
-            let ok = j.lower.is_finite() && j.upper.is_finite() && j.default.is_finite();
-            if !ok || j.lower >= j.upper || j.default < j.lower || j.default > j.upper {
+            let ok = [j.lower, j.upper, j.default, j.kp, j.torque_limit]
+                .iter()
+                .all(|v| v.is_finite());
+            if !ok
+                || j.lower >= j.upper
+                || j.default < j.lower
+                || j.default > j.upper
+                || j.kp <= 0.0
+                || j.torque_limit <= 0.0
+            {
                 return Err(bad("invalid joint range"));
             }
         }
@@ -124,7 +149,7 @@ impl Hello {
         out.extend_from_slice(&(self.joints.len() as u16).to_le_bytes());
         out.extend_from_slice(&self.control_dt.to_le_bytes());
         for j in &self.joints {
-            for v in [j.lower, j.upper, j.default] {
+            for v in [j.lower, j.upper, j.default, j.kp, j.torque_limit] {
                 out.extend_from_slice(&v.to_le_bytes());
             }
         }
@@ -138,30 +163,35 @@ impl State {
             return Err(bad("expected a state frame"));
         }
         let step = read_u64(r)?;
-        let v = read_f64s(r, 1 + 4 + 3 + 2 * n)?;
+        let v = read_f64s(r, 1 + 4 + 3 + 2 + 2 * n)?;
+        let estop = read_u8(r)? != 0;
         Ok(State {
             step,
             time: v[0],
             quat: [v[1], v[2], v[3], v[4]],
             gyro: [v[5], v[6], v[7]],
-            qpos: v[8..8 + n].to_vec(),
-            qvel: v[8 + n..].to_vec(),
+            bus_voltage: v[8],
+            max_temperature: v[9],
+            qpos: v[10..10 + n].to_vec(),
+            qvel: v[10 + n..].to_vec(),
+            estop,
         })
     }
 
     pub fn write(&self, w: &mut impl Write) -> io::Result<()> {
         let mut out = vec![TAG_STATE];
         out.extend_from_slice(&self.step.to_le_bytes());
-        let scalars = [self.time];
-        for v in scalars
-            .iter()
+        let power = [self.bus_voltage, self.max_temperature];
+        for v in std::iter::once(&self.time)
             .chain(&self.quat)
             .chain(&self.gyro)
+            .chain(&power)
             .chain(&self.qpos)
             .chain(&self.qvel)
         {
             out.extend_from_slice(&v.to_le_bytes());
         }
+        out.push(u8::from(self.estop));
         w.write_all(&out)
     }
 }
@@ -207,11 +237,15 @@ mod tests {
                     lower: -1.0,
                     upper: 1.0,
                     default: 0.0,
+                    kp: 5.0,
+                    torque_limit: 0.52,
                 },
                 JointSpec {
                     lower: -0.1,
                     upper: 2.2,
                     default: 0.6,
+                    kp: 5.0,
+                    torque_limit: 0.52,
                 },
             ],
         }
@@ -221,7 +255,7 @@ mod tests {
     fn frames_round_trip() {
         let mut buf = Vec::new();
         hello().write(&mut buf).unwrap();
-        assert_eq!(buf.len(), 4 + 2 + 2 + 8 + 2 * 24);
+        assert_eq!(buf.len(), 4 + 2 + 2 + 8 + 2 * 40);
         assert_eq!(Hello::read(&mut buf.as_slice()).unwrap(), hello());
 
         let s = State {
@@ -229,8 +263,11 @@ mod tests {
             time: 0.14,
             quat: [1.0, 0.0, 0.0, 0.0],
             gyro: [0.1, -0.2, 0.3],
+            bus_voltage: 7.4,
+            max_temperature: 35.0,
             qpos: vec![0.5, 0.6],
             qvel: vec![-1.0, 1.0],
+            estop: false,
         };
         let mut buf = Vec::new();
         s.write(&mut buf).unwrap();
@@ -265,6 +302,8 @@ mod tests {
                 lower: 1.0,
                 upper: -1.0,
                 default: 0.0,
+                kp: 5.0,
+                torque_limit: 0.52,
             }],
         }
         .write(&mut inverted)

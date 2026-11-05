@@ -3,6 +3,7 @@
 //! ```text
 //! biped-runtime --connect 127.0.0.1:PORT [--controller stand|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
+//!               [--torque-fraction F]
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
@@ -16,7 +17,7 @@ use std::time::{Duration, Instant};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
 use biped_runtime::protocol::{Action, Hello, State};
-use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT};
+use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
 
 struct Scheduled {
     start: f64,
@@ -30,6 +31,7 @@ struct Args {
     commands: Vec<Scheduled>,
     state_timeout: Duration,
     realtime: bool,
+    torque_fraction: Option<f64>,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -47,6 +49,7 @@ fn parse_args() -> Result<Args, String> {
         commands: Vec::new(),
         state_timeout: Duration::from_millis(500),
         realtime: false,
+        torque_fraction: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -71,6 +74,13 @@ fn parse_args() -> Result<Args, String> {
                 a.state_timeout = Duration::from_millis(ms.max(1));
             }
             "--realtime" => a.realtime = true,
+            "--torque-fraction" => {
+                let f = value()?.parse::<f64>().map_err(|e| e.to_string())?;
+                if !(f > 0.0 && f <= 1.0) {
+                    return Err("--torque-fraction must be in (0, 1]".into());
+                }
+                a.torque_fraction = Some(f);
+            }
             _ => return Err(format!("unknown argument {flag:?}")),
         }
     }
@@ -118,20 +128,44 @@ struct Stats {
     deadline_misses: u64,
 }
 
+const FAULT_NAMES: [&str; N_FAULTS] = [
+    "tilt",
+    "overspeed",
+    "nonfinite_state",
+    "state_timeout",
+    "estop",
+    "undervoltage",
+    "overtemperature",
+];
+const EVENT_NAMES: [&str; N_EVENTS] = [
+    "nonfinite_target",
+    "position_clamp",
+    "slew_limit",
+    "torque_clamp",
+    "derate",
+];
+
 fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> String {
-    let opt = |v: Option<u64>| v.map_or("null".to_string(), |x| x.to_string());
     let mean = if s.periods > 0 {
         s.compute_sum_us as f64 / s.periods as f64
     } else {
         0.0
     };
+    let faults: Vec<String> = FAULT_NAMES
+        .iter()
+        .zip(sup.first_fault_step)
+        .map(|(n, v)| format!("\"{n}\":{}", v.map_or("null".to_string(), |x| x.to_string())))
+        .collect();
+    let events: Vec<String> = EVENT_NAMES
+        .iter()
+        .zip(sup.event_counts)
+        .map(|(n, c)| format!("\"{n}\":{c}"))
+        .collect();
     format!(
         concat!(
             "{{\"exit\":\"{}\",\"periods\":{},\"compute_mean_us\":{:.1},\"compute_max_us\":{},",
             "\"period_max_us\":{},\"deadline_misses\":{},\"latched\":{},",
-            "\"first_fault_step\":{{\"tilt\":{},\"overspeed\":{},\"nonfinite_state\":{},\"state_timeout\":{}}},",
-            "\"events\":{{\"nonfinite_target\":{},\"position_clamp\":{},\"slew_limit\":{}}},",
-            "\"gate_rejected\":{}}}"
+            "\"first_fault_step\":{{{}}},\"events\":{{{}}},\"gate_rejected\":{}}}"
         ),
         exit,
         s.periods,
@@ -140,13 +174,8 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
         s.period_max_us,
         s.deadline_misses,
         sup.latched,
-        opt(sup.first_fault_step[0]),
-        opt(sup.first_fault_step[1]),
-        opt(sup.first_fault_step[2]),
-        opt(sup.first_fault_step[3]),
-        sup.event_counts[0],
-        sup.event_counts[1],
-        sup.event_counts[2],
+        faults.join(","),
+        events.join(","),
         gate.rejected,
     )
 }
@@ -165,7 +194,13 @@ fn run(args: &Args) -> Result<ExitCode, String> {
     let dt = hello.control_dt;
     let mut controller = make_controller(&args.controller, &hello)?;
     let mut gate = CommandGate::new(GateLimits::default());
-    let mut sup = Supervisor::new(&hello, SafetyLimits::default());
+    let mut sup = Supervisor::new(
+        &hello,
+        SafetyLimits {
+            torque_fraction: args.torque_fraction,
+            ..SafetyLimits::default()
+        },
+    );
     let mut stats = Stats::default();
     let mut last_step = 0u64;
     let mut prev_start: Option<Instant> = None;

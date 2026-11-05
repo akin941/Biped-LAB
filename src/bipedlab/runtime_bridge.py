@@ -10,8 +10,10 @@ and must stay identical to the encoders here.
 ``torque_enable = 0`` in an action models the servos going limp: the position
 gain is set to zero and only the damping term remains.
 
-Fault-injection hooks for the tests: a velocity kick (``push_at``) and a stalled
-sim that stops sending states (``stall_at``, exercises the runtime watchdog).
+Fault-injection hooks for the tests: a velocity kick (``push_at``), a stalled
+sim that stops sending states (``stall_at``, exercises the runtime watchdog), a
+software e-stop (``estop_at``), and bus voltage / servo temperature that drift
+linearly (the sim has no battery or thermal model; these are test inputs).
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ import numpy as np
 from bipedlab.design import biped
 
 MAGIC = b"BPLB"
-VERSION = 1
+VERSION = 2
 TAG_STATE = 1
 TAG_ACTION = 2
 # Mirrors runtime/src/safety.rs.
@@ -41,24 +43,56 @@ FAULT_TILT = 1 << 0
 FAULT_OVERSPEED = 1 << 1
 FAULT_NONFINITE_STATE = 1 << 2
 FAULT_STATE_TIMEOUT = 1 << 3
+FAULT_ESTOP = 1 << 4
+FAULT_UNDERVOLTAGE = 1 << 5
+FAULT_OVERTEMPERATURE = 1 << 6
 EVENT_NONFINITE_TARGET = 1 << 8
 EVENT_POSITION_CLAMP = 1 << 9
 EVENT_SLEW_LIMIT = 1 << 10
+EVENT_TORQUE_CLAMP = 1 << 11
+EVENT_DERATE = 1 << 12
 
 DEFAULT_BINARY = Path(__file__).resolve().parents[2] / "runtime/target/release/biped-runtime"
 
 
-def encode_hello(control_dt: float, lower: Sequence[float], upper: Sequence[float],
-                 default: Sequence[float]) -> bytes:  # fmt: skip
+JOINT_FIELDS = 5  # lower, upper, default, kp, torque_limit
+
+
+def encode_hello(
+    control_dt: float,
+    lower: Sequence[float],
+    upper: Sequence[float],
+    default: Sequence[float],
+    kp: Sequence[float],
+    torque_limit: Sequence[float],
+) -> bytes:
     n = len(default)
-    rows = [v for j in range(n) for v in (lower[j], upper[j], default[j])]
-    return MAGIC + struct.pack(f"<HHd{3 * n}d", VERSION, n, control_dt, *rows)
+    cols = (lower, upper, default, kp, torque_limit)
+    rows = [float(c[j]) for j in range(n) for c in cols]
+    return MAGIC + struct.pack(f"<HHd{JOINT_FIELDS * n}d", VERSION, n, control_dt, *rows)
 
 
-def encode_state(step: int, t: float, quat: Sequence[float], gyro: Sequence[float],
-                 qpos: Sequence[float], qvel: Sequence[float]) -> bytes:  # fmt: skip
-    values = [t, *quat, *gyro, *qpos, *qvel]
-    return struct.pack(f"<BQ{len(values)}d", TAG_STATE, step, *values)
+def hello_size(n: int) -> int:
+    return 4 + 2 + 2 + 8 + 8 * JOINT_FIELDS * n
+
+
+def encode_state(
+    step: int,
+    t: float,
+    quat: Sequence[float],
+    gyro: Sequence[float],
+    qpos: Sequence[float],
+    qvel: Sequence[float],
+    bus_voltage: float = 7.4,
+    max_temperature: float = 35.0,
+    estop: bool = False,
+) -> bytes:
+    values = [t, *quat, *gyro, bus_voltage, max_temperature, *qpos, *qvel]
+    return struct.pack(f"<BQ{len(values)}dB", TAG_STATE, step, *values, int(estop))
+
+
+def state_size(n: int) -> int:
+    return 1 + 8 + 8 * (1 + 4 + 3 + 2 + 2 * n) + 1
 
 
 def action_size(n: int) -> int:
@@ -97,6 +131,11 @@ class BridgeConfig:
     push_at: float | None = None  # s, add push_dv to the trunk's world velocity
     push_dv: tuple[float, float, float] = (0.0, 1.0, 0.0)
     stall_at: float | None = None  # s, stop sending states (runtime watchdog test)
+    estop_at: float | None = None  # s, raise the software e-stop flag from then on
+    bus_voltage: float = 7.4  # V at t = 0 (2S LiPo, nominal)
+    voltage_drift: float = 0.0  # V/s
+    temperature: float = 35.0  # deg C at t = 0, hottest servo
+    temperature_drift: float = 0.0  # deg C/s
     action_timeout_s: float = 5.0
 
 
@@ -113,6 +152,7 @@ class SimBridge:
         self.upper = m.jnt_range[self.joints, 1].copy()
         self.default = m.key_ctrl[0].copy()
         self.kp = m.actuator_gainprm[:, 0].copy()
+        self.torque_limit = m.actuator_forcerange[:, 1].copy()
         self.substeps = round(self.cfg.control_dt / m.opt.timestep)
         if not math.isclose(self.substeps * m.opt.timestep, self.cfg.control_dt):
             raise ValueError("control_dt must be a multiple of the model timestep")
@@ -123,7 +163,8 @@ class SimBridge:
         m.actuator_biasprm[:, 1] = -self.kp if enable else 0.0
 
     def hello(self) -> bytes:
-        return encode_hello(self.cfg.control_dt, self.lower, self.upper, self.default)
+        return encode_hello(self.cfg.control_dt, self.lower, self.upper, self.default,
+                            self.kp, self.torque_limit)  # fmt: skip
 
     def serve(self, conn: socket.socket) -> dict[str, Any]:
         """Run one episode with a connected runtime; returns what the sim saw."""
@@ -145,6 +186,7 @@ class SimBridge:
             "first_tilt_over_45_step": None,
             "max_target_step_rad": 0.0,
             "max_target_dev_rad": 0.0,
+            "max_torque_demand": 0.0,  # max kp*|target - q| / torque_limit, torque on
             "stalled": False,
         }
         prev = self.default.copy()
@@ -167,8 +209,13 @@ class SimBridge:
             if tilt > math.radians(45) and out["first_tilt_over_45_step"] is None:
                 out["first_tilt_over_45_step"] = step
             out["max_tilt_deg"] = max(out["max_tilt_deg"], math.degrees(tilt))
-            conn.sendall(encode_state(step, d.time, quat, d.sensordata[gyro_adr : gyro_adr + 3],
-                                      d.qpos[self.qadr], d.qvel[self.vadr]))  # fmt: skip
+            estop = cfg.estop_at is not None and d.time >= cfg.estop_at
+            volts = cfg.bus_voltage + cfg.voltage_drift * d.time
+            temp = cfg.temperature + cfg.temperature_drift * d.time
+            gyro = d.sensordata[gyro_adr : gyro_adr + 3]
+            q_sent = d.qpos[self.qadr].copy()
+            conn.sendall(encode_state(step, d.time, quat, gyro, d.qpos[self.qadr],
+                                      d.qvel[self.vadr], volts, temp, estop))  # fmt: skip
             got, enable, bits, targets = decode_action(
                 _recv_exact(conn, action_size(self.n)), self.n
             )
@@ -187,6 +234,9 @@ class SimBridge:
             out["max_target_dev_rad"] = max(
                 out["max_target_dev_rad"], float(np.abs(targets - self.default).max())
             )
+            if enable:
+                demand = self.kp * np.abs(targets - q_sent) / self.torque_limit
+                out["max_torque_demand"] = max(out["max_torque_demand"], float(demand.max()))
             prev = targets
             d.ctrl[:] = targets
             if cfg.push_at is not None and not pushed and d.time >= cfg.push_at:
