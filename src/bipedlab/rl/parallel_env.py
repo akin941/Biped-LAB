@@ -6,8 +6,8 @@ gives each of ``workers`` processes a contiguous shard of the envs, sends the ac
 over a pipe and concatenates the results. Envs are seeded by global index, so for a
 fixed seed it returns the same arrays as the serial env.
 
-``env_cls`` selects the env (``MicroduckBatchEnv`` by default, or
-``MicroduckVelocityEnv``); extra keyword arguments go to its constructor. Step results
+``env_cls`` selects the env (``MicroduckBatchEnv`` by default, ``MicroduckVelocityEnv``
+or ``BipedVelocityEnv``); extra keyword arguments go to its constructor. Step results
 are concatenated field by field (dict fields key by key).
 
 Workers use the ``spawn`` start method on every platform (macOS's default; on Linux
@@ -25,7 +25,6 @@ from typing import Any
 import numpy as np
 
 from bipedlab.rl.batch_env import MicroduckBatchEnv
-from bipedlab.sim import microduck_policy as mp
 
 
 def _worker(conn: Connection, env_cls: type, kwargs: dict[str, Any]) -> None:
@@ -34,7 +33,8 @@ def _worker(conn: Connection, env_cls: type, kwargs: dict[str, Any]) -> None:
     except Exception as exc:  # report construction errors to the parent
         conn.send(("error", repr(exc)))
         return
-    conn.send(("ready", (env.obs, env.max_episode_steps, getattr(env, "critic_obs", None))))
+    critic = getattr(env, "critic_obs", None)
+    conn.send(("ready", (env.obs, env.max_episode_steps, critic, env.last_action.shape[1])))
     while True:
         cmd, payload = conn.recv()
         if cmd == "step":
@@ -100,6 +100,7 @@ class ParallelBatchEnv:
         self.max_episode_steps = int(ready[0][1])
         has_critic = ready[0][2] is not None
         self._critic = np.concatenate([r[2] for r in ready]) if has_critic else None
+        self.act_dim = int(ready[0][3])
         self.episode_steps = np.zeros(num_envs, dtype=np.int64)
 
     def _recv(self, conn: Connection) -> Any:
@@ -121,8 +122,8 @@ class ParallelBatchEnv:
 
     def step(self, actions: np.ndarray) -> Any:
         actions = np.asarray(actions, dtype=np.float32)
-        if actions.shape != (self.num_envs, mp.ACT_DIM):
-            raise ValueError(f"actions must have shape {(self.num_envs, mp.ACT_DIM)}")
+        if actions.shape != (self.num_envs, self.act_dim):
+            raise ValueError(f"actions must have shape {(self.num_envs, self.act_dim)}")
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
         for w, conn in enumerate(self._conns):

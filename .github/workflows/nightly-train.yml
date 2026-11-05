@@ -4,7 +4,9 @@
 # adapter and PPO learn together; it does not judge walking quality. The per-commit
 # ci workflow never trains (see ci.yml); this runs nightly, on demand, and on PRs
 # that change the training path. One extra job trains seed 0 with domain
-# randomization on (WP3-05 env part).
+# randomization on (WP3-05 env part). The biped-ppo-smoke job does the same for our
+# own biped_v1 (BipedVelocityEnv, G4.3 preparation) and scores the exported policy
+# with scripts/eval_biped.py.
 name: nightly-train
 
 on:
@@ -15,6 +17,8 @@ on:
     paths:
       - scripts/train_ppo.py
       - src/bipedlab/rl/**
+      - scripts/eval_biped.py
+      - simulation/custom-biped/**
       - .github/workflows/nightly-train.yml
 
 permissions:
@@ -73,4 +77,43 @@ jobs:
         if: always()
         with:
           name: ppo-smoke-seed${{ matrix.seed }}${{ matrix.dr }}
+          path: reports/
+
+  biped-ppo-smoke:
+    name: biped-ppo-smoke (seed ${{ matrix.seed }}${{ matrix.dr && ', dr' || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [0, 1, 2]
+        dr: [""]
+        include:
+          - seed: 0
+            dr: --dr
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --extra policy
+      - name: Install training stack
+        run: |
+          uv pip install --index-url https://download.pytorch.org/whl/cpu \
+            torch==2.9.1+cpu torchvision==0.24.1+cpu
+          uv pip install tensordict==0.10.0 rsl-rl-lib==5.0.1 onnxscript==0.5.7 gitpython==3.1.46
+      - name: PPO smoke training on biped_v1 (60 iterations, 64 envs, 2 env workers)
+        run: |
+          .venv/bin/python scripts/train_ppo.py --robot biped_v1 --envs 64 --iters 60 --workers 2 \
+            --seed ${{ matrix.seed }} ${{ matrix.dr }} --require-rise --out reports/biped/seed${{ matrix.seed }}${{ matrix.dr }}.json \
+            --run-dir runs/seed${{ matrix.seed }}${{ matrix.dr }} --save-every 30
+      - name: Exported ONNX runs in the biped evaluation (39 -> 10 contract + finite rollout)
+        run: |
+          .venv/bin/python scripts/eval_biped.py runs/seed${{ matrix.seed }}${{ matrix.dr }}/policy.onnx \
+            --envs 2 --seconds 3 --out reports/biped/eval_seed${{ matrix.seed }}${{ matrix.dr }}.json > /dev/null
+          cp runs/seed${{ matrix.seed }}${{ matrix.dr }}/run.json reports/biped/run_seed${{ matrix.seed }}${{ matrix.dr }}.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: biped-ppo-smoke-seed${{ matrix.seed }}${{ matrix.dr }}
           path: reports/

@@ -1,11 +1,14 @@
 """WP3-03: short PPO training run on the WP3-02 velocity env (smoke test).
 
-Trains rsl-rl-lib PPO (ADR-0012 settings) on ``MicroduckVelocityEnv`` for a fixed
-number of iterations and records, per iteration, the mean per-step reward, the
-fraction of envs that fell and the mean length of finished episodes. The smoke
-criterion is that the mean reward of the last quarter of iterations is above that of
-the first quarter. It checks that the env, the adapter and PPO learn together. It
-does not judge walking quality.
+Trains rsl-rl-lib PPO (ADR-0012 settings) on ``MicroduckVelocityEnv`` (``--robot
+microduck``, default) or on our own biped's ``BipedVelocityEnv`` (``--robot biped_v1``,
+G4.3 preparation) for a fixed number of iterations and records, per iteration, the mean
+per-step reward, the fraction of envs that fell and the mean length of finished
+episodes. The smoke criterion is that the mean reward of the last quarter of iterations
+is above that of the first quarter. For biped_v1 each iteration also records the knee
+torque (mean and max of |actuator force|), to re-check the WP4-01 knee requirement. It
+checks that the env, the adapter and PPO learn together. It does not judge walking
+quality.
 
 Needs torch and rsl-rl-lib, which are not project dependencies yet:
 
@@ -29,6 +32,7 @@ import numpy as np
 import torch
 
 from bipedlab import bench, upstream
+from bipedlab.rl import biped_velocity_env as bve
 from bipedlab.rl.parallel_env import ParallelBatchEnv
 from bipedlab.rl.velocity_env import MicroduckVelocityEnv
 from bipedlab.sim import microduck_policy as mp
@@ -46,6 +50,7 @@ class Recorder:
         self._fell = 0
         self._lengths: list[int] = []
         self._terms: dict[str, list[float]] = {}
+        self._knee: list[np.ndarray] = []
 
     def add(self, out: Any, episode_steps_before: np.ndarray) -> None:
         self._reward.append(float(out.reward.mean()))
@@ -54,19 +59,26 @@ class Recorder:
         self._lengths += [int(n) + 1 for n in episode_steps_before[done]]
         for k, v in out.terms.items():
             self._terms.setdefault(k, []).append(float(v.mean()))
+        torque = getattr(out, "joint_torque", None)
+        if torque is not None:
+            self._knee.append(torque[:, bve.KNEES])
         if len(self._reward) == STEPS_PER_ENV:
-            self.rows.append(
-                {
-                    "reward_per_step": float(np.mean(self._reward)),
-                    "falls": self._fell,
-                    "episode_len": float(np.mean(self._lengths)) if self._lengths else np.nan,
-                    **{k: float(np.mean(v)) for k, v in self._terms.items()},
-                }
-            )
+            row = {
+                "reward_per_step": float(np.mean(self._reward)),
+                "falls": self._fell,
+                "episode_len": float(np.mean(self._lengths)) if self._lengths else np.nan,
+                **{k: float(np.mean(v)) for k, v in self._terms.items()},
+            }
+            if self._knee:
+                knee = np.stack(self._knee)
+                row["knee_torque_mean"] = float(knee.mean())
+                row["knee_torque_max"] = float(knee.max())
+            self.rows.append(row)
             self._reward, self._fell, self._lengths, self._terms = [], 0, [], {}
+            self._knee = []
 
 
-def make_runner(env: Any, rec: Recorder) -> Any:
+def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM) -> Any:
     from rsl_rl.env import VecEnv
     from rsl_rl.runners import OnPolicyRunner
     from tensordict import TensorDict
@@ -74,7 +86,7 @@ def make_runner(env: Any, rec: Recorder) -> Any:
     class Adapter(VecEnv):
         def __init__(self) -> None:
             self.num_envs = env.num_envs
-            self.num_actions = mp.ACT_DIM
+            self.num_actions = act_dim
             self.max_episode_length = env.max_episode_steps
             self.episode_length_buf = torch.zeros(env.num_envs, dtype=torch.long)
             self.device = "cpu"
@@ -153,7 +165,7 @@ def save_checkpoint(
 
 
 def export_onnx(runner: Any, path: Path) -> None:
-    """Actor (with its observation normaliser) as ONNX, 61 -> 14.
+    """Actor (with its observation normaliser) as ONNX (61 -> 14, or 39 -> 10 for biped_v1).
 
     Uses the TorchScript exporter at opset 17, as upstream microduck_rl does
     (``dynamo=False``): torch 2.9's default dynamo exporter fails to convert rsl-rl's
@@ -202,7 +214,9 @@ def write_manifest(args: argparse.Namespace, report: dict[str, Any]) -> None:
 
 def train(args: argparse.Namespace) -> dict[str, Any]:
     torch.manual_seed(args.seed)
-    scene = upstream.microduck_scene("scene_walk.xml")
+    biped_v1 = args.robot == "biped_v1"
+    if biped_v1 and args.actuator != "mjcf":
+        raise SystemExit("biped_v1 has MJCF position actuators only")
     resume: dict[str, Any] | None = None
     if args.resume:
         resume = torch.load(args.resume, map_location="cpu", weights_only=False)
@@ -210,23 +224,23 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     infos = (resume or {}).get("infos") or {}
     common_step = int(infos.get("common_step", 0))
     first_iter = int(infos.get("iterations", 0))
-    kwargs = {
-        "seed": args.seed,
-        "actuator": args.actuator,
-        "common_step": common_step,
-        "dr": args.dr,
-    }
+    kwargs: dict[str, Any] = {"seed": args.seed, "common_step": common_step, "dr": args.dr}
+    env_cls: type
+    if biped_v1:
+        scene, env_cls, act_dim = bve.DEFAULT_SCENE, bve.BipedVelocityEnv, bve.ACT_DIM
+    else:
+        scene = upstream.microduck_scene("scene_walk.xml")
+        env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
+        kwargs["actuator"] = args.actuator
     env: Any = (
-        ParallelBatchEnv(
-            scene, args.envs, args.workers, episode_s=20.0, env_cls=MicroduckVelocityEnv, **kwargs
-        )  # fmt: skip
+        ParallelBatchEnv(scene, args.envs, args.workers, episode_s=20.0, env_cls=env_cls, **kwargs)
         if args.workers
-        else MicroduckVelocityEnv(scene, args.envs, **kwargs)
+        else env_cls(scene=scene, num_envs=args.envs, **kwargs)
     )
     rec = Recorder()
     start = time.perf_counter()
     try:
-        runner = make_runner(env, rec)
+        runner = make_runner(env, rec, act_dim)
         if args.resume:
             runner.load(str(args.resume))
         done = 0
@@ -246,7 +260,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     rewards = np.array([r["reward_per_step"] for r in rec.rows])
     q = max(1, len(rewards) // 4)
     first, last = float(rewards[:q].mean()), float(rewards[-q:].mean())
+    knee = [r["knee_torque_max"] for r in rec.rows if "knee_torque_max" in r]
     return {
+        "robot": args.robot,
         "seed": args.seed,
         "envs": args.envs,
         "workers": args.workers,
@@ -258,12 +274,14 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "first_quarter_reward": first,
         "last_quarter_reward": last,
         "reward_rose": last > first,
+        "knee_torque_max": max(knee) if knee else None,
         "history": rec.rows,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--robot", choices=["microduck", "biped_v1"], default="microduck")
     parser.add_argument("--envs", type=int, default=64)
     parser.add_argument("--iters", type=int, default=60)
     parser.add_argument("--workers", type=int, default=0, help="env processes (0 = serial)")
@@ -287,7 +305,7 @@ def main() -> None:
     verdict = "rose" if result["reward_rose"] else "DID NOT RISE"
     report = {"environment": bench.environment(), "torch": torch.__version__, **result}
     print(
-        f"seed {args.seed}: reward/step {result['first_quarter_reward']:.4f} -> "
+        f"{args.robot} seed {args.seed}: reward/step {result['first_quarter_reward']:.4f} -> "
         f"{result['last_quarter_reward']:.4f} ({verdict}), "
         f"{result['iterations']} it, {result['wall_s']:.0f} s"
     )
