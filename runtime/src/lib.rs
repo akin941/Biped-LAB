@@ -12,6 +12,7 @@
 
 pub mod controller;
 pub mod gate;
+pub mod mlp;
 pub mod protocol;
 pub mod safety;
 
