@@ -207,7 +207,7 @@ def to_mjcf(p: BipedParams | None = None) -> str:
       <geom rgba="0.15 0.15 0.15 1"/>
     </default>
     <default class="foot">
-      <geom contype="1" conaffinity="1" friction="{p.foot_friction:.6g} 0.005 0.0001" rgba="0.2 0.3 0.6 1"/>
+      <geom contype="1" conaffinity="1" priority="1" friction="{p.foot_friction:.6g} 0.005 0.0001" rgba="0.2 0.3 0.6 1"/>
     </default>
   </default>
 

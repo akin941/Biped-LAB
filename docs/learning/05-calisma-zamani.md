@@ -32,7 +32,7 @@ hız sınırlanıyor, ani değişim yumuşatılıyor, komut gelmezse robot duruy
 Programı ilk bağlanan bilgisayar yönetiyor; başka bir bilgisayar araya
 giremiyor. Mac'te denemek için adımlar `MAC-10`'da (isteğe bağlı).
 
-**Komut kanalında kimlik doğrulama (WP4-16):** komutlar artık ortak bir gizli
+**Komut kanalında kimlik doğrulama (WP4-17):** komutlar artık ortak bir gizli
 anahtarla imzalanıyor. Anahtarı olmayan biri ağdan komut gönderemiyor; daha önce
 kaydedilmiş paketleri tekrar göndermek de işe yaramıyor, çünkü program her
 açılışta yeni bir oturum numarası seçiyor. Anahtar dosyası yoksa kanal yalnızca

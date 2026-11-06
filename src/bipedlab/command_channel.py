@@ -1,4 +1,4 @@
-"""Host side of the runtime command channel (WP4-14, authenticated in WP4-16).
+"""Host side of the runtime command channel (WP4-14, authenticated in WP4-17).
 
 Velocity commands go to ``biped-runtime --command-udp HOST:PORT [--command-key FILE]``
 (format in ``runtime/src/channel.rs``, design in ADR-0014). The sender first asks

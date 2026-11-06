@@ -1,4 +1,4 @@
-# WP4-16: command-channel authentication
+# WP4-17: command-channel authentication
 
 **Environment:** cloud (container) for every result below. The CI `runtime` job
 runs the same tests on gha-linux. Simulation only. Design: ADR-0014.

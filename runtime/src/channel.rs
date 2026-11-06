@@ -1,4 +1,4 @@
-//! Host command channel (WP4-14, authenticated in WP4-16): velocity commands
+//! Host command channel (WP4-14, authenticated in WP4-17): velocity commands
 //! over UDP from a host program (keyboard teleop, later a gamepad or a planner).
 //!
 //! Every accepted command goes through the command gate (ADR-0006), which
@@ -7,7 +7,7 @@
 //! No stop request travels over the channel: stopping is the gate timeout or the
 //! e-stop (S-3), never a packet that could be lost.
 //!
-//! Authentication (WP4-16, `docs/decisions/ADR-0014-command-channel-auth.md`):
+//! Authentication (WP4-17, `docs/decisions/ADR-0014-command-channel-auth.md`):
 //!
 //! ```text
 //! hello   host -> robot  14 B: "BPCH" | ver u16 | client_nonce u64
@@ -193,7 +193,7 @@ impl CommandChannel {
         let local = socket.local_addr().map_err(|e| e.to_string())?;
         if key.is_none() && !local.ip().is_loopback() {
             return Err(format!(
-                "command channel {addr:?}: a non-loopback address needs --command-key (WP4-16)"
+                "command channel {addr:?}: a non-loopback address needs --command-key (WP4-17)"
             ));
         }
         socket.set_nonblocking(true).map_err(|e| e.to_string())?;
