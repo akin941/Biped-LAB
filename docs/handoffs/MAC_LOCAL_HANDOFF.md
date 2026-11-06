@@ -122,7 +122,7 @@ notes:
 ```
 
 ## MAC-07 — PPO library throughput on Apple Silicon (WP3-01)
-Status: `awaiting-mac` · Deps: MAC-01
+Status: `done (mac-m5, under load)` · Deps: MAC-01
 
 Same benchmark that chose rsl-rl in ADR-0012 (cloud numbers there). torch and the
 libraries are not project dependencies yet, so they go into the project venv by hand
@@ -143,11 +143,18 @@ faster on the Mac, reopen ADR-0012.
 
 Result:
 ```
-revision:
-raw_env (num_envs: steps/s):
+revision: 146af37798e1553e4d194864c94080506d42d7a2, mac-m5, 1-min load mean 13.6, max 15.8 (Docker DGS CI running). Reports in docs/experiments/mac07/.
+raw_env (num_envs: steps/s): 16: 7321, 64: 7763, 256: 7560
 ppo (library, num_envs: samples/s, non_env_fraction):
-threads=1 run:
+  rsl_rl 16: 1590, 0.766; 64: 2489, 0.655; 256: 4448, 0.447
+  sb3    16: 1751, 0.756; 64: 3472, 0.587; 256: 4519, 0.452
+threads=1 run: 256 envs: rsl_rl 4833 (0.406), sb3 5351 (0.392), raw env 7805
 workers=4 PPO run, env scaling (bench --env-workers):
+  rsl_rl workers=4, 256 envs: 7057 samples/s (0.623); raw env serial 9895
+  bench, 256 envs: 0: 9716, 2: 19500 (2.01x), 4: 26613 (2.74x), 8: 30832 (3.17x) env steps/s
+notes: at 256 envs, the training setting, rsl-rl and SB3 are within 2 %, so ADR-0012 stays closed on that basis.
+  SB3 is ahead by 10 % at 16 envs, 39 % at 64 envs and 11 % at 256 envs with 1 thread; those settings are not the training one.
+  Timing varies with the background load, which is why serial raw env reads 7560 and 9716 in different runs.
 ```
 
 ## MAC-06 — First full PPO training run on the M5 (WP3-04, gate G3.3)

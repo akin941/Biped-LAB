@@ -1,0 +1,118 @@
+{
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "torch": "2.9.1",
+  "torch_threads": 4,
+  "sb3": "2.7.1",
+  "settings": {
+    "hidden": [
+      512,
+      256,
+      128
+    ],
+    "steps_per_env": 24,
+    "epochs": 5,
+    "mini_batches": 4
+  },
+  "raw_env": [
+    {
+      "num_envs": 16,
+      "env_steps_per_s": 7321.113084487491
+    },
+    {
+      "num_envs": 64,
+      "env_steps_per_s": 7762.986388792667
+    },
+    {
+      "num_envs": 256,
+      "env_steps_per_s": 7559.97631024194
+    }
+  ],
+  "ppo": [
+    {
+      "library": "rsl_rl",
+      "num_envs": 16,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 7680,
+      "wall_s": 4.831109625054523,
+      "samples_per_s": 1589.696901136522,
+      "env_s": 1.1325849150307477,
+      "non_env_s": 3.6985247100237757,
+      "non_env_fraction": 0.7655642279038606,
+      "mean_step_reward": 0.5791276297221581
+    },
+    {
+      "library": "sb3",
+      "num_envs": 16,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 7680,
+      "wall_s": 4.3854267911519855,
+      "samples_per_s": 1751.2548642916872,
+      "env_s": 1.0691286642104387,
+      "non_env_s": 3.316298126941547,
+      "non_env_fraction": 0.7562087534176817,
+      "mean_step_reward": 0.4770439681674664
+    },
+    {
+      "library": "rsl_rl",
+      "num_envs": 64,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 30720,
+      "wall_s": 12.34215870895423,
+      "samples_per_s": 2489.0297333247427,
+      "env_s": 4.258733297465369,
+      "non_env_s": 8.08342541148886,
+      "non_env_fraction": 0.6549442121194196,
+      "mean_step_reward": 0.6697711187104384
+    },
+    {
+      "library": "sb3",
+      "num_envs": 64,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 30720,
+      "wall_s": 8.849032457917929,
+      "samples_per_s": 3471.565975838679,
+      "env_s": 3.651683748466894,
+      "non_env_s": 5.197348709451035,
+      "non_env_fraction": 0.5873352520930756,
+      "mean_step_reward": 0.6211872406303882
+    },
+    {
+      "library": "rsl_rl",
+      "num_envs": 256,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 122880,
+      "wall_s": 27.624220540979877,
+      "samples_per_s": 4448.27030749014,
+      "env_s": 15.271830574143678,
+      "non_env_s": 12.3523899668362,
+      "non_env_fraction": 0.4471579550457078,
+      "mean_step_reward": 0.7388650998473167
+    },
+    {
+      "library": "sb3",
+      "num_envs": 256,
+      "env_workers": 0,
+      "iterations": 20,
+      "samples": 122880,
+      "wall_s": 27.193536166101694,
+      "samples_per_s": 4518.720891958766,
+      "env_s": 14.895165565656498,
+      "non_env_s": 12.298370600445196,
+      "non_env_fraction": 0.45225345189846333,
+      "mean_step_reward": 0.7778971019511421
+    }
+  ]
+}

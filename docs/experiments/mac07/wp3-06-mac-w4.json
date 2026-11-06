@@ -1,0 +1,45 @@
+{
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "torch": "2.9.1",
+  "torch_threads": 4,
+  "sb3": "2.7.1",
+  "settings": {
+    "hidden": [
+      512,
+      256,
+      128
+    ],
+    "steps_per_env": 24,
+    "epochs": 5,
+    "mini_batches": 4
+  },
+  "raw_env": [
+    {
+      "num_envs": 256,
+      "env_steps_per_s": 9895.136143340835
+    }
+  ],
+  "ppo": [
+    {
+      "library": "rsl_rl",
+      "num_envs": 256,
+      "env_workers": 4,
+      "iterations": 20,
+      "samples": 122880,
+      "wall_s": 17.411458041053265,
+      "samples_per_s": 7057.421596185099,
+      "env_s": 6.564715375192463,
+      "non_env_s": 10.846742665860802,
+      "non_env_fraction": 0.6229657872583687,
+      "mean_step_reward": 0.7388650998473167
+    }
+  ]
+}
