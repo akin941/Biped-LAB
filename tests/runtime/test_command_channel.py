@@ -32,8 +32,11 @@ def free_udp_port() -> int:
         return s.getsockname()[1]
 
 
-def send_for(port: int, cmd, seconds: float, rate: float = 25.0) -> threading.Thread:
+def send_for(
+    port: int, cmd, seconds: float, rate: float = 25.0, delay: float = 0.0
+) -> threading.Thread:
     def run():
+        time.sleep(delay)
         tx = cc.CommandSender("127.0.0.1", port)
         end = time.monotonic() + seconds
         while time.monotonic() < end:
@@ -86,8 +89,11 @@ def test_second_sender_is_ignored(tmp_path):
     port = free_udp_port()
     log = tmp_path / "two.bplog"
     first = send_for(port, (0.1, 0.0, 0.0), 2.5)
-    time.sleep(0.3)  # the runtime has locked onto the first sender by now
-    second = send_for(port, (0.3, 0.0, 0.0), 2.0)
+    # The runtime binds the port only once it starts, so both senders must not be
+    # live before it locks on: whichever datagram arrived first after the bind won
+    # (failed 3/10 on a loaded M5, MAC-09). The first sender's 25 Hz stream locks
+    # within ~40 ms of the bind; the second starts 1 s later.
+    second = send_for(port, (0.3, 0.0, 0.0), 1.5, delay=1.0)
     r = rb.run_with_runtime(
         BINARY,
         ["--realtime", "--command-udp", f"127.0.0.1:{port}", "--log", str(log)],

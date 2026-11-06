@@ -2,6 +2,7 @@
 
 import math
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -180,9 +181,36 @@ def test_action_delay_applies_actions_k_periods_late():
 def test_action_delay_queue_clears_on_reset():
     env = BipedVelocityEnv(num_envs=1, seed=0, noise=False, action_delay=1)
     env.step(np.full((1, 10), 0.5, dtype=np.float32))
-    assert env.pending_actions[0, 0, 0] == pytest.approx(0.5)
+    assert env.action_history[0, 0, 0] == pytest.approx(0.5)
     env._reset_env(0)
-    assert not env.pending_actions.any()
+    assert not env.action_history.any()
+
+
+def test_dr_draws_a_per_env_action_delay():
+    env = BipedVelocityEnv(num_envs=16, seed=0, dr=True)
+    assert set(env.delay) <= set(range(bve.DR_ACTION_DELAY_MAX + 1))
+    assert len(set(env.delay)) > 1
+    delay = env.delay.copy()
+    out = env.step(np.full((16, 10), 0.4, dtype=np.float32))
+    assert not (out.terminated | out.truncated).any()
+    ctrl = np.array([d.ctrl for d in env.datas])
+    moved = np.abs(ctrl - env.default_pose).max(axis=1) > 1e-6
+    np.testing.assert_array_equal(moved, delay == 0)
+    # Without DR the delay is the fixed one.
+    assert (BipedVelocityEnv(num_envs=4, seed=0, action_delay=1).delay == 1).all()
+
+
+def test_foot_friction_sets_the_foot_floor_contact():
+    # MuJoCo combines equal-priority geoms with max(): with the floor at 1.0 a foot
+    # friction below 1 had no effect (MAC-08 friction_0.5 equalled nominal). The foot
+    # class has priority 1, so the foot's friction is the contact's.
+    env = BipedVelocityEnv(num_envs=1, seed=0, noise=False)
+    for mu in (0.3, 1.0, 1.5):
+        env.model.geom_friction[env.foot_geoms, 0] = mu
+        d = env.datas[0]
+        mujoco.mj_forward(env.model, d)
+        assert d.ncon > 0
+        assert all(d.contact[k].friction[0] == pytest.approx(mu) for k in range(d.ncon))
 
 
 def test_rejects_bad_actions_and_models(tmp_path):

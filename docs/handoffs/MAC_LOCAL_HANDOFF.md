@@ -313,5 +313,42 @@ notes:
 
 ---
 
+## MAC-11 — Re-check after the WP4-16 fixes (runtime pacing, friction, latency)
+Status: `awaiting-mac` · Deps: MAC-08, MAC-09 done once; WP4-16 merged
+
+MAC-09 found the runtime at ~40 Hz (relative sleep after the state read) and MAC-08
+found that foot friction below 1.0 was never applied. WP4-16 fixes both and adds
+0–40 ms action delay to DR. Pull `main`, then:
+```bash
+(cd runtime && cargo test --locked && cargo build --locked --release)
+BIPEDLAB_REQUIRE_RUNTIME=1 uv run pytest -m runtime -rs
+uv run python scripts/runtime_sim.py --seconds 30 --realtime --out /tmp/mac11-realtime.json
+# retrain biped_v1 (same command as MAC-08 step 2, new run dir) and evaluate
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 3000 \
+    --workers <best from MAC-08> --seed 0 --run-dir runs/mac11-seed0 --save-every 100 \
+    --out runs/mac11-seed0/report.json
+uv run python scripts/eval_biped.py runs/mac11-seed0/policy.onnx --dr --robustness --envs 8 \
+    --seconds 10 --out runs/mac11-seed0/eval.json
+```
+**Acceptance:** all `runtime` tests pass; 30 s real-time run: 1500 periods,
+`deadline_misses` ≤ 15 (now real overruns), no latched fault, wall time 29.5–31 s
+(note the machine load). Retrained policy: G4.3 first pass as in MAC-08 still met,
+`friction_0.5` now differs from nominal, and `latency_40ms` reaches ≥ 50 % of the
+command. Commit `report.json`, `run.json`, `eval.json` under `docs/experiments/mac11/`.
+
+Result:
+```
+revision:
+pytest -m runtime:
+realtime 30 s (periods, deadline_misses, period_max_us, wall_s, load):
+retrain (wall time, reward first -> last quarter):
+eval: vx_mean 0.15 / 0.25 (DR on), falls, friction_0.5 / 1.5, latency 20/40/60 ms:
+knee p95 / max:
+policy.onnx sha256:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

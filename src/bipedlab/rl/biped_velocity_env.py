@@ -33,8 +33,10 @@ runtime reports. ``target_slew=None`` turns the limit off (the WP4-06 behaviour)
 
 Action delay (WP4-12, G4.3 latency robustness): ``action_delay=k`` applies each policy
 action ``k`` control periods (``k`` x 20 ms) after it was produced; the observation's
-"last action" stays the policy's own previous output, as on the robot. The default 0
-is the training setting.
+"last action" stays the policy's own previous output, as on the robot. With DR, each
+reset also draws an extra 0-``DR_ACTION_DELAY_MAX`` periods per env (WP4-16: the first
+M5 policy halved its speed at 40 ms, MAC-08), from its own random stream so the other
+DR draws are unchanged.
 
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
@@ -139,6 +141,7 @@ MASS_SCALE = (0.95, 1.05)
 TRUNK_COM = 0.01  # m, uniform per axis
 ARMATURE_SCALE = (0.9, 1.1)
 IMU_MAX_ANGLE_DEG = 6.0
+DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
 
 
 @dataclass
@@ -191,7 +194,13 @@ class BipedVelocityEnv:
         self.episode_steps = z(n, dtype=np.int64)
         self.last_action = z((n, ACT_DIM), dtype=np.float32)
         self.last_target = np.tile(self.default_pose, (n, 1))
-        self.pending_actions = z((self.action_delay, n, ACT_DIM), dtype=np.float32)
+        max_delay = self.action_delay + (DR_ACTION_DELAY_MAX if self.dr else 0)
+        # history[k] = the action produced k periods ago (0 = this period).
+        self.action_history = z((max_delay + 1, n, ACT_DIM), dtype=np.float32)
+        self.delay = np.full(n, self.action_delay, dtype=np.int64)
+        self._delay_rngs = [
+            np.random.default_rng([self.seed, self.first_env + i, 2]) for i in range(n)
+        ]
         self.twist = z((n, 3))
         self.twist_left = z(n)
         self._frozen: np.ndarray | None = None
@@ -350,7 +359,10 @@ class BipedVelocityEnv:
         self.episode_steps[i] = 0
         self.last_action[i] = 0.0
         self.last_target[i] = self.default_pose
-        self.pending_actions[:, i] = 0.0
+        self.action_history[:, i] = 0.0
+        self.delay[i] = self.action_delay
+        if self.dr:
+            self.delay[i] += int(self._delay_rngs[i].integers(0, DR_ACTION_DELAY_MAX + 1))
         self.air_time[i] = 0.0
         if self._frozen is None:
             self._sample_twist(i)
@@ -477,10 +489,10 @@ class BipedVelocityEnv:
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
         applied = actions
-        if self.action_delay:
-            applied = self.pending_actions[0].copy()
-            self.pending_actions = np.roll(self.pending_actions, -1, axis=0)
-            self.pending_actions[-1] = actions
+        if len(self.action_history) > 1:
+            self.action_history = np.roll(self.action_history, 1, axis=0)
+            self.action_history[0] = actions
+            applied = self.action_history[self.delay, np.arange(self.num_envs)]
         wanted = self.default_pose + ACTION_SCALE * applied
         targets = wanted
         if self.target_slew is not None:

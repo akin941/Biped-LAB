@@ -15,6 +15,7 @@ pub mod controller;
 pub mod dxl;
 pub mod gate;
 pub mod mlp;
+pub mod pacer;
 pub mod policy;
 pub mod protocol;
 pub mod safety;

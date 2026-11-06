@@ -21,6 +21,7 @@ use biped_runtime::channel::{ChannelStats, CommandChannel};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
 use biped_runtime::mlp::Mlp;
+use biped_runtime::pacer::Pacer;
 use biped_runtime::policy::{Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
@@ -254,6 +255,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
     let mut t0: Option<Instant> = None;
     let mut last_step = 0u64;
     let mut prev_start: Option<Instant> = None;
+    let mut pacer = Pacer::new(Duration::from_secs_f64(dt));
     loop {
         let state = match State::read(&mut reader, n) {
             Ok(s) => s,
@@ -327,11 +329,12 @@ fn run(args: &Args) -> Result<ExitCode, String> {
         stats.compute_sum_us += compute.as_micros();
         stats.compute_max_us = stats.compute_max_us.max(compute.as_micros());
         if args.realtime {
-            let period = Duration::from_secs_f64(dt);
-            match period.checked_sub(start.elapsed()) {
-                Some(rest) => std::thread::sleep(rest),
-                None => stats.deadline_misses += 1,
+            // Absolute schedule: the wait for the next state counts towards the
+            // period (relative sleeping added it on top: ~40 Hz on a loaded M5, MAC-09).
+            if let Some(rest) = pacer.wait_time(start, Instant::now()) {
+                std::thread::sleep(rest);
             }
+            stats.deadline_misses = pacer.misses;
         }
     }
 }
