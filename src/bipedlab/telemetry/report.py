@@ -29,6 +29,9 @@ def _fmt(value: Any) -> str:
         return f"{value:.4g}"
     if isinstance(value, list):
         return ", ".join(_fmt(v) for v in value)
+    if isinstance(value, dict):
+        shown = {k: v for k, v in value.items() if v} or value
+        return html.escape(", ".join(f"{k}: {v}" for k, v in shown.items()))
     return html.escape(str(value))
 
 
@@ -164,7 +167,7 @@ def render(arrays: dict[str, np.ndarray], sidecar: dict[str, Any], title: str) -
             "derece",
         ),
     ]
-    if cmd.shape[-1] >= 3:
+    if cmd.shape[-1] >= 3 and "lin_vel_body" in arrays:
         charts.append(
             _chart(
                 "İleri hız: komut ve gerçekleşen",
@@ -174,6 +177,7 @@ def render(arrays: dict[str, np.ndarray], sidecar: dict[str, Any], title: str) -
                 "m/s",
             )
         )
+    if cmd.shape[-1] >= 3:
         charts.append(
             _chart(
                 "Dönüş hızı: komut ve gerçekleşen",
@@ -183,21 +187,41 @@ def render(arrays: dict[str, np.ndarray], sidecar: dict[str, Any], title: str) -
                 "rad/s",
             )
         )
+    estimated = sidecar.get("estimated", {})
+    torque_note = " Tahmini (servo hedef farkından)." if "joint_torque" in estimated else ""
     charts.append(
         _chart(
-            "Mekanik güç", "Σ|tork × açısal hız|. Yürürken artar.", t, {"güç": arrays["power"]}, "W"
-        )
-    )
-    contact = arrays["foot_contact"].astype(float)
-    charts.append(
-        _chart(
-            "Ayak teması",
-            "1 = ayak yerde, 0 = havada. Yürürken sırayla değişmeli.",
+            "Mekanik güç",
+            "Σ|tork × açısal hız|. Yürürken artar." + torque_note,
             t,
-            {"sol": contact[:, 0] + 0.02, "sağ": contact[:, 1] - 0.02},
-            "0/1",
+            {"güç": arrays["power"]},
+            "W",
         )
     )
+    if "foot_contact" in arrays:
+        contact = arrays["foot_contact"].astype(float)
+        charts.append(
+            _chart(
+                "Ayak teması",
+                "1 = ayak yerde, 0 = havada. Yürürken sırayla değişmeli.",
+                t,
+                {"sol": contact[:, 0] + 0.02, "sağ": contact[:, 1] - 0.02},
+                "0/1",
+            )
+        )
+    if "fault_bits" in arrays:
+        charts.append(
+            _chart(
+                "Güvenlik denetçisi",
+                "Motor gücü (1 = açık) ve hedefi değiştiren denetçi olayları (1 = bu döngüde var).",
+                t,
+                {
+                    "motor açık": arrays["torque_enable"].astype(float),
+                    "olay": ((arrays["fault_bits"] >> 8) != 0).astype(float) * 0.9,
+                },
+                "0/1",
+            )
+        )
     n_legs = min(5, arrays["joint_pos"].shape[1])
     charts.append(
         _chart(
@@ -211,7 +235,7 @@ def render(arrays: dict[str, np.ndarray], sidecar: dict[str, Any], title: str) -
     charts.append(
         _chart(
             "En yüksek eklem torku",
-            "Her adımda en çok zorlanan motorun torku.",
+            "Her adımda en çok zorlanan motorun torku." + torque_note,
             t,
             {"|tork| maks": np.abs(arrays["joint_torque"]).max(axis=1)},
             "N·m",
