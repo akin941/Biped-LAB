@@ -381,7 +381,7 @@ notes:
 ---
 
 ## MAC-11 — Re-check after the WP4-16 fixes (runtime pacing, friction, latency)
-Status: `awaiting-mac` · Deps: MAC-08, MAC-09 done once; WP4-16 merged
+Status: `paused by owner, partial (mac-m5): runtime part passed, retrain stopped at model_1800` · Deps: MAC-08, MAC-09 done once; WP4-16 merged
 
 MAC-09 found the runtime at ~40 Hz (relative sleep after the state read) and MAC-08
 found that foot friction below 1.0 was never applied. WP4-16 fixes both and adds
@@ -405,14 +405,20 @@ command. Commit `report.json`, `run.json`, `eval.json` under `docs/experiments/m
 
 Result:
 ```
-revision:
-pytest -m runtime:
-realtime 30 s (periods, deadline_misses, period_max_us, wall_s, load):
-retrain (wall time, reward first -> last quarter):
-eval: vx_mean 0.15 / 0.25 (DR on), falls, friction_0.5 / 1.5, latency 20/40/60 ms:
-knee p95 / max:
-policy.onnx sha256:
-notes:
+revision: e5c05586b26476309ca2676d4976a364fe2b0ba8, mac-m5
+pytest -m runtime: 27 passed; cargo test 39 passed; release build ok
+realtime 30 s (periods, deadline_misses, period_max_us, wall_s, load), three runs, logged:
+  1500, 0, 26869, 29.98, load 8.3
+  1500, 0, 33647, 29.98, load 8.6
+  1500, 1, 45294, 29.98, load 7.7
+  no latched fault, supervisor events 0. Period mean 20.00 ms, p50 19.8-19.9, p99 24.7-24.9, min 1.5-12.6 (catch-up after overruns).
+retrain (wall time, reward first -> last quarter): NOT COMPLETE. Stopped at the owner's request, 2026-11-06 17:00 +03,
+  after about 21 min. Newest checkpoint runs/mac11-seed0/model_1800.pt (not committed). No report.json, run.json or policy.onnx.
+eval: not run
+knee p95 / max: not run
+policy.onnx sha256: none
+notes: runtime acceptance met; policy acceptance still open. Resume from model_1800.pt with --iters 1200 per the MAC-08 resume command.
+  MAC-10 not started.
 ```
 
 ---
