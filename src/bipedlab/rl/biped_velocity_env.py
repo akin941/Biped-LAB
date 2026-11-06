@@ -24,6 +24,18 @@ biped_v1: foot friction, trunk mass and CoM, joint armature, encoder bias, IMU
 mounting tilt and random pushes. All envs share one ``MjModel``; with DR each env's
 parameters are written into it before that env is reset or stepped.
 
+Target slew limit (WP4-11): the runtime's safety supervisor moves each joint target at
+most ``TARGET_SLEW`` rad per period (10 rad/s, ~ the servo's no-load speed). The env
+applies the same limit, so a policy trains on what the robot will execute, and the
+``action_slew`` term penalises the part of each wanted step that the limit cuts off.
+``slew_limited`` in each step result says which envs hit the limit, the metric the
+runtime reports. ``target_slew=None`` turns the limit off (the WP4-06 behaviour).
+
+Action delay (WP4-12, G4.3 latency robustness): ``action_delay=k`` applies each policy
+action ``k`` control periods (``k`` x 20 ms) after it was produced; the observation's
+"last action" stays the policy's own previous output, as on the robot. The default 0
+is the training setting.
+
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
 requirement of WP4-01 with a learned gait.
@@ -86,10 +98,16 @@ TURN_WZ = (0.4, 1.0)
 STANDING_FRACTION = 0.10
 COMMAND_THRESHOLD = 0.01
 
-# Rewards. Weights follow MicroduckVelocityEnv; the action-rate penalty ramps the same
-# way (stages keyed on env steps, 24 per PPO iteration).
+# Runtime supervisor slew limit (runtime/src/safety.rs, max_target_speed 10 rad/s).
+TARGET_SLEW = 10.0 * STEP_DT  # 0.2 rad per period
+
+# Rewards. Weights follow MicroduckVelocityEnv except the action rate. Microduck ramps
+# it from -0.1 to -0.6 over 1500 PPO iterations (stages keyed on env steps, 24 per
+# iteration); on biped_v1 that let the deterministic policy jitter (WP4-11: after 300
+# iterations 99.5 % of its periods hit the runtime slew limit), so it is -0.5 from the
+# start. Stages stay a list so a later run can ramp again.
 IT = 24
-ACTION_RATE_STAGES = [(0, -0.1), (500 * IT, -0.2), (1000 * IT, -0.4), (1500 * IT, -0.6)]
+ACTION_RATE_STAGES = [(0, -0.5)]
 WEIGHTS = {
     "track_linear_velocity": 2.0,
     "track_angular_velocity": 2.0,
@@ -101,6 +119,7 @@ WEIGHTS = {
     "foot_clearance": -2.0,
     "foot_slip": -0.1,
     "feet_collision": -1.0,
+    "action_slew": -1.0,  # (rad of wanted target step cut off by the slew limit)^2
 }
 TRACK_LIN_STD2 = 0.05
 TRACK_ANG_STD2 = 0.5
@@ -132,6 +151,7 @@ class BipedStepResult:
     final_obs: np.ndarray  # (N, 39) before auto-reset
     terms: dict[str, np.ndarray]  # per-term rewards (N,), x weight x dt
     joint_torque: np.ndarray  # (N, 10) |actuator force| (N*m) at the end of the step
+    slew_limited: np.ndarray  # (N,) bool: the slew limit cut a target step this step
 
 
 @dataclass
@@ -144,6 +164,8 @@ class BipedVelocityEnv:
     noise: bool = True
     common_step: int = 0
     dr: bool = False
+    target_slew: float | None = TARGET_SLEW
+    action_delay: int = 0
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -151,6 +173,8 @@ class BipedVelocityEnv:
         n = self.num_envs
         if n < 1:
             raise ValueError("num_envs must be at least 1")
+        if self.action_delay < 0:
+            raise ValueError("action_delay must be >= 0")
         m = mujoco.MjModel.from_xml_path(str(self.scene))
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
@@ -166,6 +190,8 @@ class BipedVelocityEnv:
         z = np.zeros
         self.episode_steps = z(n, dtype=np.int64)
         self.last_action = z((n, ACT_DIM), dtype=np.float32)
+        self.last_target = np.tile(self.default_pose, (n, 1))
+        self.pending_actions = z((self.action_delay, n, ACT_DIM), dtype=np.float32)
         self.twist = z((n, 3))
         self.twist_left = z(n)
         self._frozen: np.ndarray | None = None
@@ -323,6 +349,8 @@ class BipedVelocityEnv:
         mujoco.mj_forward(m, d)
         self.episode_steps[i] = 0
         self.last_action[i] = 0.0
+        self.last_target[i] = self.default_pose
+        self.pending_actions[:, i] = 0.0
         self.air_time[i] = 0.0
         if self._frozen is None:
             self._sample_twist(i)
@@ -405,7 +433,12 @@ class BipedVelocityEnv:
 
     # ----- step -----------------------------------------------------------------
 
-    def _rewards(self, s: dict[str, np.ndarray], actions: np.ndarray) -> dict[str, np.ndarray]:
+    def _rewards(
+        self, s: dict[str, np.ndarray], actions: np.ndarray, cut: np.ndarray | None = None
+    ) -> dict[str, np.ndarray]:
+        """Weighted reward terms; ``cut`` is the target step removed by the slew limit."""
+        if cut is None:
+            cut = np.zeros_like(actions)
         twist = self.twist
         active = np.linalg.norm(twist[:, :2], axis=1) + np.abs(twist[:, 2]) > COMMAND_THRESHOLD
         lin, ang = s["lin_vel_b"], s["ang_vel_b"]
@@ -431,6 +464,7 @@ class BipedVelocityEnv:
             * active,
             "foot_slip": np.sum(np.square(foot_speed) * s["contact"], axis=1),
             "feet_collision": s["feet_touch"],
+            "action_slew": np.sum(np.square(cut), axis=1),
         }
         weights = dict(WEIGHTS)
         weights["action_rate_l2"] = stage_value(ACTION_RATE_STAGES, self.common_step)
@@ -442,7 +476,19 @@ class BipedVelocityEnv:
             raise ValueError(f"actions must have shape {(self.num_envs, ACT_DIM)}")
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
-        targets = self.default_pose + ACTION_SCALE * actions
+        applied = actions
+        if self.action_delay:
+            applied = self.pending_actions[0].copy()
+            self.pending_actions = np.roll(self.pending_actions, -1, axis=0)
+            self.pending_actions[-1] = actions
+        wanted = self.default_pose + ACTION_SCALE * applied
+        targets = wanted
+        if self.target_slew is not None:
+            step = np.clip(wanted - self.last_target, -self.target_slew, self.target_slew)
+            targets = self.last_target + step
+        cut = wanted - targets
+        slew_limited = np.any(np.abs(cut) > 1e-9, axis=1)
+        self.last_target = targets
         for i, d in enumerate(self.datas):
             self._apply_physics(i)
             d.ctrl[:] = targets[i]
@@ -456,7 +502,7 @@ class BipedVelocityEnv:
                 value[~finite] = 0.0
         contact = s["contact"]
         self.air_time = np.where(contact, 0.0, self.air_time + STEP_DT)
-        terms = self._rewards(s, actions)
+        terms = self._rewards(s, actions, cut)
         self.contact = contact
 
         tilted = s["gravity"][:, 2] > -math.cos(math.radians(FALL_TILT_DEG))
@@ -480,5 +526,13 @@ class BipedVelocityEnv:
         if self.dr:
             self._push()
         return BipedStepResult(
-            self.obs, self.critic_obs, reward, terminated, truncated, final_obs, terms, torque
+            self.obs,
+            self.critic_obs,
+            reward,
+            terminated,
+            truncated,
+            final_obs,
+            terms,
+            torque,
+            slew_limited,
         )

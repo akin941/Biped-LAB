@@ -39,6 +39,10 @@ from bipedlab.sim import microduck_policy as mp
 
 HIDDEN = [512, 256, 128]
 STEPS_PER_ENV = 24
+# Initial action noise for biped_v1 (WP4-11). Its actions are scaled by 0.5 rad, so 0.5
+# explores 0.25 rad per joint; 1.0 (Microduck's value at scale 1.0) made the
+# action-rate penalty of pure noise outweigh standing and the policy learned to jitter.
+BIPED_INIT_STD = 0.5
 
 
 class Recorder:
@@ -78,7 +82,7 @@ class Recorder:
             self._knee = []
 
 
-def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM) -> Any:
+def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM, init_std: float = 1.0) -> Any:
     from rsl_rl.env import VecEnv
     from rsl_rl.runners import OnPolicyRunner
     from tensordict import TensorDict
@@ -126,7 +130,7 @@ def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM) -> Any:
             **model,
             "distribution_cfg": {
                 "class_name": "GaussianDistribution",
-                "init_std": 1.0,
+                "init_std": init_std,
                 "std_type": "scalar",
             },
         },
@@ -240,7 +244,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     rec = Recorder()
     start = time.perf_counter()
     try:
-        runner = make_runner(env, rec, act_dim)
+        if args.init_std is None:
+            args.init_std = BIPED_INIT_STD if biped_v1 else 1.0
+        runner = make_runner(env, rec, act_dim, args.init_std)
         if args.resume:
             runner.load(str(args.resume))
         done = 0
@@ -268,6 +274,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "workers": args.workers,
         "actuator": args.actuator,
         "dr": args.dr,
+        "init_std": args.init_std,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -288,6 +295,12 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf")
     parser.add_argument("--dr", action="store_true", help="domain randomization on")
+    parser.add_argument(
+        "--init-std",
+        type=float,
+        default=None,
+        help="initial action noise std (default: 1.0, biped_v1: BIPED_INIT_STD)",
+    )
     parser.add_argument("--threads", type=int, default=None, help="torch.set_num_threads")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(

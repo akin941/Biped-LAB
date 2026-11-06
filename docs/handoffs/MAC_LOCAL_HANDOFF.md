@@ -219,12 +219,22 @@ uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 3000
 #   uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters <3000-n> \
 #       --workers <best> --seed 0 --run-dir runs/mac08-seed0 --save-every 100 \
 #       --resume runs/mac08-seed0/model_<n>.pt
-# 3) robustness + knee torque report (with and without DR: pushes, friction, mass)
-uv run python scripts/eval_biped.py runs/mac08-seed0/policy.onnx --dr --envs 8 \
+# 3) robustness + knee torque report (with and without DR, plus one-factor cases:
+#    foot friction 0.5/1.5, forward/sideways push, 20/40/60 ms latency; WP4-12)
+uv run python scripts/eval_biped.py runs/mac08-seed0/policy.onnx --dr --robustness --envs 8 \
     --seconds 10 --out runs/mac08-seed0/eval.json
 ```
-This is a first attempt with an untuned reward; it may only learn to stand or
-shuffle. Record that honestly. **Do not** commit `runs/`. Commit `run.json`,
+Since WP4-11 (2026-11-06) the env applies the runtime's 10 rad/s target slew limit,
+penalises steps it cuts (`action_slew`), uses an action-rate weight of −0.5 from the
+start, and biped_v1 trains with `--init-std 0.5` by default. Before that change the
+smoke policies jittered (slew limit in 488–500 of 500 runtime periods); after it, 0 of
+500 at 300 iterations in the cloud. Pull `main` before step 1 so the run uses it; check
+that `report.json` says `"init_std": 0.5`.
+
+This is a first attempt; it may only learn to stand or shuffle. Record that honestly.
+In `eval.json`, `slew_limited_fraction` should stay near 0 (below 0.05) in every case:
+a higher value means the policy jitters again and would be cut by the runtime.
+**Do not** commit `runs/`. Commit `run.json`,
 `report.json` and `eval.json` under `docs/experiments/mac08/` and the sha256 of
 `policy.onnx`.
 
@@ -240,6 +250,8 @@ timing (workers: samples/s):
 wall time for 3000 iterations:
 reward/step first -> last quarter:
 eval.json (vx_mean at 0.15 / 0.25, falls, with and without DR):
+robustness cases (falls / vx_mean each: friction 0.5, 1.5, push fwd, side, latency 20/40/60 ms):
+slew_limited_fraction (max over cases):
 knee torque p95 / max (N*m):
 policy.onnx sha256:
 notes:
