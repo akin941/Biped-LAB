@@ -12,6 +12,7 @@
 
 pub mod channel;
 pub mod controller;
+pub mod dxl;
 pub mod gate;
 pub mod mlp;
 pub mod policy;
