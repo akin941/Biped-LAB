@@ -51,6 +51,12 @@ without `--torque-fraction`. The supervisor caps the steps; the full M5 training
 idle, and its policy should be run here with `--torque-fraction` before any
 hardware discussion.
 
+## Results (gha-linux)
+Run 42170283487 (`nightly-train` on PR #25, head d951cf5): all four `biped-ppo-smoke`
+jobs (seeds 0, 1, 2 and seed 0 with DR) trained, exported their policy with the
+Rust parity check passing, and ran it 10 s (500 periods) in the runtime with a clean
+exit. Per-run JSON is in the job artifacts (`reports/biped/runtime_*.json`).
+
 ## Gate status
 G4.3 is not met: it needs the MAC-08 policy. This removes the integration risk
 between training and the runtime: an rsl-rl biped_v1 policy runs in the runtime
