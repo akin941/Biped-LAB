@@ -219,8 +219,9 @@ uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 3000
 #   uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters <3000-n> \
 #       --workers <best> --seed 0 --run-dir runs/mac08-seed0 --save-every 100 \
 #       --resume runs/mac08-seed0/model_<n>.pt
-# 3) robustness + knee torque report (with and without DR: pushes, friction, mass)
-uv run python scripts/eval_biped.py runs/mac08-seed0/policy.onnx --dr --envs 8 \
+# 3) robustness + knee torque report (with and without DR, plus one-factor cases:
+#    foot friction 0.5/1.5, forward/sideways push, 20/40/60 ms latency; WP4-12)
+uv run python scripts/eval_biped.py runs/mac08-seed0/policy.onnx --dr --robustness --envs 8 \
     --seconds 10 --out runs/mac08-seed0/eval.json
 ```
 Since WP4-11 (2026-11-06) the env applies the runtime's 10 rad/s target slew limit,
@@ -249,6 +250,7 @@ timing (workers: samples/s):
 wall time for 3000 iterations:
 reward/step first -> last quarter:
 eval.json (vx_mean at 0.15 / 0.25, falls, with and without DR):
+robustness cases (falls / vx_mean each: friction 0.5, 1.5, push fwd, side, latency 20/40/60 ms):
 slew_limited_fraction (max over cases):
 knee torque p95 / max (N*m):
 policy.onnx sha256:

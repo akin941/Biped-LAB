@@ -31,6 +31,11 @@ applies the same limit, so a policy trains on what the robot will execute, and t
 ``slew_limited`` in each step result says which envs hit the limit, the metric the
 runtime reports. ``target_slew=None`` turns the limit off (the WP4-06 behaviour).
 
+Action delay (WP4-12, G4.3 latency robustness): ``action_delay=k`` applies each policy
+action ``k`` control periods (``k`` x 20 ms) after it was produced; the observation's
+"last action" stays the policy's own previous output, as on the robot. The default 0
+is the training setting.
+
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
 requirement of WP4-01 with a learned gait.
@@ -160,6 +165,7 @@ class BipedVelocityEnv:
     common_step: int = 0
     dr: bool = False
     target_slew: float | None = TARGET_SLEW
+    action_delay: int = 0
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -167,6 +173,8 @@ class BipedVelocityEnv:
         n = self.num_envs
         if n < 1:
             raise ValueError("num_envs must be at least 1")
+        if self.action_delay < 0:
+            raise ValueError("action_delay must be >= 0")
         m = mujoco.MjModel.from_xml_path(str(self.scene))
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
@@ -183,6 +191,7 @@ class BipedVelocityEnv:
         self.episode_steps = z(n, dtype=np.int64)
         self.last_action = z((n, ACT_DIM), dtype=np.float32)
         self.last_target = np.tile(self.default_pose, (n, 1))
+        self.pending_actions = z((self.action_delay, n, ACT_DIM), dtype=np.float32)
         self.twist = z((n, 3))
         self.twist_left = z(n)
         self._frozen: np.ndarray | None = None
@@ -341,6 +350,7 @@ class BipedVelocityEnv:
         self.episode_steps[i] = 0
         self.last_action[i] = 0.0
         self.last_target[i] = self.default_pose
+        self.pending_actions[:, i] = 0.0
         self.air_time[i] = 0.0
         if self._frozen is None:
             self._sample_twist(i)
@@ -466,7 +476,12 @@ class BipedVelocityEnv:
             raise ValueError(f"actions must have shape {(self.num_envs, ACT_DIM)}")
         if not np.all(np.isfinite(actions)):
             raise ValueError("actions must be finite")
-        wanted = self.default_pose + ACTION_SCALE * actions
+        applied = actions
+        if self.action_delay:
+            applied = self.pending_actions[0].copy()
+            self.pending_actions = np.roll(self.pending_actions, -1, axis=0)
+            self.pending_actions[-1] = actions
+        wanted = self.default_pose + ACTION_SCALE * applied
         targets = wanted
         if self.target_slew is not None:
             step = np.clip(wanted - self.last_target, -self.target_slew, self.target_slew)
