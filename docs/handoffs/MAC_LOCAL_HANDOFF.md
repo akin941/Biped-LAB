@@ -158,7 +158,7 @@ notes: at 256 envs, the training setting, rsl-rl and SB3 are within 2 %, so ADR-
 ```
 
 ## MAC-06 — First full PPO training run on the M5 (WP3-04, gate G3.3)
-Status: `run complete (mac-m5); G3.3 not met, stands but does not walk` · Deps: MAC-01 (MAC-07 helps choose `--workers`)
+Status: `run complete (mac-m5); G3.3 not met: walks on mjcf, not on BAM` · Deps: MAC-01 (MAC-07 helps choose `--workers`)
 
 Trains a walking policy from scratch on the WP3-02 velocity env (upstream's flat
 velocity task, CPU MuJoCo). The training stack is the same as MAC-07 (PyPI wheels;
@@ -204,13 +204,17 @@ revision: 0a0c97c51e125f489e34a8e57513f1fb164e0f71 (git_dirty false), mac-m5
 timing (workers: samples/s): 4: 7763, 8: 7014 (20 it, 256 envs, load about 10) -> 4
 wall time for 3000 iterations: 2368 s (39.5 min), 18.43 M samples, 7784 samples/s; 1-min load mean 12.2, max 19.1 (Docker DGS CI)
 reward/step first -> last quarter: 0.0437 -> 0.0975
-eval.json (vx at 0.4 cmd, falls): with obs noise 0.0525 (2 of 8 envs moved, about 0.2 m/s; 6 about 0); without noise -0.0001; 0 falls
+eval.json (vx at 0.4 cmd, falls), 0 falls in all policy cases:
+  mjcf (training actuator): 0.2140 with noise, 0.1999 without; all 8 envs move. 0 cmd: 0.0004 / -0.0001
+  bam: 0.0525 with noise (2 of 8 envs move), -0.0001 without. 0 cmd: -0.0001 / -0.0000
+  zero-action baseline falls 8 of 8 on both
 g1-3.json summary (bam, walk scene, 4 repeats): no falls. walk_forward_0.2: displacement 0.0011 m, mean speed 0.0001 m/s.
   stand_still 0.0004 m, walk_backward_0.15 0.0001 m, turn_left_0.5 0.0019 m; max tilt 1.95 deg
 policy.onnx sha256: 3867c12b624e6ed4fa57773e3c8250059b5bd53a8ab764734102bc1c9af0f2d7
-notes: G3.3 NOT met. The policy learned to stand but not to walk at G1.3 thresholds, which the handoff
-  anticipated for 18 M samples (about 0.4 % of upstream). biped_v1 did walk with the same sample budget (MAC-08).
-  CPU training is not the blocker for this run's length; MPS not tried, as the task says.
+notes: G3.3 NOT met. On the mjcf actuator it trained on, the policy walks (about 50 % of a 0.4 cmd). On the BAM
+  actuator that G1.3 scores it mostly stands still (0.2 cmd: 0.0001 m/s, threshold +-30 %). Trained with --actuator mjcf,
+  the handoff's default, so this is an actuator-model gap on top of the small budget (18 M samples, about 0.4 % of upstream).
+  MPS not tried, as the task says.
 ```
 
 ---
