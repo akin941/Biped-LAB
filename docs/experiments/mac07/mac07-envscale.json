@@ -1,0 +1,40 @@
+{
+  "env_label": "mac-m5",
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "scene": "/Users/akndgs/Desktop/Projects/Biped-LAB/third_party/microduck_rl/src/mjlab_microduck/robot/microduck/scene.xml",
+  "physics_steps_per_s": 40910,
+  "batch_env": [
+    {
+      "num_envs": 256,
+      "workers": 0,
+      "env_steps_per_s": 9716,
+      "speedup_vs_serial": 1.0
+    },
+    {
+      "num_envs": 256,
+      "workers": 2,
+      "env_steps_per_s": 19500,
+      "speedup_vs_serial": 2.01
+    },
+    {
+      "num_envs": 256,
+      "workers": 4,
+      "env_steps_per_s": 26613,
+      "speedup_vs_serial": 2.74
+    },
+    {
+      "num_envs": 256,
+      "workers": 8,
+      "env_steps_per_s": 30832,
+      "speedup_vs_serial": 3.17
+    }
+  ]
+}
