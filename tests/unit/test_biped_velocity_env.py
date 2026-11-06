@@ -158,6 +158,33 @@ def test_target_slew_off_applies_actions_directly():
     assert not out.slew_limited.any() and out.terms["action_slew"][0] == 0.0
 
 
+def test_action_delay_applies_actions_k_periods_late():
+    acts = actions(6, 2, seed=3).astype(np.float32)
+    fresh = BipedVelocityEnv(num_envs=2, seed=1, noise=False, target_slew=None)
+    late = BipedVelocityEnv(num_envs=2, seed=1, noise=False, target_slew=None, action_delay=2)
+    for t in range(6):
+        out = late.step(acts[t])
+        applied = acts[t - 2] if t >= 2 else np.zeros_like(acts[t])
+        ctrl = np.array([d.ctrl for d in late.datas])
+        np.testing.assert_allclose(ctrl, late.default_pose + bve.ACTION_SCALE * applied, atol=1e-6)
+        # The observation keeps the policy's own last output, as on the robot.
+        np.testing.assert_array_equal(out.obs[:, S["last_action"]], acts[t])
+    # Delay 0 is the training default and leaves the env unchanged.
+    zero = BipedVelocityEnv(num_envs=2, seed=1, noise=False, target_slew=None, action_delay=0)
+    for t in range(3):
+        np.testing.assert_array_equal(zero.step(acts[t]).obs, fresh.step(acts[t]).obs)
+    with pytest.raises(ValueError, match="action_delay"):
+        BipedVelocityEnv(num_envs=1, action_delay=-1)
+
+
+def test_action_delay_queue_clears_on_reset():
+    env = BipedVelocityEnv(num_envs=1, seed=0, noise=False, action_delay=1)
+    env.step(np.full((1, 10), 0.5, dtype=np.float32))
+    assert env.pending_actions[0, 0, 0] == pytest.approx(0.5)
+    env._reset_env(0)
+    assert not env.pending_actions.any()
+
+
 def test_rejects_bad_actions_and_models(tmp_path):
     env = BipedVelocityEnv(num_envs=1)
     with pytest.raises(ValueError, match="shape"):
