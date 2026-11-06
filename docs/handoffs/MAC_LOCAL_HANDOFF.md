@@ -354,5 +354,41 @@ notes:
 
 ---
 
+## MAC-12 — Microduck PPO run with the BAM actuator (WP3-10, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-01, MAC-06 done once
+
+MAC-06 trained with the default MJCF position actuators: the policy walks there
+(~0.20 m/s at the 0.4 command) but barely moves under BAM, which G1.3/G3.3 measure
+with (upstream also trains with BAM, ADR-0011). Same run, trained on BAM. BAM steps
+are ~4x slower than MJCF (cloud: 5 it 22 s vs 6 s), so expect several hours; the run
+is resumable. Cloud check (2026-11-06): a 60-iteration BAM smoke rose
+(0.0029 -> 0.0146 reward/step, 46 s on 4 vCPU).
+```bash
+uv run python scripts/train_ppo.py --actuator bam --envs 256 --iters 20 --workers 8 \
+    --out /tmp/mac12-timing.json          # samples/s; pick --workers as in MAC-06
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 3000 --workers <best> \
+    --seed 0 --run-dir runs/mac12-seed0 --save-every 100 --out runs/mac12-seed0/report.json
+uv run python scripts/eval_velocity_env.py runs/mac12-seed0/policy.onnx --actuators bam \
+    --envs 8 --out runs/mac12-seed0/eval.json
+uv run bipedlab eval-policy runs/mac12-seed0/policy.onnx --model microduck-walk --actuator bam \
+    --repeats 4 --out runs/mac12-seed0/g1-3.json
+```
+**Acceptance (G3.3):** per G1.3 with BAM: stands ≥ 20 s and tracks vx = 0.2 m/s
+within ±30 % over 10 s without falling, on the M5. If it only shuffles, record it
+honestly with the numbers. Commit the JSONs under `docs/experiments/mac12/`.
+
+Result:
+```
+revision:
+timing (workers: samples/s):
+wall time for 3000 iterations:
+reward/step first -> last quarter:
+g1-3.json (stand 20 s, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
