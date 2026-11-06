@@ -163,20 +163,26 @@ def summarize(arrays: dict[str, np.ndarray], fall_tilt_deg: float = 60.0) -> dic
         "fell": bool(fallen.any()),
         "first_fall_s": first_fall,
         "max_tilt_deg": float(arrays["tilt"].max()),
-        "mean_power_w": float(arrays["power"].mean()),
-        "peak_abs_torque_nm": float(np.abs(arrays["joint_torque"]).max()),
-        "mean_vx_body_mps": float(arrays["lin_vel_body"][:, 0].mean()),
         "mean_yaw_rate_rps": float(arrays["gyro"][:, 2].mean()),
-        "foot_contact_ratio": arrays["foot_contact"].mean(axis=0).round(3).tolist(),
     }
+    # Channels a robot-side log does not have (runtime_log) are skipped.
+    if "power" in arrays:
+        summary["mean_power_w"] = float(arrays["power"].mean())
+    if "joint_torque" in arrays:
+        summary["peak_abs_torque_nm"] = float(np.abs(arrays["joint_torque"]).max())
+    if "lin_vel_body" in arrays:
+        summary["mean_vx_body_mps"] = float(arrays["lin_vel_body"][:, 0].mean())
+    if "foot_contact" in arrays:
+        summary["foot_contact_ratio"] = arrays["foot_contact"].mean(axis=0).round(3).tolist()
     if len(wall) and wall.sum() > 0:
         summary["realtime_factor"] = float(duration / wall.sum())
     summary.update(timing(arrays))
     if arrays["command"].shape[-1] >= 3:
         cmd = arrays["command"]
-        summary["vx_tracking_error_mps"] = float(
-            np.abs(arrays["lin_vel_body"][:, 0] - cmd[:, 0]).mean()
-        )
+        if "lin_vel_body" in arrays:
+            summary["vx_tracking_error_mps"] = float(
+                np.abs(arrays["lin_vel_body"][:, 0] - cmd[:, 0]).mean()
+            )
         summary["yaw_tracking_error_rps"] = float(np.abs(arrays["gyro"][:, 2] - cmd[:, 2]).mean())
     return summary
 
@@ -194,7 +200,11 @@ def profile(
     tracking error and (with ``torque_limit_nm``) the fraction of steps at the limit.
     """
     t = arrays["time"]
-    pos, target, torque = arrays["joint_pos"], arrays["joint_target"], arrays["joint_torque"]
+    pos, target = arrays["joint_pos"], arrays["joint_target"]
+    torque = arrays.get("joint_torque", np.zeros_like(pos))
+    nan = np.full(len(t), np.nan)
+    height = arrays["trunk_pos"][:, 2] if "trunk_pos" in arrays else nan
+    vx = arrays["lin_vel_body"][:, 0] if "lin_vel_body" in arrays else nan
     err = target - pos
     period = float(np.median(np.diff(t))) if len(t) > 1 else every_s
     stride = max(1, round(every_s / period))
@@ -208,8 +218,8 @@ def profile(
             "t": round(float(t[i]), 2),
             "tilt_deg": round(float(arrays["tilt"][i]), 1),
             "pitch_deg": round(float(pitch[i]), 1),
-            "height_m": round(float(arrays["trunk_pos"][i, 2]), 3),
-            "vx_mps": round(float(arrays["lin_vel_body"][i, 0]), 3),
+            "height_m": round(float(height[i]), 3),
+            "vx_mps": round(float(vx[i]), 3),
             "worst_joint_err_rad": round(float(np.abs(err[i]).max()), 3),
         }
         for i in range(0, len(t), stride)

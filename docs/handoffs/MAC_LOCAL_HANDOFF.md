@@ -259,5 +259,59 @@ notes:
 
 ---
 
+## MAC-09 — Rust runtime drives the sim on the M5 (WP4-04, gate G4.4)
+Status: `awaiting-mac` · Deps: MAC-01
+
+G4.4 needs the runtime-in-the-loop run on the M5 as well as on gha-linux. Rust
+from Homebrew (review: Homebrew formula; do **not** use the rustup curl-pipe
+script):
+```bash
+brew install rust
+rustc --version && cargo --version
+(cd runtime && cargo test --locked && cargo build --locked --release)
+BIPEDLAB_REQUIRE_RUNTIME=1 uv run pytest -m runtime -rs
+uv run python scripts/runtime_sim.py --seconds 30 --realtime --out /tmp/mac09-realtime.json
+```
+**Acceptance (G4.4, mac-m5 part):** all `runtime` tests pass; in the 30 s
+real-time run, 1500 periods, `deadline_misses` ≤ 15 (1 %), no latched fault.
+
+Result:
+```
+revision:
+rustc version:
+pytest -m runtime:
+realtime 30 s (periods, deadline_misses, period_max_us, compute_mean_us):
+notes:
+```
+
+---
+
+## MAC-10 — Drive the simulated robot from the keyboard (WP4-14, optional)
+Status: `awaiting-mac` · Deps: MAC-09 (Rust installed)
+
+Two terminals. The sim + runtime run 60 s in real time; the teleop sends what you
+type. Watch the logged command and the report.
+```bash
+# terminal 1
+uv run python scripts/runtime_sim.py --seconds 60 --realtime --log /tmp/mac10.bplog \
+    --env-label mac-m5 --out /tmp/mac10.json -- --command-udp 127.0.0.1:9870
+# terminal 2 (start within a few seconds): w/s a/d q/e, space = stop, x = quit
+uv run python scripts/teleop.py --port 9870 --keyboard
+open /tmp/mac10.html
+```
+**Acceptance:** the "Dönüş hızı" chart follows your q/e presses, the command
+drops to zero within ~1 s after you quit the teleop, `deadline_misses` ≤ 30, and
+the `channel` counts in `/tmp/mac10.json` show `foreign` 0.
+
+Result:
+```
+revision:
+deadline_misses / periods:
+channel (accepted, malformed, stale, foreign):
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

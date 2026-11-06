@@ -238,6 +238,29 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_runtime_log(args: argparse.Namespace) -> int:
+    from bipedlab.design import biped
+    from bipedlab.telemetry import recorder as rec
+    from bipedlab.telemetry import runtime_log
+
+    names = [f"{s}_{j}" for s in biped.SIDES for j in biped.LEG_JOINTS]
+    _, header = runtime_log.read(args.log)
+    out = runtime_log.convert(
+        args.log,
+        args.out or Path(args.log).with_suffix(".npz"),
+        joint_names=names if header["n"] == len(names) else None,
+        meta={"env_label": args.env_label},
+    )
+    if args.html:
+        from bipedlab.telemetry import report
+
+        report.write(out)
+    arrays, sidecar = rec.load(out)
+    summary = rec.summarize(arrays)
+    print(json.dumps({"file": str(out), "meta": sidecar["meta"], "summary": summary}, indent=2))
+    return 0
+
+
 POST_HELP = "robot-runtime action stage: none (upstream sim) or robotd-walking (0.9, LPF)"
 POST_CHOICES = ["none", "robotd-walking"]
 ACTUATOR_HELP = "joint actuator model: mjcf (position actuators) or bam (BAM XL330 M6 port)"
@@ -320,6 +343,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("recording")
     p.add_argument("--out")
     p.set_defaults(func=_cmd_report)
+
+    p = sub.add_parser("runtime-log", help="convert a biped-runtime --log file to telemetry .npz")
+    p.add_argument("log")
+    p.add_argument("--out", help="output .npz (default: next to the log)")
+    p.add_argument("--html", action="store_true", help="also write the HTML report")
+    p.add_argument("--env-label", default="unlabelled", help="cloud / gha-linux / mac-m5 / hw")
+    p.set_defaults(func=_cmd_runtime_log)
 
     p = sub.add_parser("bench", help="measure CPU simulation speed (label the environment!)")
     p.add_argument("model", nargs="?", default="microduck")

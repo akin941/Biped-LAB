@@ -5,8 +5,9 @@
 # ci workflow never trains (see ci.yml); this runs nightly, on demand, and on PRs
 # that change the training path. One extra job trains seed 0 with domain
 # randomization on (WP3-05 env part). The biped-ppo-smoke job does the same for our
-# own biped_v1 (BipedVelocityEnv, G4.3 preparation) and scores the exported policy
-# with scripts/eval_biped.py.
+# own biped_v1 (BipedVelocityEnv, G4.3 preparation), scores the exported policy
+# with scripts/eval_biped.py, and runs it in the Rust runtime in the sim loop
+# (WP4-10: ONNX -> runtime MLP parity, then 10 s through the safety supervisor).
 name: nightly-train
 
 on:
@@ -19,6 +20,7 @@ on:
       - src/bipedlab/rl/**
       - scripts/eval_biped.py
       - simulation/custom-biped/**
+      - runtime/src/policy.rs
       - .github/workflows/nightly-train.yml
 
 permissions:
@@ -116,6 +118,16 @@ jobs:
           .venv/bin/python scripts/eval_biped.py runs/seed${{ matrix.seed }}${{ matrix.dr }}/policy.onnx \
             --envs 2 --seconds 5 --robustness --out reports/biped/eval_seed${{ matrix.seed }}${{ matrix.dr }}.json > /dev/null
           cp runs/seed${{ matrix.seed }}${{ matrix.dr }}/run.json reports/biped/run_seed${{ matrix.seed }}${{ matrix.dr }}.json
+      - name: Trained policy runs in the Rust runtime (WP4-10; preinstalled Rust, no crates)
+        env:
+          RUN: runs/seed${{ matrix.seed }}${{ matrix.dr }}
+          TAG: seed${{ matrix.seed }}${{ matrix.dr }}
+        run: |
+          (cd runtime && cargo build --locked --release)
+          .venv/bin/python scripts/export_mlp.py "$RUN/policy.onnx" --out "$RUN/policy.bpml" \
+            --rust-bin runtime/target/release/mlp-eval > "reports/biped/mlp_export_$TAG.json"
+          .venv/bin/python scripts/runtime_sim.py --seconds 10 --require-clean-exit \
+            --out "reports/biped/runtime_$TAG.json" -- --controller "policy:$RUN/policy.bpml" > /dev/null
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
