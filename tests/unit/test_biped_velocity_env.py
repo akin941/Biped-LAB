@@ -67,6 +67,7 @@ def test_large_actions_fall_and_auto_reset():
             fell = True
             i = int(np.flatnonzero(out.terminated)[0])
             assert env.episode_steps[i] == 0
+            np.testing.assert_array_equal(env.last_target[i], env.default_pose)
             assert not np.array_equal(out.final_obs[i], out.obs[i])
             break
     assert fell
@@ -127,6 +128,36 @@ def test_domain_randomization_changes_physics_but_not_commands():
     assert m.geom_friction[dr.foot_geoms[0], 0] == pytest.approx(dr.foot_friction[2])
 
 
+def test_target_slew_limit_mirrors_runtime_supervisor():
+    assert abs(bve.TARGET_SLEW - 0.2) < 1e-12  # 10 rad/s x 20 ms, runtime/src/safety.rs
+    env = BipedVelocityEnv(num_envs=2, seed=0, noise=False)
+    np.testing.assert_array_equal(env.last_target, np.tile(env.default_pose, (2, 1)))
+    big = np.array([np.full(10, 3.0), np.full(10, 0.2)], dtype=np.float32)
+    out = env.step(big)
+    # Env 0 asks for 1.5 rad and gets 0.2; env 1 asks for 0.1 and gets it.
+    ctrl = np.array([d.ctrl for d in env.datas])
+    np.testing.assert_allclose(ctrl[0] - env.default_pose, bve.TARGET_SLEW, atol=1e-12)
+    np.testing.assert_allclose(ctrl[1] - env.default_pose, 0.1, atol=1e-6)
+    np.testing.assert_array_equal(out.slew_limited, [True, False])
+    cut2 = 10 * (1.5 - bve.TARGET_SLEW) ** 2
+    expected = bve.WEIGHTS["action_slew"] * cut2 * bve.STEP_DT
+    assert out.terms["action_slew"][0] == pytest.approx(expected, rel=1e-5)
+    assert out.terms["action_slew"][1] == 0.0
+    # The policy still sees its own action, as the runtime feeds it back.
+    np.testing.assert_array_equal(out.obs[0, S["last_action"]], big[0])
+    # The limit keeps moving the target towards the wanted one.
+    env.step(big)
+    ctrl = np.array([d.ctrl for d in env.datas])
+    np.testing.assert_allclose(ctrl[0] - env.default_pose, 2 * bve.TARGET_SLEW, atol=1e-12)
+
+
+def test_target_slew_off_applies_actions_directly():
+    env = BipedVelocityEnv(num_envs=1, seed=0, noise=False, target_slew=None)
+    out = env.step(np.full((1, 10), 3.0))
+    np.testing.assert_allclose(env.datas[0].ctrl - env.default_pose, 1.5, atol=1e-6)
+    assert not out.slew_limited.any() and out.terms["action_slew"][0] == 0.0
+
+
 def test_rejects_bad_actions_and_models(tmp_path):
     env = BipedVelocityEnv(num_envs=1)
     with pytest.raises(ValueError, match="shape"):
@@ -151,3 +182,4 @@ def test_parallel_env_matches_serial():
             o1, o2 = serial.step(a), par.step(a)
             np.testing.assert_array_equal(o1.obs, o2.obs)
             np.testing.assert_array_equal(o1.joint_torque, o2.joint_torque)
+            np.testing.assert_array_equal(o1.slew_limited, o2.slew_limited)

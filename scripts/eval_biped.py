@@ -3,9 +3,11 @@
 Runs the policy (39 -> 10 contract, see ``bipedlab.rl.biped_velocity_env``) with frozen
 commands and reports, per case, the body-frame forward speed after a 2 s settle,
 falls, the per-step reward terms and the knee torque (mean, 95th percentile and max
-of |actuator force|). ``--dr`` adds the same cases with domain randomization on
-(friction, mass, CoM, armature, IMU tilt, encoder bias, random pushes). A zero-action
-run is the baseline.
+of |actuator force|), and how often the 10 rad/s target slew limit of the runtime
+supervisor cut a step (``slew_limited_fraction``: env-steps with at least one joint
+limited, WP4-11) and the mean wanted target step per joint (rad). ``--dr`` adds
+the same cases with domain randomization on (friction, mass, CoM, armature, IMU
+tilt, encoder bias, random pushes). A zero-action run is the baseline.
 
 The knee numbers re-check the WP4-01 requirement with a learned gait: the committed
 model uses the XL330-class placeholder (0.52 N*m force limit), so a p95 close to
@@ -64,11 +66,17 @@ def run_case(
     alive = np.ones(num_envs, dtype=bool)
     vx: list[np.ndarray] = []
     knee: list[np.ndarray] = []
+    limited: list[np.ndarray] = []
+    wanted_step: list[np.ndarray] = []
     terms: dict[str, list[float]] = {}
     obs = env.obs
     for t in range(steps):
         actions = np.zeros((num_envs, bve.ACT_DIM), np.float32) if policy is None else policy(obs)
+        before = env.last_target.copy()
         out = env.step(actions)
+        wanted = env.default_pose + bve.ACTION_SCALE * actions
+        limited.append(out.slew_limited[alive])
+        wanted_step.append(np.abs(wanted - before)[alive].ravel())
         alive &= ~out.terminated
         obs = out.obs
         if not alive.any():
@@ -93,6 +101,8 @@ def run_case(
             "p95": float(np.percentile(k, 95)),
             "max": float(k.max()),
         },  # fmt: skip
+        "slew_limited_fraction": float(np.concatenate(limited).mean()),
+        "wanted_target_step_mean": float(np.concatenate(wanted_step).mean()),
         "terms_per_step": {name: float(np.mean(v)) for name, v in terms.items()},
     }
 
