@@ -33,7 +33,7 @@ task matching your environment whose deps are `done`.
 | WP1-12 | Explain alpha_stand leaning 46–53° with BAM (start state, robotd standing gain 0.8) | cloud | WP1-06 | done | cause found or narrowed, report in experiments | experiments/2026-10-26-wp1-12-bam-start-state-fix.md (BAM reset bug; alpha_stand tracks ±10° body tilt at 9.0–9.7°) |
 | WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | done | report compares settle vs upstream init | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect) |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | done | toggleable; report shows effect | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect on walking) |
-| MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | MAC-01 done (mac-m5, 143 passed); MAC-03 pending; MAC-02/04 awaiting owner | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
+| MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | MAC-01 done (mac-m5, 143 passed); MAC-03 done (mac-m5, under load); MAC-02/04 awaiting owner | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
 
 ## Phase 2
 

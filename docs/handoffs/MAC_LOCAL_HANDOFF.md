@@ -82,7 +82,7 @@ alpha_walking 0.2 m/s:
 ```
 
 ## MAC-03 — Apple Silicon CPU benchmark
-Status: `awaiting-mac` · Deps: MAC-01
+Status: `done (mac-m5, under load)` · Deps: MAC-01
 
 ```bash
 uv run bipedlab bench microduck --env-label mac-m5 --policy alpha_walking.onnx --seconds 5
@@ -97,10 +97,16 @@ platforms are expected to be small but non-zero).
 
 Result:
 ```
-revision:
-bench json:
-eval summary (fell / displacement per scenario):
-timing (record summary: wall_step_ms_p50 / p99 / max, deadline_miss_ratio):
+revision: b053bc8eaa07d4736f76d1d3f05765f5bc56b277, mac-m5, 1-min load 12.7-13.6 (Docker DGS CI running)
+bench json: {"env_label":"mac-m5","physics_steps_per_s":36281,"policy":"alpha_walking.onnx","policy_loop_hz":5395} (mujoco 3.10.0, numpy 2.5.4, cpu_count 10)
+eval summary (fell / displacement per scenario), compared with gha-linux policy-reports at 50c7ff1:
+  stand_still: mac fell=False dx=0.0016 dy=0.0003; gha-linux fell=False dx=0.0016 dy=0.0003
+  walk_forward_0.2: mac fell=False dx=0.0098 dy=0.0048; gha-linux fell=False dx=0.0098 dy=0.0048
+  walk_backward_0.15: mac fell=False dx=0.0008 dy=0.0007; gha-linux fell=False dx=0.0008 dy=0.0007
+  turn_left_0.5: mac fell=False dx=0.0036 dy=0.0055; gha-linux fell=False dx=0.0036 dy=0.0055
+timing (record summary: wall_step_ms_p50 / p99 / max, deadline_miss_ratio): 0.143 / 0.546 / 0.878, 0.0; realtime_factor 96.4
+notes: no fall in any scenario, but with these MuJoCo position actuators alpha_walking does not walk at 0.2 m/s:
+  record mean_vx_body 0.0009 m/s, tracking error 0.199 m/s. Mac and gha-linux agree on that behaviour.
 ```
 
 ## MAC-04 — Official reference: Hugging Face Space
