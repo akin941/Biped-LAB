@@ -73,6 +73,10 @@ jobs:
           .venv/bin/python scripts/eval_velocity_env.py runs/seed${{ matrix.seed }}${{ matrix.dr }}/policy.onnx \
             --envs 2 --seconds 2 --actuators mjcf --out reports/wp3-03/eval_seed${{ matrix.seed }}${{ matrix.dr }}.json > /dev/null
           cp runs/seed${{ matrix.seed }}${{ matrix.dr }}/run.json reports/wp3-03/run_seed${{ matrix.seed }}${{ matrix.dr }}.json
+      - name: Exported ONNX runs in the official-policy runner (G3.5, gha-linux part)
+        run: |
+          .venv/bin/bipedlab eval-policy runs/seed${{ matrix.seed }}${{ matrix.dr }}/policy.onnx \
+            --model microduck-walk --actuator bam --out reports/wp3-03/runner_seed${{ matrix.seed }}${{ matrix.dr }}.json > /dev/null
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

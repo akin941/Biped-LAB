@@ -46,6 +46,9 @@ gate item has evidence in the named environment.
     forward per G1.3 thresholds — `mac-m5`
   - G3.4 domain-randomization ablation report (with vs without) — `mac-m5`
   - G3.5 export to ONNX and run in the same runner — `mac-m5` + `gha-linux`
+    - `gha-linux` part (WP3-09, 2026-11-06): every nightly `ppo-smoke` policy is exported
+      and run through `bipedlab eval-policy` (the official policies' runner, BAM). The
+      `mac-m5` part is MAC-06 step 3.
   - Every run records config, seed, git sha, metrics, artifact sha256.
 
 ## Phase 4 — Original biped in simulation
