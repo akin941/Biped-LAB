@@ -10,6 +10,7 @@
 //! bridge (`bipedlab.runtime_bridge`) over TCP. On hardware the supervisor part
 //! moves to the low-level controller (S-2); this crate is its executable model.
 
+pub mod channel;
 pub mod controller;
 pub mod gate;
 pub mod mlp;
