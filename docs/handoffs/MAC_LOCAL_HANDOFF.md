@@ -350,7 +350,7 @@ notes:
 ---
 
 ## MAC-10 — Drive the simulated robot from the keyboard (WP4-14, optional)
-Status: `awaiting-mac` · Deps: MAC-09 (Rust installed)
+Status: `done (mac-m5, keystrokes scripted through a pty; owner's look at the chart still open)` · Deps: MAC-09 (Rust installed)
 
 Two terminals. The sim + runtime run 60 s in real time; the teleop sends what you
 type. Watch the logged command and the report.
@@ -372,16 +372,23 @@ the `channel` counts in `/tmp/mac10.json` show `foreign` 0.
 
 Result:
 ```
-revision:
-deadline_misses / periods:
-channel (accepted, malformed, unauthenticated, stale, foreign, hellos):
-notes:
+revision: cea88931f7044b40515a2f800dc38e17bab496c5, mac-m5, 1-min load 3.6-4.3 (Docker DGS CI containers up)
+how it was driven: the real `teleop.py --keyboard` (curses) under a pty, keys sent by a script, not typed by a person
+  (docs/experiments/mac10/keys_driver.py.txt). Keys: q q, space, e e, space, w, q, x. Two runs: no key, and with --command-key/--key-file (WP4-17).
+deadline_misses / periods: no key 0 / 3000; key 0 / 3000. No latched fault, supervisor events 0, gate_rejected 0, wall 59.99 s both.
+channel (accepted, malformed, unauthenticated, stale, foreign, hellos): no key 580, 0, 0, 0, 0, 1; key 584, 0, 0, 0, 0, 1
+command plateaus from the log, both runs: q q wz +0.5; e e wz -0.5; space 0; w vx 0.075; w+q vx 0.075, wz 0.25.
+drop after quit, x pressed at a nonzero command (0.075, 0, 0.25): ramp starts 0.44 / 0.47 s, command zero 0.58 / 0.61 s after x (no key / key).
+notes: numeric acceptance met. The "Dönüş hızı" chart's command line follows the presses in the logged data; nobody has looked
+  at the chart yet, that stays for the owner: runs/mac10/nokey.html, keyed.html (not committed).
+  The actual yaw stays 0 (gyro z 0.0000 throughout): this command list runs the default `stand` controller, which ignores commands.
+  So this proves the channel and the gate, not that the robot turns. Summary: docs/experiments/mac10/summary.json.
 ```
 
 ---
 
 ## MAC-11 — Re-check after the WP4-16 fixes (runtime pacing, friction, latency)
-Status: `paused by owner, partial (mac-m5): runtime part passed, retrain stopped at model_1800` · Deps: MAC-08, MAC-09 done once; WP4-16 merged
+Status: `failed (mac-m5): runtime part passed; retrained policy stands and does not walk (G4.3 not met)` · Deps: MAC-08, MAC-09 done once; WP4-16 merged
 
 MAC-09 found the runtime at ~40 Hz (relative sleep after the state read) and MAC-08
 found that foot friction below 1.0 was never applied. WP4-16 fixes both and adds
@@ -412,13 +419,31 @@ realtime 30 s (periods, deadline_misses, period_max_us, wall_s, load), three run
   1500, 0, 33647, 29.98, load 8.6
   1500, 1, 45294, 29.98, load 7.7
   no latched fault, supervisor events 0. Period mean 20.00 ms, p50 19.8-19.9, p99 24.7-24.9, min 1.5-12.6 (catch-up after overruns).
-retrain (wall time, reward first -> last quarter): NOT COMPLETE. Stopped at the owner's request, 2026-11-06 17:00 +03,
-  after about 21 min. Newest checkpoint runs/mac11-seed0/model_1800.pt (not committed). No report.json, run.json or policy.onnx.
-eval: not run
-knee p95 / max: not run
-policy.onnx sha256: none
-notes: runtime acceptance met; policy acceptance still open. Resume from model_1800.pt with --iters 1200 per the MAC-08 resume command.
-  MAC-10 not started.
+retrain: 3000 iterations in two segments, seed 0, 8 workers, 256 envs, 18.43 M samples. 0-1800 at e5c0558 (about 21 min), stopped by the owner;
+  1800-3000 at cea8893, resumed from model_1800.pt, 409 s, load about 4-9. The two revisions differ only in docs. report.json/run.json cover the second
+  segment only; the first is in history_from_0.json.
+  reward/step first -> last quarter of the 3000: 0.0472 -> 0.1026 (MAC-08: 0.0535 -> 0.1179)
+eval.json (vx_mean at 0.15 / 0.25, falls, 8 envs, 10 s):
+  DR on:  0.0000 / 0.0000, 0 falls (0 %, G4.3 needs >= 50 %). MAC-08 on the same criterion: 0.1453 / 0.2228
+  DR off: 0.0000 / 0.0000, 0 falls
+  air_time term 0 in every case: no foot leaves the floor. Knee p95 close to the zero-action baseline (below).
+robustness (falls / vx_mean at the 0.15 cmd):
+  nominal      0 / -0.000006
+  friction 0.5 0 / -0.000007, knee p95 0.0384 vs nominal 0.0357: no longer bit-identical, but the robot is standing, so this does not test walking on low friction
+  friction 1.5 0 / +0.000000
+  push fwd     0 / +0.000020; push side 0 / -0.000080
+  latency 20 / 40 / 60 ms: 0 falls each; +0.000006 / +0.000011 / +0.000017 (latency_40ms 0 %, acceptance needs >= 50 %)
+knee p95 / max (N*m): DR on 0.15 cmd 0.046 / 0.381; DR on 0.25 cmd 0.040 / 0.520; DR off 0.25 cmd 0.029 / 0.416; highest p95 0.093 (DR on, yaw 0.8).
+  Zero-action baseline p95 0.035 (DR off) / 0.047 (DR on). MAC-08 walking: 0.251 / 0.520. This does NOT measure the knee torque of a gait, do not feed it to WP4-05.
+slew_limited_fraction: 0.0 in every case. Meaningless here: nothing moves.
+policy.onnx sha256: c0e840297f12e06d6f80e79ce7b44c9f388cb5e7f0061f2963a5de565ce4e2ea
+notes: policy acceptance NOT met. G4.3 first pass, friction and latency_40ms cannot be claimed.
+  Not a resume or export problem: the training history already has air_time 0.0000 from about iteration 600, well before the resume.
+  Mean per 300 iterations, MAC-11 vs MAC-08 air_time: 0-300 0.0057 / 0.0049; 300-600 0.0010 / 0.0178; 600-900 0.0000 / 0.0276; then 0.0000 / about 0.029.
+  knee_torque_mean falls to 0.074 (MAC-08 0.157). PPO settled on standing still, which already scores 0.102 reward/step against MAC-08's 0.118-0.121.
+  reward_rose is true in report.json and does not catch this; neither did the cloud DR smoke (WP4-16), which only checks that reward rises.
+  Unproven hypothesis: the WP4-16 DR change (0-40 ms action delay, friction now down to 0.7) makes the gait harder to find on this budget, so
+  standing wins. The two changes are not separated, and this is one seed. No further retrain was run.
 ```
 
 ---

@@ -1,0 +1,27 @@
+"""Run teleop.py --keyboard under a pty and press keys on a schedule; log each press with its wall time."""
+import json, os, pty, select, sys, time
+out, *cmd = sys.argv[1:]
+SCHEDULE = [(4,"q"),(4.5,"q"),(10," "),(14,"e"),(14.5,"e"),(20," "),(24,"w"),(29,"q"),(33,"x")]
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm"
+    os.execvp(cmd[0], cmd)
+t0 = time.time(); log = []
+def drain():
+    while select.select([fd], [], [], 0)[0]:
+        try:
+            if not os.read(fd, 65536): return
+        except OSError: return
+for at, key in SCHEDULE:
+    while time.time() - t0 < at:
+        drain(); time.sleep(0.02)
+    os.write(fd, key.encode()); log.append({"t_unix": time.time(), "key": key})
+deadline = time.time() + 5
+status = None
+while time.time() < deadline:
+    drain()
+    done, st = os.waitpid(pid, os.WNOHANG)
+    if done: status = st; break
+    time.sleep(0.05)
+json.dump({"t0_unix": t0, "exit_status": status, "presses": log}, open(out, "w"), indent=1)
+print("teleop exit", status)
