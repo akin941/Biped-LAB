@@ -4,13 +4,14 @@
 //! biped-runtime --connect 127.0.0.1:PORT
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
-//!               [--torque-fraction F] [--action-scale 0.5]
+//!               [--torque-fraction F] [--action-scale 0.5] [--log FILE]
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
 //! connection, 2 usage or protocol error, 3 state timeout (watchdog).
 
-use std::io::{self, BufReader, ErrorKind};
+use std::fs::File;
+use std::io::{self, BufReader, BufWriter, ErrorKind};
 use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -21,6 +22,7 @@ use biped_runtime::mlp::Mlp;
 use biped_runtime::policy::{Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
+use biped_runtime::telemetry::{Log, Record};
 
 struct Scheduled {
     start: f64,
@@ -36,6 +38,7 @@ struct Args {
     realtime: bool,
     torque_fraction: Option<f64>,
     action_scale: f64,
+    log: Option<String>,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -55,6 +58,7 @@ fn parse_args() -> Result<Args, String> {
         realtime: false,
         torque_fraction: None,
         action_scale: DEFAULT_ACTION_SCALE,
+        log: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -86,6 +90,7 @@ fn parse_args() -> Result<Args, String> {
                 }
                 a.torque_fraction = Some(f);
             }
+            "--log" => a.log = Some(value()?),
             "--action-scale" => a.action_scale = value()?.parse::<f64>().map_err(|e| e.to_string())?,
             _ => return Err(format!("unknown argument {flag:?}")),
         }
@@ -137,6 +142,8 @@ struct Stats {
     compute_sum_us: u128,
     period_max_us: u128,
     deadline_misses: u64,
+    log_records: u64,
+    log_write_errors: u64,
 }
 
 const FAULT_NAMES: [&str; N_FAULTS] = [
@@ -176,7 +183,8 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
         concat!(
             "{{\"exit\":\"{}\",\"periods\":{},\"compute_mean_us\":{:.1},\"compute_max_us\":{},",
             "\"period_max_us\":{},\"deadline_misses\":{},\"latched\":{},",
-            "\"first_fault_step\":{{{}}},\"events\":{{{}}},\"gate_rejected\":{}}}"
+            "\"first_fault_step\":{{{}}},\"events\":{{{}}},\"gate_rejected\":{},",
+            "\"log_records\":{},\"log_write_errors\":{}}}"
         ),
         exit,
         s.periods,
@@ -188,6 +196,8 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
         faults.join(","),
         events.join(","),
         gate.rejected,
+        s.log_records,
+        s.log_write_errors,
     )
 }
 
@@ -212,13 +222,22 @@ fn run(args: &Args) -> Result<ExitCode, String> {
             ..SafetyLimits::default()
         },
     );
+    let mut log = match &args.log {
+        Some(path) => {
+            let f = File::create(path).map_err(|e| format!("log {path:?}: {e}"))?;
+            Some(Log::new(BufWriter::new(f), &hello).map_err(|e| format!("log {path:?}: {e}"))?)
+        }
+        None => None,
+    };
     let mut stats = Stats::default();
+    let mut t0: Option<Instant> = None;
     let mut last_step = 0u64;
     let mut prev_start: Option<Instant> = None;
     loop {
         let state = match State::read(&mut reader, n) {
             Ok(s) => s,
             Err(e) if e.kind() == ErrorKind::UnexpectedEof => {
+                close_log(&mut log, &mut stats);
                 println!("{}", summary("sim_closed", &stats, &sup, &gate));
                 return Ok(ExitCode::SUCCESS);
             }
@@ -233,6 +252,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
                     targets: off,
                 }
                 .write(&mut writer);
+                close_log(&mut log, &mut stats);
                 println!("{}", summary("state_timeout", &stats, &sup, &gate));
                 return Ok(ExitCode::from(3));
             }
@@ -262,6 +282,20 @@ fn run(args: &Args) -> Result<ExitCode, String> {
             .write(&mut writer)
             .map_err(|e: io::Error| format!("action: {e}"))?;
         let compute = start.elapsed();
+        if let Some(l) = log.as_mut() {
+            // After the action is sent, so logging never delays it.
+            let t0 = *t0.get_or_insert(start);
+            l.record(&Record {
+                state: &state,
+                wall: start.duration_since(t0).as_secs_f64(),
+                compute_us: compute.as_micros().min(u32::MAX as u128) as u32,
+                cmd,
+                wanted: &wanted,
+                targets: &action.targets,
+                torque_enable: action.torque_enable,
+                bits: action.fault_bits,
+            });
+        }
         stats.periods += 1;
         stats.compute_sum_us += compute.as_micros();
         stats.compute_max_us = stats.compute_max_us.max(compute.as_micros());
@@ -272,6 +306,14 @@ fn run(args: &Args) -> Result<ExitCode, String> {
                 None => stats.deadline_misses += 1,
             }
         }
+    }
+}
+
+fn close_log(log: &mut Option<Log<BufWriter<File>>>, stats: &mut Stats) {
+    if let Some(l) = log.as_mut() {
+        l.finish();
+        stats.log_records = l.records;
+        stats.log_write_errors = l.write_errors;
     }
 }
 

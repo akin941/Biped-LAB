@@ -20,6 +20,12 @@ komut kapısı → kontrolcü → güvenlik denetçisi → servolar
 Simülasyonda denendi: itilince düşen robotta motorlar aynı döngüde kapandı;
 veri kesilince 0.2–0.5 s içinde motorlar kapandı.
 
-**Senden istenen:** bu, güvenlik katmanı kodu olduğu için birleştirmeden önce
-senin onayın gerekiyor (PR'daki açıklamaya bakman yeterli). Mac'te çalıştırma
-adımları `MAC-09` olarak eklendi.
+**Kayıt (WP4-13):** program her döngüde ne ölçtüğünü, ne istendiğini ve
+denetçinin ne gönderdiğini bir dosyaya yazabiliyor (`--log`). Bu dosyadan aynı
+HTML raporu üretiliyor; raporda motorların açık olduğu anlar ve denetçinin
+devreye girdiği döngüler görünüyor. Kayıt yazılamazsa robot durmaz, sadece kayıt
+kapanır.
+
+**Durum:** güvenlik katmanı kodunu 2026-11-06'da onayladın ve birleştirildi.
+Denetçinin sınırlarında yapılacak her değişiklik yine senin onayını gerektirir.
+Mac'te çalıştırma adımları `MAC-09` olarak eklendi.

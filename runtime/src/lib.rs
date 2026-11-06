@@ -16,6 +16,7 @@ pub mod mlp;
 pub mod policy;
 pub mod protocol;
 pub mod safety;
+pub mod telemetry;
 
 /// Tilt of the body z axis from vertical (rad), from a unit quaternion (w, x, y, z).
 pub fn tilt_from_quat(q: [f64; 4]) -> f64 {
