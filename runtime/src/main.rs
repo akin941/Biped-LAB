@@ -5,7 +5,7 @@
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
 //!               [--torque-fraction F] [--action-scale 0.5] [--log FILE]
-//!               [--command-udp 127.0.0.1:PORT]
+//!               [--command-udp 127.0.0.1:PORT [--command-key KEY_FILE]]
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
@@ -17,7 +17,8 @@ use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use biped_runtime::channel::{ChannelStats, CommandChannel};
+use biped_runtime::auth::random_u64;
+use biped_runtime::channel::{load_key, ChannelStats, CommandChannel};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
 use biped_runtime::mlp::Mlp;
@@ -42,6 +43,7 @@ struct Args {
     action_scale: f64,
     log: Option<String>,
     command_udp: Option<String>,
+    command_key: Option<String>,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -63,6 +65,7 @@ fn parse_args() -> Result<Args, String> {
         action_scale: DEFAULT_ACTION_SCALE,
         log: None,
         command_udp: None,
+        command_key: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -96,9 +99,13 @@ fn parse_args() -> Result<Args, String> {
             }
             "--log" => a.log = Some(value()?),
             "--command-udp" => a.command_udp = Some(value()?),
+            "--command-key" => a.command_key = Some(value()?),
             "--action-scale" => a.action_scale = value()?.parse::<f64>().map_err(|e| e.to_string())?,
             _ => return Err(format!("unknown argument {flag:?}")),
         }
+    }
+    if a.command_key.is_some() && a.command_udp.is_none() {
+        return Err("--command-key needs --command-udp".into());
     }
     if a.connect.is_empty() {
         return Err("--connect HOST:PORT is required".into());
@@ -191,7 +198,8 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
             "\"period_max_us\":{},\"deadline_misses\":{},\"latched\":{},",
             "\"first_fault_step\":{{{}}},\"events\":{{{}}},\"gate_rejected\":{},",
             "\"log_records\":{},\"log_write_errors\":{},",
-            "\"channel\":{{\"accepted\":{},\"malformed\":{},\"stale\":{},\"foreign\":{}}}}}"
+            "\"channel\":{{\"accepted\":{},\"malformed\":{},\"unauthenticated\":{},\"stale\":{},",
+            "\"foreign\":{},\"hellos\":{}}}}}"
         ),
         exit,
         s.periods,
@@ -207,8 +215,10 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
         s.log_write_errors,
         s.channel.accepted,
         s.channel.malformed,
+        s.channel.unauthenticated,
         s.channel.stale,
         s.channel.foreign,
+        s.channel.hellos,
     )
 }
 
@@ -242,7 +252,9 @@ fn run(args: &Args) -> Result<ExitCode, String> {
     };
     let mut channel = match &args.command_udp {
         Some(a) => {
-            let ch = CommandChannel::bind(a).map_err(|e| format!("command channel {a:?}: {e}"))?;
+            let key = args.command_key.as_deref().map(load_key).transpose()?;
+            let session = random_u64().map_err(|e| format!("session nonce: {e}"))?;
+            let ch = CommandChannel::bind(a, key, session)?;
             if let Ok(local) = ch.local_addr() {
                 eprintln!("biped-runtime: command channel on udp://{local}");
             }

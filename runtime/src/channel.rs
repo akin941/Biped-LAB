@@ -1,104 +1,184 @@
-//! Host command channel (WP4-14): velocity commands over UDP from a host
-//! program (teleop keyboard, later a gamepad or a planner).
+//! Host command channel (WP4-14, authenticated in WP4-16): velocity commands
+//! over UDP from a host program (keyboard teleop, later a gamepad or a planner).
 //!
-//! Every packet goes through the command gate (ADR-0006), which clamps the
-//! range, limits the rate, and stops the robot when no fresh command has arrived
-//! for 0.5 s. A sender only has to keep sending; silence means stop.
+//! Every accepted command goes through the command gate (ADR-0006), which
+//! clamps the range, limits the rate and stops the robot when no fresh command
+//! has arrived for 0.5 s. A sender only has to keep sending; silence means stop.
+//! No stop request travels over the channel: stopping is the gate timeout or the
+//! e-stop (S-3), never a packet that could be lost.
+//!
+//! Authentication (WP4-16, `docs/decisions/ADR-0014-command-channel-auth.md`):
 //!
 //! ```text
-//! packet (34 bytes, little-endian): magic "BPCM" | version u16 | seq u32 | vx f64 | vy f64 | wz f64
+//! hello   host -> robot  14 B: "BPCH" | ver u16 | client_nonce u64
+//! welcome robot -> host  38 B: "BPCN" | ver u16 | client_nonce u64 | session u64 | tag[16]
+//! command host -> robot  62 B: "BPCM" | ver u16 | session u64 | seq u64 | vx vy wz f64 | tag[16]
+//! tag = first 16 bytes of HMAC-SHA256(key, all bytes before the tag); little-endian
 //! ```
 //!
-//! The channel locks to the first sender's address: packets from any other
-//! address are dropped and counted, so a second program on the network cannot
-//! take over a running robot. A packet whose `seq` is not newer than the last
-//! accepted one (a duplicate or reordered packet) is dropped. The channel carries
-//! no stop request: stopping is the gate timeout or the e-stop (S-3), never a
-//! packet that could be lost.
+//! The runtime draws a random `session` at start. A command counts only with the
+//! current session, a valid tag and a `seq` above the last accepted one, so
+//! packets recorded earlier, including in a previous run, are refused. The first
+//! sender with a valid command becomes the only accepted peer. Without a key
+//! file the key is all zeros, and the runtime then refuses to bind anywhere but
+//! loopback.
 
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
 
+use crate::auth::{ct_eq, hmac_sha256};
 use crate::gate::Command;
 
-pub const MAGIC: &[u8; 4] = b"BPCM";
-pub const VERSION: u16 = 1;
-pub const PACKET_SIZE: usize = 4 + 2 + 4 + 3 * 8;
+pub const VERSION: u16 = 2;
+pub const HELLO: &[u8; 4] = b"BPCH";
+pub const WELCOME: &[u8; 4] = b"BPCN";
+pub const COMMAND: &[u8; 4] = b"BPCM";
+pub const HELLO_SIZE: usize = 14;
+pub const WELCOME_SIZE: usize = 38;
+pub const COMMAND_SIZE: usize = 62;
+pub const TAG: usize = 16;
+pub const MIN_KEY: usize = 16;
 /// Datagrams read per control period at most, so a flood cannot stall the loop.
 pub const MAX_PER_POLL: usize = 64;
+/// Welcome replies per poll at most (no amplification: a welcome is 38 B for a 14 B hello).
+pub const MAX_WELCOMES_PER_POLL: usize = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Packet {
-    pub seq: u32,
-    pub cmd: Command,
+fn tag(key: &[u8], msg: &[u8]) -> [u8; TAG] {
+    hmac_sha256(key, msg)[..TAG].try_into().expect("16 bytes")
 }
 
-pub fn encode(p: &Packet) -> [u8; PACKET_SIZE] {
-    let mut b = [0u8; PACKET_SIZE];
-    b[0..4].copy_from_slice(MAGIC);
+fn u64_at(b: &[u8], at: usize) -> u64 {
+    u64::from_le_bytes(b[at..at + 8].try_into().expect("8 bytes"))
+}
+
+pub fn encode_hello(client_nonce: u64) -> [u8; HELLO_SIZE] {
+    let mut b = [0u8; HELLO_SIZE];
+    b[0..4].copy_from_slice(HELLO);
     b[4..6].copy_from_slice(&VERSION.to_le_bytes());
-    b[6..10].copy_from_slice(&p.seq.to_le_bytes());
-    for (k, v) in [p.cmd.vx, p.cmd.vy, p.cmd.wz].iter().enumerate() {
-        b[10 + 8 * k..18 + 8 * k].copy_from_slice(&v.to_le_bytes());
-    }
+    b[6..14].copy_from_slice(&client_nonce.to_le_bytes());
     b
 }
 
-pub fn decode(b: &[u8]) -> Option<Packet> {
-    if b.len() != PACKET_SIZE || &b[0..4] != MAGIC || b[4..6] != VERSION.to_le_bytes() {
-        return None;
+pub fn encode_welcome(key: &[u8], client_nonce: u64, session: u64) -> [u8; WELCOME_SIZE] {
+    let mut b = [0u8; WELCOME_SIZE];
+    b[0..4].copy_from_slice(WELCOME);
+    b[4..6].copy_from_slice(&VERSION.to_le_bytes());
+    b[6..14].copy_from_slice(&client_nonce.to_le_bytes());
+    b[14..22].copy_from_slice(&session.to_le_bytes());
+    let t = tag(key, &b[..22]);
+    b[22..].copy_from_slice(&t);
+    b
+}
+
+pub fn encode_command(key: &[u8], session: u64, seq: u64, c: Command) -> [u8; COMMAND_SIZE] {
+    let mut b = [0u8; COMMAND_SIZE];
+    b[0..4].copy_from_slice(COMMAND);
+    b[4..6].copy_from_slice(&VERSION.to_le_bytes());
+    b[6..14].copy_from_slice(&session.to_le_bytes());
+    b[14..22].copy_from_slice(&seq.to_le_bytes());
+    for (k, v) in [c.vx, c.vy, c.wz].iter().enumerate() {
+        b[22 + 8 * k..30 + 8 * k].copy_from_slice(&v.to_le_bytes());
     }
-    let f = |k: usize| f64::from_le_bytes(b[10 + 8 * k..18 + 8 * k].try_into().expect("8 bytes"));
-    Some(Packet {
-        seq: u32::from_le_bytes(b[6..10].try_into().expect("4 bytes")),
-        cmd: Command {
-            vx: f(0),
-            vy: f(1),
-            wz: f(2),
-        },
-    })
+    let t = tag(key, &b[..46]);
+    b[46..].copy_from_slice(&t);
+    b
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct ChannelStats {
     pub accepted: u64,
+    /// Not a hello or command of this version, or the wrong size.
     pub malformed: u64,
+    /// Bad tag or another session: wrong key, tampered, or recorded earlier.
+    pub unauthenticated: u64,
+    /// Valid but not newer than the last accepted command (duplicate, reordered, replayed).
     pub stale: u64,
+    /// Valid, but from another address than the locked peer.
     pub foreign: u64,
+    pub hellos: u64,
 }
 
-/// Packet filter, separate from the socket so it can be tested without one.
-#[derive(Debug, Default)]
+pub enum Verdict {
+    Command(Command),
+    /// Answer `from` with this welcome.
+    Welcome([u8; WELCOME_SIZE]),
+    Drop,
+}
+
+/// Packet checks, separate from the socket so they can be tested without one.
 pub struct Filter {
+    key: Vec<u8>,
+    session: u64,
     peer: Option<SocketAddr>,
-    last_seq: Option<u32>,
+    last_seq: Option<u64>,
     pub stats: ChannelStats,
 }
 
 impl Filter {
-    /// The command in `buf` from `from`, if it is accepted.
-    pub fn accept(&mut self, buf: &[u8], from: SocketAddr) -> Option<Command> {
-        if self.peer.is_some_and(|p| p != from) {
-            self.stats.foreign += 1;
-            return None;
+    pub fn new(key: Vec<u8>, session: u64) -> Self {
+        Filter {
+            key,
+            session,
+            peer: None,
+            last_seq: None,
+            stats: ChannelStats::default(),
         }
-        let Some(p) = decode(buf) else {
-            self.stats.malformed += 1;
-            return None;
-        };
-        if self.last_seq.is_some_and(|s| p.seq <= s) {
-            self.stats.stale += 1;
-            return None;
-        }
-        self.peer.get_or_insert(from);
-        self.last_seq = Some(p.seq);
-        self.stats.accepted += 1;
-        Some(p.cmd)
+    }
+
+    pub fn session(&self) -> u64 {
+        self.session
     }
 
     pub fn peer(&self) -> Option<SocketAddr> {
         self.peer
     }
+
+    pub fn check(&mut self, b: &[u8], from: SocketAddr) -> Verdict {
+        let versioned = b.len() >= 6 && b[4..6] == VERSION.to_le_bytes();
+        if versioned && b.len() == HELLO_SIZE && &b[0..4] == HELLO {
+            self.stats.hellos += 1;
+            return Verdict::Welcome(encode_welcome(&self.key, u64_at(b, 6), self.session));
+        }
+        if !(versioned && b.len() == COMMAND_SIZE && &b[0..4] == COMMAND) {
+            self.stats.malformed += 1;
+            return Verdict::Drop;
+        }
+        if !ct_eq(&tag(&self.key, &b[..46]), &b[46..]) || u64_at(b, 6) != self.session {
+            self.stats.unauthenticated += 1;
+            return Verdict::Drop;
+        }
+        if self.peer.is_some_and(|p| p != from) {
+            self.stats.foreign += 1;
+            return Verdict::Drop;
+        }
+        let seq = u64_at(b, 14);
+        if self.last_seq.is_some_and(|s| seq <= s) {
+            self.stats.stale += 1;
+            return Verdict::Drop;
+        }
+        let f = |k: usize| f64::from_le_bytes(b[22 + 8 * k..30 + 8 * k].try_into().expect("8 bytes"));
+        self.peer.get_or_insert(from);
+        self.last_seq = Some(seq);
+        self.stats.accepted += 1;
+        Verdict::Command(Command {
+            vx: f(0),
+            vy: f(1),
+            wz: f(2),
+        })
+    }
+}
+
+/// Reads a key file: hex, at least `MIN_KEY` bytes.
+pub fn load_key(path: &str) -> Result<Vec<u8>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("command key {path:?}: {e}"))?;
+    let key = crate::auth::parse_hex(&text).ok_or(format!("command key {path:?}: not hex"))?;
+    if key.len() < MIN_KEY {
+        return Err(format!(
+            "command key {path:?}: at least {MIN_KEY} bytes ({} hex digits)",
+            2 * MIN_KEY
+        ));
+    }
+    Ok(key)
 }
 
 pub struct CommandChannel {
@@ -107,12 +187,19 @@ pub struct CommandChannel {
 }
 
 impl CommandChannel {
-    pub fn bind(addr: &str) -> std::io::Result<Self> {
-        let socket = UdpSocket::bind(addr)?;
-        socket.set_nonblocking(true)?;
+    /// Binds `addr`. Without a key only a loopback address is allowed.
+    pub fn bind(addr: &str, key: Option<Vec<u8>>, session: u64) -> Result<Self, String> {
+        let socket = UdpSocket::bind(addr).map_err(|e| format!("command channel {addr:?}: {e}"))?;
+        let local = socket.local_addr().map_err(|e| e.to_string())?;
+        if key.is_none() && !local.ip().is_loopback() {
+            return Err(format!(
+                "command channel {addr:?}: a non-loopback address needs --command-key (WP4-16)"
+            ));
+        }
+        socket.set_nonblocking(true).map_err(|e| e.to_string())?;
         Ok(CommandChannel {
             socket,
-            filter: Filter::default(),
+            filter: Filter::new(key.unwrap_or_else(|| vec![0u8; 32]), session),
         })
     }
 
@@ -120,18 +207,22 @@ impl CommandChannel {
         self.socket.local_addr()
     }
 
-    /// Reads the waiting datagrams (at most `MAX_PER_POLL`) and returns the newest
-    /// accepted command, if any. Never blocks.
+    /// Reads the waiting datagrams (at most `MAX_PER_POLL`), answers hellos, and
+    /// returns the newest accepted command, if any. Never blocks.
     pub fn poll(&mut self) -> Option<Command> {
-        let mut buf = [0u8; 64];
+        let mut buf = [0u8; 128];
         let mut newest = None;
+        let mut welcomes = 0;
         for _ in 0..MAX_PER_POLL {
             match self.socket.recv_from(&mut buf) {
-                Ok((len, from)) => {
-                    if let Some(c) = self.filter.accept(&buf[..len], from) {
-                        newest = Some(c);
+                Ok((len, from)) => match self.filter.check(&buf[..len], from) {
+                    Verdict::Command(c) => newest = Some(c),
+                    Verdict::Welcome(w) if welcomes < MAX_WELCOMES_PER_POLL => {
+                        welcomes += 1;
+                        let _ = self.socket.send_to(&w, from); // best effort, never blocks the loop
                     }
-                }
+                    _ => {}
+                },
                 Err(e) if e.kind() == ErrorKind::WouldBlock => break,
                 Err(_) => {
                     // e.g. ICMP port unreachable reported on some platforms: not a packet.
@@ -148,85 +239,128 @@ impl CommandChannel {
 mod tests {
     use super::*;
 
+    const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
+
     fn addr(port: u16) -> SocketAddr {
         SocketAddr::from(([127, 0, 0, 1], port))
     }
 
-    fn pkt(seq: u32, vx: f64) -> [u8; PACKET_SIZE] {
-        encode(&Packet {
-            seq,
-            cmd: Command { vx, vy: 0.0, wz: 0.0 },
-        })
+    fn cmd(vx: f64) -> Command {
+        Command { vx, vy: 0.0, wz: 0.0 }
+    }
+
+    fn vx(v: Verdict) -> Option<f64> {
+        match v {
+            Verdict::Command(c) => Some(c.vx),
+            _ => None,
+        }
     }
 
     #[test]
-    fn round_trip_and_size() {
-        let p = Packet {
-            seq: 9,
-            cmd: Command {
-                vx: 0.1,
-                vy: -0.2,
-                wz: 0.3,
-            },
+    fn sizes() {
+        assert_eq!(encode_hello(1).len(), 14);
+        assert_eq!(encode_welcome(KEY, 1, 2).len(), 38);
+        assert_eq!(encode_command(KEY, 1, 2, cmd(0.1)).len(), 62);
+    }
+
+    #[test]
+    fn hello_gets_an_authenticated_welcome() {
+        let mut f = Filter::new(KEY.to_vec(), 77);
+        let Verdict::Welcome(w) = f.check(&encode_hello(5), addr(1)) else {
+            panic!("no welcome")
         };
-        let b = encode(&p);
-        assert_eq!(b.len(), 34);
-        assert_eq!(decode(&b), Some(p));
-        assert_eq!(decode(&b[..33]), None);
-        let mut bad = b;
-        bad[4] = 2;
-        assert_eq!(decode(&bad), None);
+        assert_eq!(u64_at(&w, 6), 5);
+        assert_eq!(u64_at(&w, 14), 77);
+        assert!(ct_eq(&tag(KEY, &w[..22]), &w[22..]));
+        assert_eq!(f.stats.hellos, 1);
+        assert_eq!(f.peer(), None); // a hello does not lock the peer
     }
 
     #[test]
-    fn filter_drops_stale_foreign_and_malformed() {
-        let mut f = Filter::default();
-        assert!(f.accept(&pkt(5, 0.1), addr(1000)).is_some());
-        assert!(f.accept(&pkt(5, 0.2), addr(1000)).is_none()); // duplicate
-        assert!(f.accept(&pkt(4, 0.2), addr(1000)).is_none()); // reordered
-        assert!(f.accept(&pkt(9, 0.2), addr(2000)).is_none()); // another sender
-        assert!(f.accept(b"junk", addr(1000)).is_none());
-        assert_eq!(f.accept(&pkt(6, 0.25), addr(1000)).map(|c| c.vx), Some(0.25));
+    fn only_valid_fresh_commands_from_the_first_peer_pass() {
+        let mut f = Filter::new(KEY.to_vec(), 77);
+        let good = |seq, v| encode_command(KEY, 77, seq, cmd(v));
+        assert_eq!(vx(f.check(&good(1, 0.1), addr(1))), Some(0.1));
+        assert_eq!(vx(f.check(&good(1, 0.2), addr(1))), None); // replay
+        assert_eq!(
+            vx(f.check(&encode_command(b"wrong-key-wrong-key!", 77, 2, cmd(0.3)), addr(1))),
+            None
+        );
+        assert_eq!(vx(f.check(&encode_command(KEY, 76, 3, cmd(0.3)), addr(1))), None); // old session
+        let mut tampered = good(4, 0.1);
+        tampered[22] ^= 0x40; // flip a bit of vx
+        assert_eq!(vx(f.check(&tampered, addr(1))), None);
+        assert_eq!(vx(f.check(&good(5, 0.3), addr(2))), None); // valid, other sender
+        assert_eq!(vx(f.check(b"junk", addr(1))), None);
+        assert_eq!(vx(f.check(&good(6, 0.25), addr(1))), Some(0.25));
         assert_eq!(
             f.stats,
             ChannelStats {
                 accepted: 2,
                 malformed: 1,
-                stale: 2,
-                foreign: 1
+                unauthenticated: 3,
+                stale: 1,
+                foreign: 1,
+                hellos: 0
             }
         );
-        assert_eq!(f.peer(), Some(addr(1000)));
     }
 
     #[test]
-    fn malformed_first_packet_does_not_lock_the_peer() {
-        let mut f = Filter::default();
-        assert!(f.accept(b"junk", addr(3000)).is_none());
-        assert!(f.accept(&pkt(1, 0.1), addr(1000)).is_some());
-        assert_eq!(f.peer(), Some(addr(1000)));
+    fn a_wrong_key_cannot_lock_the_peer() {
+        let mut f = Filter::new(KEY.to_vec(), 9);
+        f.check(&encode_command(&[0u8; 32], 9, 1, cmd(0.3)), addr(3));
+        assert_eq!(f.peer(), None);
+        assert_eq!(vx(f.check(&encode_command(KEY, 9, 1, cmd(0.1)), addr(1))), Some(0.1));
     }
 
     #[test]
-    fn socket_poll_returns_the_newest_command() {
-        let mut ch = CommandChannel::bind("127.0.0.1:0").unwrap();
-        assert_eq!(ch.poll(), None);
+    fn keyless_channel_refuses_non_loopback() {
+        assert!(CommandChannel::bind("0.0.0.0:0", None, 1).is_err());
+        assert!(CommandChannel::bind("127.0.0.1:0", None, 1).is_ok());
+        assert!(CommandChannel::bind("0.0.0.0:0", Some(KEY.to_vec()), 1).is_ok());
+    }
+
+    #[test]
+    fn socket_handshake_and_command() {
+        let mut ch = CommandChannel::bind("127.0.0.1:0", Some(KEY.to_vec()), 4242).unwrap();
         let tx = UdpSocket::bind("127.0.0.1:0").unwrap();
+        tx.set_read_timeout(Some(std::time::Duration::from_millis(20))).unwrap();
         let to = ch.local_addr().unwrap();
-        for (s, v) in [(1, 0.1), (3, 0.3), (2, 0.2)] {
-            tx.send_to(&pkt(s, v), to).unwrap();
+        tx.send_to(&encode_hello(11), to).unwrap();
+        let mut w = [0u8; 64];
+        let mut session = None;
+        for _ in 0..50 {
+            ch.poll();
+            if let Ok((n, _)) = tx.recv_from(&mut w) {
+                assert_eq!(n, WELCOME_SIZE);
+                session = Some(u64_at(&w, 14));
+                break;
+            }
         }
+        assert_eq!(session, Some(4242));
+        tx.send_to(&encode_command(KEY, 4242, 1, cmd(0.2)), to).unwrap();
         let mut got = None;
         for _ in 0..100 {
             if let Some(c) = ch.poll() {
-                got = Some(c);
-            }
-            if ch.filter.stats.accepted + ch.filter.stats.stale == 3 {
+                got = Some(c.vx);
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
-        assert_eq!(got.map(|c| c.vx), Some(0.3));
-        assert_eq!(ch.filter.stats.stale, 1);
+        assert_eq!(got, Some(0.2));
+    }
+
+    #[test]
+    fn load_key_checks_length_and_hex() {
+        let dir = std::env::temp_dir();
+        let p = dir.join(format!("bpk-{}", std::process::id()));
+        std::fs::write(&p, "00112233445566778899aabbccddeeff\n").unwrap();
+        assert_eq!(load_key(p.to_str().unwrap()).unwrap().len(), 16);
+        std::fs::write(&p, "0011").unwrap();
+        assert!(load_key(p.to_str().unwrap()).is_err());
+        std::fs::write(&p, "zz").unwrap();
+        assert!(load_key(p.to_str().unwrap()).is_err());
+        let _ = std::fs::remove_file(&p);
     }
 }

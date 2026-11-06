@@ -32,6 +32,12 @@ hız sınırlanıyor, ani değişim yumuşatılıyor, komut gelmezse robot duruy
 Programı ilk bağlanan bilgisayar yönetiyor; başka bir bilgisayar araya
 giremiyor. Mac'te denemek için adımlar `MAC-10`'da (isteğe bağlı).
 
+**Komut kanalında kimlik doğrulama (WP4-16):** komutlar artık ortak bir gizli
+anahtarla imzalanıyor. Anahtarı olmayan biri ağdan komut gönderemiyor; daha önce
+kaydedilmiş paketleri tekrar göndermek de işe yaramıyor, çünkü program her
+açılışta yeni bir oturum numarası seçiyor. Anahtar dosyası yoksa kanal yalnızca
+aynı bilgisayardan (localhost) komut kabul ediyor. Ayrıntı: ADR-0014.
+
 **Durum:** güvenlik katmanı kodunu 2026-11-06'da onayladın ve birleştirildi.
 Denetçinin sınırlarında yapılacak her değişiklik yine senin onayını gerektirir.
 Mac'te çalıştırma adımları `MAC-09` olarak eklendi.

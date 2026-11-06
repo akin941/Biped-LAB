@@ -299,6 +299,10 @@ uv run python scripts/runtime_sim.py --seconds 60 --realtime --log /tmp/mac10.bp
 uv run python scripts/teleop.py --port 9870 --keyboard
 open /tmp/mac10.html
 ```
+Optional, with a key (WP4-16): run `uv run python scripts/teleop.py --new-key /tmp/mac10.key`
+once, add `--command-key /tmp/mac10.key` after `--command-udp 127.0.0.1:9870` in
+terminal 1 and `--key-file /tmp/mac10.key` in terminal 2. Same acceptance.
+
 **Acceptance:** the "Dönüş hızı" chart follows your q/e presses, the command
 drops to zero within ~1 s after you quit the teleop, `deadline_misses` ≤ 30, and
 the `channel` counts in `/tmp/mac10.json` show `foreign` 0.
@@ -307,7 +311,7 @@ Result:
 ```
 revision:
 deadline_misses / periods:
-channel (accepted, malformed, stale, foreign):
+channel (accepted, malformed, unauthenticated, stale, foreign, hellos):
 notes:
 ```
 

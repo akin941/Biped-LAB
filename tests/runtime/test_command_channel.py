@@ -1,5 +1,6 @@
-"""WP4-14: commands from a host program reach the robot only through the gate."""
+"""WP4-14/16: authenticated host commands reach the robot only through the gate."""
 
+import contextlib
 import os
 import socket
 import threading
@@ -32,12 +33,26 @@ def free_udp_port() -> int:
         return s.getsockname()[1]
 
 
-def send_for(port: int, cmd, seconds: float, rate: float = 25.0) -> threading.Thread:
+def send_for(port, cmd, seconds, rate=25.0, key=None, sent=None, after=None) -> threading.Thread:
+    """Handshake, then send ``cmd`` for ``seconds``; raw packets go to ``sent``.
+
+    ``after``: a list to wait on until it holds 10 packets (another sender's ``sent``).
+    """
+
     def run():
-        tx = cc.CommandSender("127.0.0.1", port)
+        while after is not None and len(after) < 10:
+            time.sleep(0.01)
+        tx = cc.CommandSender("127.0.0.1", port, key)
+        try:
+            tx.connect(timeout_s=5.0)
+        except TimeoutError:
+            tx.close()
+            return
         end = time.monotonic() + seconds
         while time.monotonic() < end:
             tx.send(*cmd)
+            if sent is not None:
+                sent.append(cc.encode_command(tx.key, tx.session, tx.seq, *cmd))
             time.sleep(1.0 / rate)
         tx.close()
 
@@ -46,20 +61,43 @@ def send_for(port: int, cmd, seconds: float, rate: float = 25.0) -> threading.Th
     return th
 
 
-def run_with_sender(tmp_path, senders, seconds=3.0):
-    port = free_udp_port()
-    log = tmp_path / "cmd.bplog"
-    threads = [send_for(port, c, s) for c, s in senders]
+def replay_for(port, packets, seconds, rate=25.0) -> threading.Thread:
+    """Sends recorded packets as they are, with no handshake (an attacker's replay)."""
+
+    def run():
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            end = time.monotonic() + seconds
+            i = 0
+            while time.monotonic() < end:
+                with contextlib.suppress(ConnectionRefusedError):
+                    s.sendto(packets[i % len(packets)], ("127.0.0.1", port))
+                i += 1
+                time.sleep(1.0 / rate)
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    return th
+
+
+def runtime(tmp_path, port, extra=(), seconds=3.0):
+    log = tmp_path / f"cmd-{port}.bplog"
     r = rb.run_with_runtime(
         BINARY,
-        ["--realtime", "--command-udp", f"127.0.0.1:{port}", "--log", str(log)],
+        ["--realtime", "--command-udp", f"127.0.0.1:{port}", "--log", str(log), *extra],
         rb.BridgeConfig(seconds=seconds),
     )
-    for th in threads:
-        th.join()
     assert r["exit_code"] == 0, r["stderr"]
     arrays, _ = rl.read(log)
     return r["runtime"], arrays
+
+
+def run_with_sender(tmp_path, senders, seconds=3.0):
+    port = free_udp_port()
+    threads = [send_for(port, c, s) for c, s in senders]
+    out = runtime(tmp_path, port, seconds=seconds)
+    for th in threads:
+        th.join()
+    return out
 
 
 def test_host_command_is_ramped_held_and_times_out(tmp_path):
@@ -84,18 +122,62 @@ def test_out_of_range_command_is_clamped_by_the_gate(tmp_path):
 
 def test_second_sender_is_ignored(tmp_path):
     port = free_udp_port()
-    log = tmp_path / "two.bplog"
-    first = send_for(port, (0.1, 0.0, 0.0), 2.5)
-    time.sleep(0.3)  # the runtime has locked onto the first sender by now
-    second = send_for(port, (0.3, 0.0, 0.0), 2.0)
-    r = rb.run_with_runtime(
-        BINARY,
-        ["--realtime", "--command-udp", f"127.0.0.1:{port}", "--log", str(log)],
-        rb.BridgeConfig(seconds=2.5),
-    )
+    sent: list[bytes] = []
+    first = send_for(port, (0.1, 0.0, 0.0), 2.5, sent=sent)
+    # Starts once the first sender has sent 10 commands, so the runtime is locked on it.
+    second = send_for(port, (0.3, 0.0, 0.0), 2.0, after=sent)
+    rt, arrays = runtime(tmp_path, port, seconds=2.5)
     first.join()
     second.join()
-    assert r["exit_code"] == 0, r["stderr"]
-    arrays, _ = rl.read(log)
-    assert r["runtime"]["channel"]["foreign"] > 10
+    assert rt["channel"]["foreign"] > 10
     assert arrays["command"][:, 0].max() == pytest.approx(0.1)
+
+
+def test_key_file_command_is_accepted(tmp_path):
+    keyfile = cc.new_key_file(tmp_path / "k.hex")
+    port = free_udp_port()
+    th = send_for(port, (0.2, 0.0, 0.0), 2.0, key=cc.load_key(keyfile))
+    rt, a = runtime(tmp_path, port, ["--command-key", str(keyfile)], seconds=2.5)
+    th.join()
+    assert rt["channel"]["accepted"] > 20 and rt["channel"]["unauthenticated"] == 0
+    assert a["command"][:, 0].max() == pytest.approx(0.2)
+
+
+def test_wrong_key_moves_nothing(tmp_path):
+    keyfile = cc.new_key_file(tmp_path / "k.hex")
+    wrong = cc.load_key(cc.new_key_file(tmp_path / "wrong.hex"))
+    port = free_udp_port()
+    sent: list[bytes] = []
+    th = send_for(port, (0.2, 0.0, 0.0), 2.0, key=wrong, sent=sent)
+    rt, a = runtime(tmp_path, port, ["--command-key", str(keyfile)], seconds=2.5)
+    th.join()
+    # The welcome fails the sender's check, so it never sends a command.
+    assert sent == [] and rt["channel"]["hellos"] > 0
+    assert rt["channel"]["accepted"] == 0
+    assert np.all(a["command"] == 0.0)
+
+
+def test_replayed_packets_from_an_old_session_are_rejected(tmp_path):
+    keyfile = cc.new_key_file(tmp_path / "k.hex")
+    key = cc.load_key(keyfile)
+    port = free_udp_port()
+    sent: list[bytes] = []
+    th = send_for(port, (0.2, 0.0, 0.0), 1.5, key=key, sent=sent)
+    rt1, _ = runtime(tmp_path, port, ["--command-key", str(keyfile)], seconds=2.0)
+    th.join()
+    assert rt1["channel"]["accepted"] > 10 and len(sent) > 10
+    # Same key, new runtime: the recorded packets carry the old session number.
+    port = free_udp_port()
+    th = replay_for(port, sent, 2.0)
+    rt2, a = runtime(tmp_path, port, ["--command-key", str(keyfile)], seconds=2.5)
+    th.join()
+    assert rt2["channel"]["accepted"] == 0 and rt2["channel"]["unauthenticated"] > 10
+    assert np.all(a["command"] == 0.0)
+
+
+def test_keyless_channel_refuses_a_network_address():
+    r = rb.run_with_runtime(
+        BINARY, ["--command-udp", f"0.0.0.0:{free_udp_port()}"], rb.BridgeConfig(seconds=1.0)
+    )
+    assert r["exit_code"] == 2
+    assert "needs --command-key" in r["stderr"]
