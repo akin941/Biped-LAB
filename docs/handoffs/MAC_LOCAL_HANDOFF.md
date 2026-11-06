@@ -27,7 +27,7 @@ Record `git rev-parse HEAD` in every result.
 ---
 
 ## MAC-01 — Native install and test suite
-Status: `awaiting-mac` · Deps: WP0-04
+Status: `done (mac-m5)` · Deps: WP0-04
 
 ```bash
 git clone https://github.com/akin941/Biped-LAB.git && cd Biped-LAB
@@ -43,9 +43,15 @@ uv run python -c "import platform, mujoco, onnxruntime; print(platform.machine()
 
 Result:
 ```
-revision:
-date:
+revision: b3165540ffea0f6a007592eb5dab49a396a237f0
+date: 2026-11-06, mac-m5 (macOS 27.0.1, Apple M5, 32 GB, uv 0.11.29)
 output (tail):
+  commands exactly as written: 138 passed, 5 skipped (exit 0), so the skipped-count
+  acceptance was NOT met. The 5 skips need policies the commands above do not fetch.
+  after `uv run python scripts/fetch_policies.py` (all, sha256-verified):
+  143 passed in 9.70s, 0 skipped
+  arm64 3.10.0 1.24.4
+notes: the command list above should fetch all policies; left as written for the owner to review.
 ```
 
 ## MAC-02 — Interactive viewer
@@ -194,7 +200,7 @@ notes:
 ---
 
 ## MAC-08 — First full PPO training run for our own biped_v1 (WP4-07, gate G4.3)
-Status: `awaiting-mac` · Deps: MAC-01 (MAC-06 can run before or after; they are independent)
+Status: `done, first pass (mac-m5); low-friction gap open` · Deps: MAC-01 (MAC-06 can run before or after; they are independent)
 
 Trains a walking policy for **our own robot** (`simulation/custom-biped/biped_v1.xml`,
 env `BipedVelocityEnv`, 39 → 10 contract) with domain randomization on, then scores
@@ -245,22 +251,42 @@ XL330-class knee saturates, which feeds the servo choice in WP4-05.
 
 Result:
 ```
-revision:
-timing (workers: samples/s):
-wall time for 3000 iterations:
-reward/step first -> last quarter:
+revision: b3165540ffea0f6a007592eb5dab49a396a237f0 (git_dirty false), mac-m5
+timing (workers: samples/s): 4: 12985, 8: 14532 (20 it, 256 envs, load about 5) -> 8
+wall time for 3000 iterations: 2189 s (36.5 min), 18.43 M samples, 8419 samples/s
+reward/step first -> last quarter: 0.0535 -> 0.1179 (init_std 0.5)
 eval.json (vx_mean at 0.15 / 0.25, falls, with and without DR):
+  DR on:  0.1453 (97 %) / 0.2228 (89 %), 0 falls in 10 s, 8 envs
+  DR off: 0.1506 / 0.2267, 0 falls
+  stand (0 cmd) vx: DR off 0.0166, DR on 0.0103; 0 falls. Yaw 0.8 rad/s: 0 falls, yaw rate not scored by this report.
 robustness cases (falls / vx_mean each: friction 0.5, 1.5, push fwd, side, latency 20/40/60 ms):
-slew_limited_fraction (max over cases):
-knee torque p95 / max (N*m):
-policy.onnx sha256:
+  friction 0.5: 0 / 0.1506  INVALID, see notes (bit-identical to nominal)
+  friction 1.5: 0 / 0.1551
+  push fwd:     0 / 0.1519
+  push side:    0 / 0.1503
+  latency 20:   0 / 0.1069 (71 %)
+  latency 40:   0 / 0.0655 (44 %, below the 50 % walking threshold)
+  latency 60:   0 / 0.0529 (35 %, below the 50 % walking threshold)
+slew_limited_fraction (max over cases): 0.05 (latency 60 ms; not below the 0.05 limit). Next highest 0.00275; nominal 0.
+knee torque p95 / max (N*m): DR on 0.25 cmd 0.251 / 0.520; DR off 0.236 / 0.520;
+  latency 60 ms 0.520 / 0.520 (saturated at p95). Max reaches the 0.52 limit in most cases.
+policy.onnx sha256: bf5fff2d1fe60ef3fd91b524de9d9717097b7e4a65b35650629ad2d29a5b58ef
 notes:
+  G4.3 first-pass criterion (DR on, >= 50 % of command, no falls in 10 s) is met.
+  Friction below 1.0 has no effect in this env: MuJoCo uses the element-wise max of
+  the two geoms at equal priority and the floor is 1.0. Measured contact mu with foot
+  0.5 / 0.7 / 0.99 = 1.0; foot 1.3 / 1.5 = 1.3 / 1.5. So the friction_0.5 case tested
+  nothing, and DR FOOT_FRICTION (0.7, 1.3) only ever trained on 1.0-1.3.
+  Diagnostic, foot and floor lowered together, DR off (friction_diagnostic.json):
+  mu 0.7 / 0.5 / 0.3: vx at 0.15 = 0.1508 / 0.1503 / 0.1512; at 0.25 = 0.2220 / 0.2193 / 0.2136; 0 falls.
+  Timing was under load: Docker DGS CI containers on the same Mac, 1-min load mean 14.2,
+  max 20.9 during the run. The wall time is not a clean M5 number.
 ```
 
 ---
 
 ## MAC-09 — Rust runtime drives the sim on the M5 (WP4-04, gate G4.4)
-Status: `awaiting-mac` · Deps: MAC-01
+Status: `failed (mac-m5): real-time pacing test` · Deps: MAC-01
 
 G4.4 needs the runtime-in-the-loop run on the M5 as well as on gha-linux. Rust
 from Homebrew (review: Homebrew formula; do **not** use the rustup curl-pipe
@@ -277,11 +303,28 @@ real-time run, 1500 periods, `deadline_misses` ≤ 15 (1 %), no latched fault.
 
 Result:
 ```
-revision:
-rustc version:
-pytest -m runtime:
+revision: b053bc8eaa07d4736f76d1d3f05765f5bc56b277 (main 50c7ff1 merged), mac-m5
+rustc version: rustc 1.98.1 (48a229cea 2026-09-01), existing rustup toolchain. Deviation:
+  `brew install rust` not run (brew not on PATH; toolchain meets rust-version 1.80).
+pytest -m runtime: 22 passed, 1 FAILED. cargo test and release build completed.
+  test_realtime_pacing_holds_50_hz: wall_s 6.32 (limit 5.5); failed 6 of 6 runs (6.16-6.32).
 realtime 30 s (periods, deadline_misses, period_max_us, compute_mean_us):
+  1500, 0, 36161, 16.2; latched 0, supervisor events all 0; wall_s 38.86 for 30 s sim
+  logged repeat: 1500, 0, 38689, 16.5; latched 0; wall_s 37.39
+  period from the log: mean 24.94 ms, p50 24.98, p95 29.60, p99 30.04, max 38.69;
+  94.1 % of periods over 20.5 ms. That is about 40 Hz, not 50 Hz.
 notes:
+  Acceptance is NOT met: not all runtime tests pass. The numeric line (misses <= 15, no
+  latch) passes, but it does not detect this: deadline_misses counts only compute > period
+  (main.rs), and compute is about 16 us. Sleep overshoot is invisible to it.
+  The loop sleeps a relative `period - elapsed` with no absolute deadline, so overshoot
+  accumulates. Measured python sleep(19.5 ms) overshoot here: p50 3.81, p99 9.76 ms at load 19.
+  Measured with Docker DGS CI load (1-min load 11-21), so the load's share is not separated.
+  Second, intermittent failure: tests/runtime/test_command_channel.py::test_second_sender_is_ignored
+  failed 3 of 10 runs (command max 0.3, expected 0.1), passing in the -m runtime run above.
+  Unproven hypothesis: test race. Both senders start before the runtime binds, so either
+  can be the first packet it locks onto. Full suite at this revision: 180 passed, 2 failed.
+  Tests and runtime left unchanged. Simulation only; no hardware connected.
 ```
 
 ---

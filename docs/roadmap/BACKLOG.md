@@ -33,7 +33,7 @@ task matching your environment whose deps are `done`.
 | WP1-12 | Explain alpha_stand leaning 46–53° with BAM (start state, robotd standing gain 0.8) | cloud | WP1-06 | done | cause found or narrowed, report in experiments | experiments/2026-10-26-wp1-12-bam-start-state-fix.md (BAM reset bug; alpha_stand tracks ±10° body tilt at 9.0–9.7°) |
 | WP1-10 | Match upstream initial state (z = 0.125 m, no settle) and test its effect on walking | cloud | WP1-07 | done | report compares settle vs upstream init | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect) |
 | WP1-09 | Runtime post-processing model (action scale 0.9, voltage comp, low-pass) as optional runner stage | cloud | WP1-07 | done | toggleable; report shows effect | experiments/2026-10-26-official-policies-mjcf-actuators.md (no effect on walking) |
-| MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | awaiting-mac | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
+| MAC-01..04 | Native Mac setup, tests, viewer, benchmark | mac-m5 | WP0-04 | MAC-01 done (mac-m5, 143 passed); MAC-03 pending; MAC-02/04 awaiting owner | see handoff | `docs/handoffs/MAC_LOCAL_HANDOFF.md` |
 
 ## Phase 2
 
@@ -75,7 +75,7 @@ task matching your environment whose deps are `done`.
 | WP4-12 | G4.3 robustness cases one factor at a time: `BipedVelocityEnv(action_delay=k)`, `eval_biped.py --robustness` (foot friction 0.5/1.5, forward/sideways 0.3 m/s push, 20/40/60 ms latency); nightly smoke runs them | cloud | WP4-11 | done (cloud): cases run end to end on a 60-it smoke policy (stands; 0 falls in every case) — see 2026-11-06-wp4-12-biped-robustness-cases.md | delay 0 leaves the env unchanged; every G4.3 factor (pushes, friction, latency) has its own case; MAC-08 uses them |
 | WP4-13 | Runtime telemetry log: `biped-runtime --log`, `bipedlab.telemetry.runtime_log`, `bipedlab runtime-log --html`; CI realtime run logged and uploaded | cloud | WP4-04, WP2-01 | done (PR #35) — cloud: log = bridge trace bit for bit, flushed on watchdog exit, no compute cost — see 2026-11-06-wp4-13-runtime-telemetry-log.md | one record per period; write failures never stop the loop; report opens on a runtime log |
 | WP4-14 | Host command channel: `biped-runtime --command-udp`, `bipedlab.command_channel`, `scripts/teleop.py` (keyboard / hold) | cloud | WP4-04 | in-review — cloud: commands reach the robot only through the gate; out-of-range clamped; second sender ignored; silence stops — see 2026-11-06-wp4-14-host-command-channel.md | gate limits and timeout apply to host commands; stale/foreign/malformed packets dropped and counted; no stop over the network |
-| WP4-07 | Full biped_v1 training run with DR on M5 + robustness and knee-torque report (task MAC-08) | mac-m5 | WP4-06, WP4-11, WP4-12 | awaiting-mac | G4.3: walks at 0.15/0.25 m/s with DR, no falls; knee p95 reported |
+| WP4-07 | Full biped_v1 training run with DR on M5 + robustness and knee-torque report (task MAC-08) | mac-m5 | WP4-06, WP4-11, WP4-12 | done, first pass (mac-m5): DR vx 0.1453/0.2228, 0 falls; low-friction case invalid, see MAC-08 result | G4.3: walks at 0.15/0.25 m/s with DR, no falls; knee p95 reported |
 
 ## Phase 4–6 (outline)
 
