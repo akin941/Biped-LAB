@@ -1,4 +1,4 @@
-"""WP4-07: export an ONNX policy to the runtime MLP file and check parity.
+"""WP4-09: export an ONNX policy to the runtime MLP file and check parity.
 
 Compares onnxruntime, the numpy reference of the interpreter, and (with
 ``--rust-bin``) the Rust ``mlp-eval`` binary on random observations.

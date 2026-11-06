@@ -1,4 +1,4 @@
-"""WP4-07: the Rust MLP interpreter matches onnxruntime on an exported actor."""
+"""WP4-09: the Rust MLP interpreter matches onnxruntime on an exported actor."""
 
 import os
 import subprocess

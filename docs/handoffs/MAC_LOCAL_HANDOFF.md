@@ -193,7 +193,61 @@ notes:
 
 ---
 
-## MAC-08 — Rust runtime drives the sim on the M5 (WP4-04, gate G4.4)
+## MAC-08 — First full PPO training run for our own biped_v1 (WP4-07, gate G4.3)
+Status: `awaiting-mac` · Deps: MAC-01 (MAC-06 can run before or after; they are independent)
+
+Trains a walking policy for **our own robot** (`simulation/custom-biped/biped_v1.xml`,
+env `BipedVelocityEnv`, 39 → 10 contract) with domain randomization on, then scores
+it and measures the knee torque a learned gait needs. No upstream download is
+needed. Same training stack as MAC-06; plug in and keep the Mac awake
+(`caffeinate -dims`).
+
+```bash
+uv sync --extra policy
+uv pip install torch==2.9.1 tensordict==0.10.0 rsl-rl-lib==5.0.1 torchvision==0.24.1 \
+    onnxscript==0.5.7 gitpython==3.1.46
+# 1) quick timing: pick the --workers value with the best samples/s
+for w in 4 8; do
+  uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 20 \
+      --workers $w --out /tmp/mac08-w$w.json
+done
+# 2) the run: 3000 iterations (~18 M samples), checkpoint every 100
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 3000 \
+    --workers <best> --seed 0 --run-dir runs/mac08-seed0 --save-every 100 \
+    --out runs/mac08-seed0/report.json
+# resume after an interruption (from the newest model_<n>.pt):
+#   uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters <3000-n> \
+#       --workers <best> --seed 0 --run-dir runs/mac08-seed0 --save-every 100 \
+#       --resume runs/mac08-seed0/model_<n>.pt
+# 3) robustness + knee torque report (with and without DR: pushes, friction, mass)
+uv run python scripts/eval_biped.py runs/mac08-seed0/policy.onnx --dr --envs 8 \
+    --seconds 10 --out runs/mac08-seed0/eval.json
+```
+This is a first attempt with an untuned reward; it may only learn to stand or
+shuffle. Record that honestly. **Do not** commit `runs/`. Commit `run.json`,
+`report.json` and `eval.json` under `docs/experiments/mac08/` and the sha256 of
+`policy.onnx`.
+
+**Acceptance (G4.3, first pass):** with DR on, the policy walks forward at the
+0.15 and 0.25 m/s commands (`vx_mean` ≥ 50 % of the command) with no falls in 10 s,
+on the M5. Report the knee `p95` and `max`: a p95 near 0.52 N·m means the
+XL330-class knee saturates, which feeds the servo choice in WP4-05.
+
+Result:
+```
+revision:
+timing (workers: samples/s):
+wall time for 3000 iterations:
+reward/step first -> last quarter:
+eval.json (vx_mean at 0.15 / 0.25, falls, with and without DR):
+knee torque p95 / max (N*m):
+policy.onnx sha256:
+notes:
+```
+
+---
+
+## MAC-09 — Rust runtime drives the sim on the M5 (WP4-04, gate G4.4)
 Status: `awaiting-mac` · Deps: MAC-01
 
 G4.4 needs the runtime-in-the-loop run on the M5 as well as on gha-linux. Rust
@@ -204,7 +258,7 @@ brew install rust
 rustc --version && cargo --version
 (cd runtime && cargo test --locked && cargo build --locked --release)
 BIPEDLAB_REQUIRE_RUNTIME=1 uv run pytest -m runtime -rs
-uv run python scripts/runtime_sim.py --seconds 30 --realtime --out /tmp/mac08-realtime.json
+uv run python scripts/runtime_sim.py --seconds 30 --realtime --out /tmp/mac09-realtime.json
 ```
 **Acceptance (G4.4, mac-m5 part):** all `runtime` tests pass; in the 30 s
 real-time run, 1500 periods, `deadline_misses` ≤ 15 (1 %), no latched fault.

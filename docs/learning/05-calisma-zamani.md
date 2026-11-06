@@ -21,4 +21,4 @@ veri kesilince 0.2–0.5 s içinde motorlar kapandı.
 
 **Senden istenen:** bu, güvenlik katmanı kodu olduğu için birleştirmeden önce
 senin onayın gerekiyor (PR'daki açıklamaya bakman yeterli). Mac'te çalıştırma
-adımları `MAC-08` olarak eklendi.
+adımları `MAC-09` olarak eklendi.

@@ -1,4 +1,4 @@
-"""Export a feed-forward ONNX policy to the runtime's MLP file (WP4-07, ADR-0013).
+"""Export a feed-forward ONNX policy to the runtime's MLP file (WP4-09, ADR-0013).
 
 The Rust runtime runs policies with a small std-only interpreter instead of an
 ONNX runtime library. This module turns an ONNX graph that is a single chain of

@@ -1,4 +1,4 @@
-//! Feed-forward policy interpreter (WP4-07, ADR-0013).
+//! Feed-forward policy interpreter (WP4-09, ADR-0013).
 //!
 //! Runs the MLP file written by `bipedlab.mlp_export` (format documented there).
 //! std only: no ONNX runtime library on the robot. Every size in the file is

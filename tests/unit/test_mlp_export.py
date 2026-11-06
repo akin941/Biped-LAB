@@ -1,4 +1,4 @@
-"""ONNX -> runtime MLP export: numpy reference vs onnxruntime (WP4-07)."""
+"""ONNX -> runtime MLP export: numpy reference vs onnxruntime (WP4-09)."""
 
 from pathlib import Path
 

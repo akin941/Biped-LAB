@@ -2,7 +2,7 @@
 
 **Environment:** cloud (container, rustc 1.97) for the numbers below; CI job
 `runtime` (gha-linux) repeats the tests and a 30 s real-time run on every push.
-The M5 part of G4.4 is task MAC-08 in the Mac handoff. Simulation only: none of
+The M5 part of G4.4 is task MAC-09 in the Mac handoff. Simulation only: none of
 this is hardware safety evidence (S-6).
 
 ## What exists
@@ -43,7 +43,7 @@ this is hardware safety evidence (S-6).
   (tilt fault and torque off at step 109 after the 1.5 m/s push; watchdog exit 3).
 - 30 s wall-clock run at 50 Hz: 1500/1500 periods, **0 deadline misses**, worst
   period 20.18 ms, runtime compute 28.5 µs mean / 54 µs max, no fault.
-- G4.4 gha-linux part met; the mac-m5 part is MAC-08.
+- G4.4 gha-linux part met; the mac-m5 part is MAC-09.
 
 ## Known limits / follow-ups
 - Only the feet of `biped_v1` collide (WP4-02), so a fallen robot sinks through

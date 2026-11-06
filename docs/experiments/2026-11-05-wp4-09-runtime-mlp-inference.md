@@ -1,4 +1,4 @@
-# WP4-07: policy inference in the runtime (std-only MLP, ADR-0013)
+# WP4-09: policy inference in the runtime (std-only MLP, ADR-0013)
 
 **Environment:** cloud (container) for the fixture results below. The official
 Microduck policies cannot be downloaded in the cloud (huggingface.co blocked), so

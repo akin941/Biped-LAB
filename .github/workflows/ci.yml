@@ -134,7 +134,7 @@ jobs:
           roulade.onnx
       - name: Contract tests on real weights
         run: uv run pytest -m policy -rs
-      - name: Runtime MLP export and Rust parity on the official policies (WP4-07, evidence only)
+      - name: Runtime MLP export and Rust parity on the official policies (WP4-09, evidence only)
         run: |
           rustc --version
           (cd runtime && cargo build --locked --release --bin mlp-eval)

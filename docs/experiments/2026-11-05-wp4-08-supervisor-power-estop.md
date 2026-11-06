@@ -1,4 +1,4 @@
-# WP4-06: supervisor e-stop, power, temperature and torque budget (S-2, S-5)
+# WP4-08: supervisor e-stop, power, temperature and torque budget (S-2, S-5)
 
 **Environment:** cloud (container, rustc 1.97). Simulation only; the hardware
 e-stop (S-3) and every hardware safety item stay open until tested on hardware
