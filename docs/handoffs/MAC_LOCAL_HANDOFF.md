@@ -390,5 +390,40 @@ notes:
 
 ---
 
+## MAC-13 — Which WP4-16 DR change stopped the gait? (WP4-18 ablation)
+Status: `awaiting-mac` · Deps: MAC-11 done
+
+MAC-08 (old DR) walked; MAC-11 (WP4-16 DR: 0–40 ms action delay and foot friction
+that now really goes down to 0.7) only stands: `air_time` hits 0 from ~600 iterations
+and standing already earns ~0.10 reward/step. Two runs, each switching one change
+back off (same seed and settings as MAC-11 otherwise, fresh run dirs):
+```bash
+# A: no DR action delay, friction 0.7-1.3 (effective since WP4-16)
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --dr-delay-max 0 --envs 256 \
+    --iters 3000 --workers <best> --seed 0 --run-dir runs/mac13a --save-every 100 \
+    --out runs/mac13a/report.json
+# B: DR action delay 0-40 ms, friction 1.0-1.3 (what pre-WP4-16 DR effectively was)
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --dr-friction 1.0 1.3 --envs 256 \
+    --iters 3000 --workers <best> --seed 0 --run-dir runs/mac13b --save-every 100 \
+    --out runs/mac13b/report.json
+for r in mac13a mac13b; do
+  uv run python scripts/eval_biped.py runs/$r/policy.onnx --dr --robustness --envs 8 \
+      --seconds 10 --out runs/$r/eval.json
+done
+```
+Watch `air_time` in the training log: if it is 0 for 500+ iterations, the run has
+settled on standing (you may stop it early and record that). Commit `report.json`,
+`run.json`, `eval.json` under `docs/experiments/mac13/`.
+
+Result:
+```
+revision:
+A (no delay): walks? vx 0.15/0.25 (DR on), falls, latency 20/40/60 ms, air_time trend:
+B (friction >= 1): walks? vx 0.15/0.25 (DR on), falls, friction_0.5, air_time trend:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

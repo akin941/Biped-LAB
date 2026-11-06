@@ -213,6 +213,12 @@ def test_foot_friction_sets_the_foot_floor_contact():
         assert all(d.contact[k].friction[0] == pytest.approx(mu) for k in range(d.ncon))
 
 
+def test_dr_ablation_knobs():
+    env = BipedVelocityEnv(num_envs=8, seed=0, dr=True, dr_delay_max=0, dr_foot_friction=(1.0, 1.3))
+    assert not env.delay.any() and env.action_history.shape[0] == 1
+    assert (env.foot_friction >= 1.0).all() and (env.foot_friction <= 1.3).all()
+
+
 def test_rejects_bad_actions_and_models(tmp_path):
     env = BipedVelocityEnv(num_envs=1)
     with pytest.raises(ValueError, match="shape"):
