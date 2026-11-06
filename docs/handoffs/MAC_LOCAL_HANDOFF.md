@@ -286,5 +286,32 @@ notes:
 
 ---
 
+## MAC-10 — Drive the simulated robot from the keyboard (WP4-14, optional)
+Status: `awaiting-mac` · Deps: MAC-09 (Rust installed)
+
+Two terminals. The sim + runtime run 60 s in real time; the teleop sends what you
+type. Watch the logged command and the report.
+```bash
+# terminal 1
+uv run python scripts/runtime_sim.py --seconds 60 --realtime --log /tmp/mac10.bplog \
+    --env-label mac-m5 --out /tmp/mac10.json -- --command-udp 127.0.0.1:9870
+# terminal 2 (start within a few seconds): w/s a/d q/e, space = stop, x = quit
+uv run python scripts/teleop.py --port 9870 --keyboard
+open /tmp/mac10.html
+```
+**Acceptance:** the "Dönüş hızı" chart follows your q/e presses, the command
+drops to zero within ~1 s after you quit the teleop, `deadline_misses` ≤ 30, and
+the `channel` counts in `/tmp/mac10.json` show `foreign` 0.
+
+Result:
+```
+revision:
+deadline_misses / periods:
+channel (accepted, malformed, stale, foreign):
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

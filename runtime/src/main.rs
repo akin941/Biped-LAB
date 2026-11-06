@@ -5,6 +5,7 @@
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
 //!               [--torque-fraction F] [--action-scale 0.5] [--log FILE]
+//!               [--command-udp 127.0.0.1:PORT]
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
@@ -16,6 +17,7 @@ use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use biped_runtime::channel::{ChannelStats, CommandChannel};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
 use biped_runtime::mlp::Mlp;
@@ -39,6 +41,7 @@ struct Args {
     torque_fraction: Option<f64>,
     action_scale: f64,
     log: Option<String>,
+    command_udp: Option<String>,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -59,6 +62,7 @@ fn parse_args() -> Result<Args, String> {
         torque_fraction: None,
         action_scale: DEFAULT_ACTION_SCALE,
         log: None,
+        command_udp: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -91,6 +95,7 @@ fn parse_args() -> Result<Args, String> {
                 a.torque_fraction = Some(f);
             }
             "--log" => a.log = Some(value()?),
+            "--command-udp" => a.command_udp = Some(value()?),
             "--action-scale" => a.action_scale = value()?.parse::<f64>().map_err(|e| e.to_string())?,
             _ => return Err(format!("unknown argument {flag:?}")),
         }
@@ -144,6 +149,7 @@ struct Stats {
     deadline_misses: u64,
     log_records: u64,
     log_write_errors: u64,
+    channel: ChannelStats,
 }
 
 const FAULT_NAMES: [&str; N_FAULTS] = [
@@ -184,7 +190,8 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
             "{{\"exit\":\"{}\",\"periods\":{},\"compute_mean_us\":{:.1},\"compute_max_us\":{},",
             "\"period_max_us\":{},\"deadline_misses\":{},\"latched\":{},",
             "\"first_fault_step\":{{{}}},\"events\":{{{}}},\"gate_rejected\":{},",
-            "\"log_records\":{},\"log_write_errors\":{}}}"
+            "\"log_records\":{},\"log_write_errors\":{},",
+            "\"channel\":{{\"accepted\":{},\"malformed\":{},\"stale\":{},\"foreign\":{}}}}}"
         ),
         exit,
         s.periods,
@@ -198,6 +205,10 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
         gate.rejected,
         s.log_records,
         s.log_write_errors,
+        s.channel.accepted,
+        s.channel.malformed,
+        s.channel.stale,
+        s.channel.foreign,
     )
 }
 
@@ -226,6 +237,16 @@ fn run(args: &Args) -> Result<ExitCode, String> {
         Some(path) => {
             let f = File::create(path).map_err(|e| format!("log {path:?}: {e}"))?;
             Some(Log::new(BufWriter::new(f), &hello).map_err(|e| format!("log {path:?}: {e}"))?)
+        }
+        None => None,
+    };
+    let mut channel = match &args.command_udp {
+        Some(a) => {
+            let ch = CommandChannel::bind(a).map_err(|e| format!("command channel {a:?}: {e}"))?;
+            if let Ok(local) = ch.local_addr() {
+                eprintln!("biped-runtime: command channel on udp://{local}");
+            }
+            Some(ch)
         }
         None => None,
     };
@@ -268,6 +289,12 @@ fn run(args: &Args) -> Result<ExitCode, String> {
             if c.start <= state.time && state.time < c.end {
                 gate.submit(state.time, c.cmd);
             }
+        }
+        if let Some(ch) = channel.as_mut() {
+            if let Some(c) = ch.poll() {
+                gate.submit(state.time, c);
+            }
+            stats.channel = ch.filter.stats;
         }
         let cmd = gate.output(state.time, dt);
         let wanted = controller.targets(&state, cmd);

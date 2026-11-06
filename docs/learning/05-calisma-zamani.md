@@ -26,6 +26,12 @@ HTML raporu üretiliyor; raporda motorların açık olduğu anlar ve denetçinin
 devreye girdiği döngüler görünüyor. Kayıt yazılamazsa robot durmaz, sadece kayıt
 kapanır.
 
+**Komut kanalı (WP4-14):** robota bilgisayardan klavyeyle hız komutu
+gönderilebiliyor (`scripts/teleop.py`). Her komut yine komut kapısından geçiyor:
+hız sınırlanıyor, ani değişim yumuşatılıyor, komut gelmezse robot duruyor.
+Programı ilk bağlanan bilgisayar yönetiyor; başka bir bilgisayar araya
+giremiyor. Mac'te denemek için adımlar `MAC-10`'da (isteğe bağlı).
+
 **Durum:** güvenlik katmanı kodunu 2026-11-06'da onayladın ve birleştirildi.
 Denetçinin sınırlarında yapılacak her değişiklik yine senin onayını gerektirir.
 Mac'te çalıştırma adımları `MAC-09` olarak eklendi.
