@@ -34,4 +34,5 @@ change. The packet format is the same whatever the input device.
 ## Before hardware (WP5)
 The default address is 127.0.0.1. Binding to a network interface on the robot
 exposes the channel to the Wi-Fi. That needs an owner-reviewed decision on
-authentication: the address lock alone does not stop spoofing.
+authentication: the address lock alone does not stop spoofing. Done in WP4-17
+(ADR-0014): packets are now authenticated and the 34-byte v1 format is gone.
