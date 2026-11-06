@@ -13,8 +13,9 @@ komut kapısı → kontrolcü → güvenlik denetçisi → servolar
 - **Güvenlik denetçisi:** robot 45°'den fazla eğilirse, eklem çok hızlı dönerse
   ya da veri gelmezse motorları gevşetir ve bu durumu kilitler. Hatalı (NaN)
   hedefleri yok sayar, eklem sınırlarını ve hız sınırını uygular.
-- Şimdilik robot sadece ayakta duruyor; yürüme politikası Mac'teki eğitimden
-  (G4.3) sonra eklenecek.
+- Eğitilmiş yürüme politikası artık bu programda çalışabiliyor (WP4-10): bulutta
+  kısa eğitilmiş bir politika 30 s boyunca hatasız koştu. Gerçek yürüme
+  politikası Mac'teki eğitimden (MAC-08, G4.3) gelecek.
 
 Simülasyonda denendi: itilince düşen robotta motorlar aynı döngüde kapandı;
 veri kesilince 0.2–0.5 s içinde motorlar kapandı.

@@ -113,6 +113,33 @@ def tilt_from_quat(q: Sequence[float]) -> float:
     return math.acos(max(-1.0, min(1.0, 1.0 - 2.0 * (x * x + y * y))))
 
 
+def projected_gravity(quat: Sequence[float]) -> np.ndarray:
+    """World down (0, 0, -1) in the body frame of ``quat`` (w, x, y, z)."""
+    w, u = float(quat[0]), np.asarray(quat[1:4], dtype=float)
+    v = np.array([0.0, 0.0, -1.0])
+    t = 2.0 * np.cross(u, v)
+    return np.asarray(v - w * t + np.cross(u, t))
+
+
+def policy_observation(
+    gyro: Sequence[float],
+    quat: Sequence[float],
+    qpos: Sequence[float],
+    qvel: Sequence[float],
+    stand: Sequence[float],
+    last_action: Sequence[float],
+    command: Sequence[float] = (0.0, 0.0, 0.0),
+) -> np.ndarray:
+    """The actor observation the runtime's policy controller builds (WP4-10).
+
+    Mirrors ``runtime/src/policy.rs`` and the clean actor terms of
+    ``BipedVelocityEnv``: gyro | projected gravity | qpos - stand | qvel |
+    last action | command, as float32.
+    """
+    parts = [gyro, projected_gravity(quat), np.subtract(qpos, stand), qvel, last_action, command]
+    return np.concatenate([np.asarray(p, dtype=np.float64) for p in parts]).astype(np.float32)
+
+
 def _recv_exact(conn: socket.socket, size: int) -> bytes:
     chunks, got = [], 0
     while got < size:
@@ -137,6 +164,7 @@ class BridgeConfig:
     temperature: float = 35.0  # deg C at t = 0, hottest servo
     temperature_drift: float = 0.0  # deg C/s
     action_timeout_s: float = 5.0
+    record: bool = False  # keep every state sent and action received in out["trace"]
 
 
 class SimBridge:
@@ -189,6 +217,9 @@ class SimBridge:
             "max_torque_demand": 0.0,  # max kp*|target - q| / torque_limit, torque on
             "stalled": False,
         }
+        trace: list[dict[str, Any]] = []
+        if cfg.record:
+            out["trace"] = trace
         prev = self.default.copy()
         pushed = False
         wall0 = time.perf_counter()
@@ -222,6 +253,10 @@ class SimBridge:
             if got != step:
                 raise ValueError(f"action for step {got}, expected {step}")
             out["bits_seen"] |= bits
+            if cfg.record:
+                rec: dict[str, Any] = {"time": float(d.time), "quat": quat, "gyro": gyro.copy()}
+                rec.update(qpos=q_sent, qvel=d.qvel[self.vadr].copy(), torque_enable=enable)
+                trace.append({**rec, "bits": bits, "targets": targets})
             for b in range(32):
                 if bits & (1 << b) and str(b) not in out["first_bits_step"]:
                     out["first_bits_step"][str(b)] = step
@@ -269,7 +304,10 @@ def run_with_runtime(
             conn, _ = server.accept()
             with conn:
                 conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                sim = bridge.serve(conn)
+                try:
+                    sim = bridge.serve(conn)
+                except ConnectionError as e:  # the runtime quit early; its stderr says why
+                    sim = {"error": str(e)}
             stdout, stderr = proc.communicate(timeout=timeout_s)
         finally:
             if proc.poll() is None:

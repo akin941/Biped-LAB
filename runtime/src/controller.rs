@@ -1,9 +1,8 @@
 //! Controllers turn (state, gated command) into joint targets.
 //!
-//! The skeleton has no learned policy for our robot yet (that is G4.3), so the
-//! nominal controller holds the stand pose. The ONNX policy will implement the
-//! same trait. The fault-injection controllers exist only to exercise the
-//! safety supervisor in the sim tests.
+//! `Stand` holds the stand pose; the learned policy (`policy::Policy`, WP4-10)
+//! implements the same trait. The fault-injection controllers exist only to
+//! exercise the safety supervisor in the sim tests.
 
 use crate::gate::Command;
 use crate::protocol::{Hello, State};

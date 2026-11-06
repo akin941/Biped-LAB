@@ -3,7 +3,10 @@
 Usage:
   (cd runtime && cargo build --release)
   uv run python scripts/runtime_sim.py [--seconds 10] [--realtime] [--push-at 2 --push-dv 0 1.5 0]
-      [--stall-at 1] [--out reports/runtime/stand.json] [-- RUNTIME_ARGS...]
+      [--stall-at 1] [--out reports/runtime/stand.json] [--require-clean-exit] [-- RUNTIME_ARGS...]
+
+A trained biped_v1 policy (WP4-10): ``-- --controller policy:policy.bpml`` after
+``scripts/export_mlp.py policy.onnx --out policy.bpml``.
 """
 
 from __future__ import annotations
@@ -24,6 +27,11 @@ def main() -> None:
     parser.add_argument("--push-dv", type=float, nargs=3, default=(0.0, 1.0, 0.0))
     parser.add_argument("--stall-at", type=float, default=None)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument(
+        "--require-clean-exit",
+        action="store_true",
+        help="exit 1 unless the runtime exits 0 after serving every period",
+    )
     parser.add_argument("runtime_args", nargs="*", help="extra biped-runtime arguments after --")
     args = parser.parse_args()
     cfg = rb.BridgeConfig(seconds=args.seconds, push_at=args.push_at,
@@ -35,6 +43,11 @@ def main() -> None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text + "\n")
     print(text)
+    if args.require_clean_exit:
+        sim = result["sim"]
+        periods = round(args.seconds / cfg.control_dt)
+        if result["exit_code"] != 0 or "error" in sim or sim.get("steps") != periods:
+            raise SystemExit(f"runtime did not run cleanly: exit {result['exit_code']}")
 
 
 if __name__ == "__main__":

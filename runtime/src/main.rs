@@ -1,9 +1,10 @@
 //! `biped-runtime`: runs the control loop against the MuJoCo sim bridge.
 //!
 //! ```text
-//! biped-runtime --connect 127.0.0.1:PORT [--controller stand|nan-at:T|jump-at:T:JOINT:DELTA]
+//! biped-runtime --connect 127.0.0.1:PORT
+//!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
-//!               [--torque-fraction F]
+//!               [--torque-fraction F] [--action-scale 0.5]
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
@@ -16,6 +17,8 @@ use std::time::{Duration, Instant};
 
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
+use biped_runtime::mlp::Mlp;
+use biped_runtime::policy::{Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
 
@@ -32,6 +35,7 @@ struct Args {
     state_timeout: Duration,
     realtime: bool,
     torque_fraction: Option<f64>,
+    action_scale: f64,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -50,6 +54,7 @@ fn parse_args() -> Result<Args, String> {
         state_timeout: Duration::from_millis(500),
         realtime: false,
         torque_fraction: None,
+        action_scale: DEFAULT_ACTION_SCALE,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -81,6 +86,7 @@ fn parse_args() -> Result<Args, String> {
                 }
                 a.torque_fraction = Some(f);
             }
+            "--action-scale" => a.action_scale = value()?.parse::<f64>().map_err(|e| e.to_string())?,
             _ => return Err(format!("unknown argument {flag:?}")),
         }
     }
@@ -90,11 +96,16 @@ fn parse_args() -> Result<Args, String> {
     Ok(a)
 }
 
-fn make_controller(spec: &str, hello: &Hello) -> Result<Box<dyn Controller>, String> {
+fn make_controller(spec: &str, hello: &Hello, action_scale: f64) -> Result<Box<dyn Controller>, String> {
     let stand = Stand::new(hello);
     let (kind, rest) = spec.split_once(':').unwrap_or((spec, ""));
     Ok(match kind {
         "stand" => Box::new(stand),
+        "policy" => {
+            let buf = std::fs::read(rest).map_err(|e| format!("policy {rest:?}: {e}"))?;
+            let mlp = Mlp::from_bytes(&buf).map_err(|e| format!("policy {rest:?}: {e}"))?;
+            Box::new(Policy::new(mlp, hello, action_scale)?)
+        }
         "nan-at" => {
             let v = floats(rest, 1)?;
             Box::new(FaultInjector {
@@ -192,7 +203,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
         .map_err(|e| e.to_string())?;
     let n = hello.joints.len();
     let dt = hello.control_dt;
-    let mut controller = make_controller(&args.controller, &hello)?;
+    let mut controller = make_controller(&args.controller, &hello, args.action_scale)?;
     let mut gate = CommandGate::new(GateLimits::default());
     let mut sup = Supervisor::new(
         &hello,

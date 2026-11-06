@@ -69,3 +69,44 @@ def test_torque_off_makes_the_robot_sag():
     out = _run(torque_off_after=10)
     assert out["torque_off_step"] == 11
     assert out["trunk_height_m"] < 0.19  # limp joints: the robot sags or falls
+
+
+def test_projected_gravity_matches_the_env_rotation():
+    from bipedlab.rl.velocity_env import rotate_inverse
+
+    q = np.random.default_rng(0).normal(size=(20, 4))
+    q /= np.linalg.norm(q, axis=1, keepdims=True)
+    want = rotate_inverse(q, np.broadcast_to([0.0, 0.0, -1.0], (20, 3)))
+    got = np.array([rb.projected_gravity(x) for x in q])
+    np.testing.assert_allclose(got, want, atol=1e-12)
+
+
+def test_policy_observation_matches_the_env_actor_terms():
+    """The runtime-side observation (WP4-10) equals the clean actor terms of training.
+
+    The critic observation starts with the actor terms without noise, lag or DR; the
+    bridge builds its observation from what it sends the runtime: the IMU sensors,
+    joint positions and velocities, and the stand pose from the keyframe ctrl.
+    """
+    from bipedlab.rl.biped_velocity_env import OBS_DIM, BipedVelocityEnv
+
+    env = BipedVelocityEnv(num_envs=1, seed=1, noise=False)
+    bridge = rb.SimBridge(model=env.model)
+    np.testing.assert_allclose(bridge.default, env.default_pose, atol=1e-12)
+    m, d = env.model, env.datas[0]
+    quat_adr = m.sensor_adr[m.sensor("orientation").id]
+    gyro_adr = m.sensor_adr[m.sensor("gyro").id]
+    rng = np.random.default_rng(1)
+    for _ in range(5):
+        r = env.step(rng.uniform(-0.3, 0.3, size=(1, 10)).astype(np.float32))
+        assert not (r.terminated[0] or r.truncated[0])
+        obs = rb.policy_observation(
+            d.sensordata[gyro_adr : gyro_adr + 3],
+            d.sensordata[quat_adr : quat_adr + 4],
+            d.qpos[bridge.qadr],
+            d.qvel[bridge.vadr],
+            bridge.default,
+            env.last_action[0],
+            env.twist[0],
+        )
+        np.testing.assert_allclose(obs, r.critic_obs[0, :OBS_DIM], atol=1e-6)
