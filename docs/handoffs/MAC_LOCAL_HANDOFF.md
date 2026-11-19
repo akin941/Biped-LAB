@@ -712,7 +712,7 @@ notes: the tighter yaw kernel cut the forward drift at 0.25 (and at 0.15 without
 ---
 
 ## MAC-20 — Microduck: train slow forward commands on BAM (WP3-13, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-17 done (its `model_8000.pt`), WP3-13 merged
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-17 done (its `model_8000.pt`), WP3-13 merged
 
 MAC-17 (mac-m5): with std² 0.05 the threshold did not move (0.2 → 0.000, 0.3 → 0.078).
 Cloud reading of the command sampler: forward-only draws are max(|U(−0.4, 0.4)|, 0.3),
@@ -735,15 +735,25 @@ under `docs/experiments/mac20/`.
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If only the threshold moves, record
 the new sweep.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met, the threshold moved UP (only 0.4 walks)
 ```
-revision:
-wall time:
-reward first -> last quarter, air_time trend:
+revision: 2dc888c (main), git_dirty false; resumed from mac17-seed0/model_8000.pt
+  (it 8000 -> 10000), --track-lin-std2 0.05 --forward-min-vx 0.1, 8 workers, load avg 10-24
+wall time: 2287 s (38 min)
+reward first -> last quarter, air_time trend: 0.0992 -> 0.1031 (rose); air_time
+  0.0145 (first 100 it) -> 0.012-0.013 from it 200 on; track_linear_velocity 0.022-0.023
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
-g1-3.json (stand, vx at 0.2 command, falls):
-policy.onnx sha256:
-notes:
+  vx 0.0002 / 0.0002 / 0.0002 / 0.170; dy -0.001 / +0.739 m in 10 s
+  (MAC-17: 0.0001 / 0.0002 / 0.078 / 0.131; dy -0.996 / -1.123); backward, lateral,
+  turn ~0
+eval.json (0.4 cmd): vx 0.217 / 0.200 (noise on / off), 0 falls; zero-action 8/8 falls
+g1-3.json (4 repeats x 10 s): no falls, tilt < 2.2 deg; walk_forward_0.2 vx 0.0002
+policy.onnx sha256: b8497e7a74d90e1b938fc82d779a40f78282b9b3715d8ec88671c7dbbe15eac3
+notes: spreading the forward draws over 0.1-0.4 made the policy stand at more of them:
+  it now stands at 0.3 as well and only steps at 0.4 (faster there, 0.170). The lateral
+  drift at 0.4 flipped sign (-1.1 -> +0.7 m). Standing remains the better-paying answer
+  for every command the policy cannot track well, so more low-command samples mostly
+  teach it to stand at more commands.
 ```
 
 ---
