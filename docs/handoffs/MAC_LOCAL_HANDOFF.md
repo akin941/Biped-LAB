@@ -1087,5 +1087,45 @@ policy.onnx sha256: fd220aaa52439603bdf0bead51187b0dd5b2b6a42813b39a515ecac39a55
 
 ---
 
+## MAC-27 — Microduck: mirror loss against the curving gait (WP3-16, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-26 done (its `model_15000.pt`)
+
+MAC-26 (mac-m5): the speed-relative kernel made the policy step at slow commands for
+the first time. It reached 0.091–0.099 at 0.2 (48 %) and walked backward at 0.15.
+Every forward gait curves right, though: wz −0.16…−0.19 rad/s, dy −1.1…−2.2 m in 10 s.
+At 0.3 / 0.4 it fell back to ~0.11 and lost the 1.0 turn. On biped_v1, the same kind
+of drift went away with the mirror loss (MAC-25, accepted). `bipedlab.rl.microduck_symmetry`
+gives Microduck its own mirror. Its right leg's joint axes are the left's mirrored, so
+every leg joint flips sign. The head pitch joints keep their sign, and head yaw and
+roll flip. The cloud checked the mirror against a physically mirrored MuJoCo state,
+body by body, and the tests catch every wrong sign. Continue MAC-26 with the same
+flags plus `--symmetry loss --mirror-loss-coeff 0.5`. Use a clean worktree of
+origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 0.5 \
+    --resume <mac26>/runs/mac26-seed0/model_15000.pt --run-dir runs/mac27-seed0 \
+    --save-every 100 --out runs/mac27-seed0/report.json
+```
+Then run the MAC-26 evals: eval_velocity_env at 0.4, G1.3 (BAM), and the sweep at
+0.1 / 0.2 / 0.3 / 0.4, backward 0.3, lateral 0.3 and turn 1.0, with `displacement_y_m`
+and the yaw rate. Watch `loss_symmetry`, which should fall. If training falls stay
+above 1.5 per iteration for 200 iterations after the first 100, stop and evaluate the
+last good checkpoint. Commit the JSONs under `docs/experiments/mac27/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). Also record
+|wz| at 0.2 / 0.3 / 0.4 against MAC-26's 0.16–0.19.
+
+Result:
+```
+revision:
+wall time; loss_symmetry first -> last; training falls trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
+G1.3 (BAM) verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

@@ -157,7 +157,7 @@ def make_runner(
             "desired_kl": 0.01,
             "max_grad_norm": 1.0,
             "rnd_cfg": None,
-            "symmetry_cfg": symmetry_cfg(symmetry, mirror_loss_coeff),
+            "symmetry_cfg": symmetry_cfg(symmetry, mirror_loss_coeff, act_dim),
         },
     }
     runner = OnPolicyRunner(Adapter(), cfg, log_dir=None, device="cpu")
@@ -175,8 +175,11 @@ def make_runner(
     return runner
 
 
-def symmetry_cfg(mode: str | None, mirror_loss_coeff: float = 1.0) -> dict[str, Any] | None:
-    """biped_v1 left/right mirror (WP4-23): "aug" data augmentation, "loss" mirror loss.
+def symmetry_cfg(
+    mode: str | None, mirror_loss_coeff: float = 1.0, act_dim: int = bve.ACT_DIM
+) -> dict[str, Any] | None:
+    """Left/right mirror (WP4-23 biped_v1, WP3-16 Microduck): "aug" data augmentation,
+    "loss" mirror loss.
 
     Augmentation gives each mirrored sample the original's old log-probability, so on an
     asymmetric warm start (MAC-14) the PPO ratios of the mirrored half are far from 1:
@@ -184,13 +187,14 @@ def symmetry_cfg(mode: str | None, mirror_loss_coeff: float = 1.0) -> dict[str, 
     """
     if mode is None:
         return None
-    from bipedlab.rl import biped_symmetry
+    from bipedlab.rl import biped_symmetry, microduck_symmetry
 
+    sym = biped_symmetry if act_dim == bve.ACT_DIM else microduck_symmetry
     return {
         "use_data_augmentation": mode in ("aug", "both"),
         "use_mirror_loss": mode in ("loss", "both"),
         "mirror_loss_coeff": mirror_loss_coeff,
-        "data_augmentation_func": biped_symmetry.data_augmentation,
+        "data_augmentation_func": sym.data_augmentation,
     }
 
 
@@ -261,8 +265,6 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("biped_v1 has MJCF position actuators only")
     if biped_v1 and args.track_lin_std2 is not None:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
-    if not biped_v1 and args.symmetry is not None:
-        raise SystemExit("--symmetry is a biped_v1 option")
     if args.mirror_loss_coeff <= 0:
         raise SystemExit("--mirror-loss-coeff must be > 0")
     if biped_v1 and args.posture_gate:
@@ -388,7 +390,7 @@ def main() -> None:
     )  # fmt: skip
     parser.add_argument(
         "--symmetry", choices=("aug", "loss", "both"), default=None,
-        help="biped_v1 left/right mirror: data augmentation, mirror loss or both (WP4-23)",
+        help="left/right mirror: data augmentation, mirror loss or both (WP4-23, WP3-16)",
     )  # fmt: skip
     parser.add_argument(
         "--mirror-loss-coeff", type=float, default=1.0,
