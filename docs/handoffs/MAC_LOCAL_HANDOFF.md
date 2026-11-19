@@ -1384,7 +1384,7 @@ policy.onnx sha256: 18500 70053902f4fa400e83d523cb2d0d09ff3df8ba73585bd92c1fc4ab
 ---
 
 ## MAC-32 — Microduck: stronger mirror loss against the yaw drift (WP3-19, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-31 done (its `model_18500.pt`)
+Status: `done (mac-m5, 2026-11-19): G3.3 confirmed; WP3-18 not met` · Deps: MAC-31 done (its `model_18500.pt`)
 
 MAC-31 (mac-m5) trained steadily. The falls rule did not fire, falls ended at ~0.8/it,
 and the reward rose from 0.026 to 0.034. G3.3 is still not confirmed. model_18500 passes
@@ -1413,14 +1413,43 @@ eval_velocity_env at 0.4 and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs 
 with BAM (0.2 within ±30 %, |wz| at 0.2 below 0.05, 0 falls) and the falls rule does
 not fire. WP3-18 passes if turn 1.0 gives wz ≥ 0.7 on those checkpoints.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 CONFIRMED (three runs of consecutive passing checkpoints); WP3-18 not met
 ```
-revision:
-wall time; loss_symmetry first -> last; training falls trend; rule fired?:
-per checkpoint (G1.3 0.2 vx / wz, backward 0.15):
-passing ones: sweep 0.3 / 0.4, turn 1.0 / 0.5 wz:
-best checkpoint: eval_velocity_env 0.4, long stands:
-verdict:
+revision: 8e60bf7 (main), git_dirty false; resumed from mac31-seed0/model_18500.pt, MAC-31
+  flags with --mirror-loss-coeff 1.0 --turn-fraction 0.4, 8 workers; VM load ~4-6 cores
+wall time; loss_symmetry first -> last; training falls trend; rule fired?: 1316 s (22 min),
+  all 1500 it; loss_symmetry 0.0109 (first 100 it) -> 0.0070 (last 100); falls/it (100-it
+  means) 1.05 -> 0.57-0.91 -> 1.03 at the end, watchdog 200-it mean <= 0.84 -> NO, the rule
+  did not fire; reward 0.037 -> 0.042; track_angular_velocity 0.0136 -> 0.0154;
+  tracking ~0.023
+per checkpoint (G1.3 0.2 vx / wz, backward 0.15; P = meets G1.3, 0 falls everywhere):
+  18800 0.159-0.159 / -0.028 / -0.163 P   19500 0.157-0.159 / +0.050 / -0.029
+  18900 0.150-0.152 / -0.015 / -0.001 P   19600 0.139-0.142 / +0.011 / -0.097
+  19000 0.158-0.159 / +0.025 / -0.001 P   19700 0.168-0.170 / -0.023 / -0.147 P
+  19100 0.134-0.142 / -0.097 / -0.001     19800 0.157-0.165 / +0.040 / -0.159 P
+  19200 0.158-0.160 / +0.035 / -0.001 P   19900 0.165-0.166 / -0.034 / -0.138 P
+  19300 0.141-0.142 / -0.009 / -0.032 P   20000 0.143-0.147 / +0.107 / -0.031
+  19400 0.136-0.144 / +0.046 / -0.122
+  -> consecutive passes: 18800-18900-19000, 19200-19300, 19700-19800-19900
+passing ones: sweep 0.3 / 0.4 (wz), turn 1.0 (env eval / sweep) / 0.5 wz:
+  18800 0.192 (+0.11) / 0.236 (+0.11); 0.277 / -0.010; 0.009
+  18900 0.220 (-0.07) / 0.288 (-0.06); 0.127 / 0.057;  0.007
+  19000 0.234 (+0.06) / 0.230 (+0.12); 0.041 / 0.068;  0.004
+  19200 0.242 (+0.00) / 0.304 (-0.00); 0.465 / -0.014; 0.011
+  19300 0.216 (-0.05) / 0.272 (-0.06); 0.031 / -0.000; 0.007
+  19700 0.265 (-0.01) / 0.309 (+0.04); 0.360 / 0.368;  0.010
+  19800 0.253 (-0.00) / 0.259 (-0.13); 0.336 / 0.362;  0.012
+  19900 0.237 (-0.07) / 0.292 (+0.06); 0.320 / -0.125; 0.011
+  last (20000, fails G1.3 on wz +0.107): 0.185 / 0.226; 0.401 / 0.430; 0.002
+best checkpoint: 19700. eval_velocity_env 0.4: vx 0.336 / 0.343 (noise on / off), 0 falls;
+  stand 4 x 20 s and 4 x 30 s: 0 falls, tilt 1.3 deg; 0.2 for 4 x 20 s: 0.164-0.166.
+  Long stands also for 19800 (0 falls; 0.2 for 20 s 0.136-0.153) and 19900 (0 falls;
+  0.2 for 20 s 0.159-0.161).
+verdict: G3.3 confirmed on mac-m5: 8 of 13 checkpoints meet G1.3 with BAM (0.2 within
+  +-30 %, |wz| < 0.05, 0 falls), in three runs of two or three in a row, and the falls rule
+  did not fire. WP3-18 not met: turn 1.0 reaches 0.465 at most (19200), >= 0.7 needed;
+  turn 0.5 stays ~0.01.
+policy.onnx sha256: 19700 398f399aab64332d13083a81a8b31ff96c06c40b2622b76a79eb30e424bb2846
 ```
 
 ---

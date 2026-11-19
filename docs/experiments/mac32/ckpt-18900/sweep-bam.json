@@ -1,0 +1,164 @@
+{
+  "policy": "policy.onnx",
+  "scene": "scene_walk.xml",
+  "actuator": "bam-xl330-m6 (CPU port of Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967 (Apache-2.0); drop gain 0.1)",
+  "init": "upstream",
+  "postprocess": {
+    "action_scale": 1.0,
+    "effective_scale": 1.0,
+    "head_lowpass": null,
+    "legs_lowpass": null,
+    "supply_voltage": null
+  },
+  "training_match": {
+    "bam_delay_steps": 0,
+    "vin": 7.4,
+    "joint_vel_lag": 0,
+    "bam_kp": 200.0
+  },
+  "physics_dt": 0.005,
+  "control_hz": 50.0,
+  "mujoco": "3.10.0",
+  "repeats": 1,
+  "scenario_set": "sweep",
+  "scenarios": {
+    "forward_0.1": {
+      "command": [
+        0.1,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.11433791351679974,
+      "final_trunk_height_m": 0.1143522959963458,
+      "max_tilt_deg": 2.086025623536527,
+      "finite": true,
+      "state_digest": "59f0827678a642a0",
+      "displacement_x_m": 0.004997574253471942,
+      "displacement_y_m": 0.0016379891400200297,
+      "mean_speed_x_mps": 0.0004997574253471942,
+      "max_abs_action": 0.4620543420314789,
+      "mean_gyro_z_second_half": -0.0018599428003653884,
+      "trunk_roll_deg_second_half": 0.37774085231012094,
+      "trunk_pitch_deg_second_half": -2.0211252670152864
+    },
+    "forward_0.3": {
+      "command": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.10994688031157321,
+      "final_trunk_height_m": 0.12507885950169934,
+      "max_tilt_deg": 5.795963241039584,
+      "finite": true,
+      "state_digest": "b014f51aef93afc1",
+      "displacement_x_m": 2.20326165149516,
+      "displacement_y_m": -0.3646672223828589,
+      "mean_speed_x_mps": 0.220326165149516,
+      "max_abs_action": 0.9918075203895569,
+      "mean_gyro_z_second_half": -0.06854579597711563,
+      "trunk_roll_deg_second_half": 1.5592273098606573,
+      "trunk_pitch_deg_second_half": -4.22797549238408
+    },
+    "forward_0.4": {
+      "command": [
+        0.4,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.10851280796553803,
+      "final_trunk_height_m": 0.12173238737865116,
+      "max_tilt_deg": 5.837187944151429,
+      "finite": true,
+      "state_digest": "e78522f2bb9599de",
+      "displacement_x_m": 2.8750879510967375,
+      "displacement_y_m": -0.5991000647960742,
+      "mean_speed_x_mps": 0.28750879510967375,
+      "max_abs_action": 1.1251565217971802,
+      "mean_gyro_z_second_half": -0.06037338078022003,
+      "trunk_roll_deg_second_half": 1.779270950402197,
+      "trunk_pitch_deg_second_half": -4.365756319259421
+    },
+    "backward_0.3": {
+      "command": [
+        -0.3,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.1142344588841433,
+      "final_trunk_height_m": 0.12133034730675193,
+      "max_tilt_deg": 2.0985815183500884,
+      "finite": true,
+      "state_digest": "50865832f9fee00a",
+      "displacement_x_m": -2.2591388818741502,
+      "displacement_y_m": -0.022495620336308256,
+      "mean_speed_x_mps": -0.22591388818741504,
+      "max_abs_action": 1.2960652112960815,
+      "mean_gyro_z_second_half": 0.02093888819217682,
+      "trunk_roll_deg_second_half": 0.39630084745566785,
+      "trunk_pitch_deg_second_half": 0.39563656901510413
+    },
+    "lateral_0.3": {
+      "command": [
+        0.0,
+        0.3,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.10640425684301233,
+      "final_trunk_height_m": 0.12538830741018817,
+      "max_tilt_deg": 5.458115676658183,
+      "finite": true,
+      "state_digest": "71bd134b946fbfce",
+      "displacement_x_m": 0.18046650236827497,
+      "displacement_y_m": 1.1461898791237384,
+      "mean_speed_x_mps": 0.018046650236827496,
+      "max_abs_action": 1.3104991912841797,
+      "mean_gyro_z_second_half": 0.0020071673206984997,
+      "trunk_roll_deg_second_half": 1.639672717617257,
+      "trunk_pitch_deg_second_half": -3.925963256217688
+    },
+    "turn_1.0": {
+      "command": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.11193179455410014,
+      "final_trunk_height_m": 0.1143771082758676,
+      "max_tilt_deg": 3.193682764771571,
+      "finite": true,
+      "state_digest": "94cd427342f68372",
+      "displacement_x_m": 0.029987166186272177,
+      "displacement_y_m": -0.0070296246330684205,
+      "mean_speed_x_mps": 0.002998716618627218,
+      "max_abs_action": 1.0018287897109985,
+      "mean_gyro_z_second_half": 0.05731487274169922,
+      "trunk_roll_deg_second_half": 0.9902872482011429,
+      "trunk_pitch_deg_second_half": 1.6890824490009928
+    }
+  }
+}
