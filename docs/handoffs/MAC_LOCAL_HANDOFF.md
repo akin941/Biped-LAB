@@ -355,7 +355,7 @@ notes:
 ---
 
 ## MAC-12 — Microduck PPO run with the BAM actuator (WP3-10, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-01, MAC-06 done once
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-01, MAC-06 done once
 
 MAC-06 trained with the default MJCF position actuators: the policy walks there
 (~0.20 m/s at the 0.4 command) but barely moves under BAM, which G1.3/G3.3 measure
@@ -377,21 +377,27 @@ uv run bipedlab eval-policy runs/mac12-seed0/policy.onnx --model microduck-walk 
 within ±30 % over 10 s without falling, on the M5. If it only shuffles, record it
 honestly with the numbers. Commit the JSONs under `docs/experiments/mac12/`.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met, the policy stands still
 ```
-revision:
-timing (workers: samples/s):
-wall time for 3000 iterations:
-reward/step first -> last quarter:
-g1-3.json (stand 20 s, vx at 0.2 command, falls):
-policy.onnx sha256:
-notes:
+revision: 75d5eea (same code as main 6164ca5), git_dirty false
+timing (workers: samples/s): 4: 3392, 8: 3546 -> 8 workers (load avg 12-18)
+wall time for 3000 iterations: 3496 s (58 min; 18.4 M samples)
+reward/step first -> last quarter: 0.0427 -> 0.0839 (rose)
+g1-3.json (4 repeats x 10 s): stand_still no fall, tilt < 1 deg; walk_forward_0.2
+  vx -0.0001 (0 % of the command), no fall; walk_backward_0.15 vx 0.0; turn_left_0.5
+  no turn; 0 falls in every scenario
+eval.json (BAM, 8 envs, 0.4 command): vx -0.00005 / -0.00007 (noise on / off), 0 falls
+policy.onnx sha256: 1216c60502330ed0ac16fec745ff4036218447843d603c38908f51719f905fc7
+notes: same standing optimum as biped_v1 MAC-11/13B. air_time 0.0071 (first 250 it)
+  -> 0.0009 by it 500 -> 0.0004 at the end; the reward keeps rising from upright,
+  pose and head_pose terms while track_linear_velocity stays ~0.008/step.
+  JSONs in docs/experiments/mac12/ (report.json history every 10th iteration).
 ```
 
 ---
 
 ## MAC-13 — Which WP4-16 DR change stopped the gait? (WP4-18 ablation)
-Status: `awaiting-mac` · Deps: MAC-11 done
+Status: `done (mac-m5, 2026-11-19)` · Deps: MAC-11 done
 
 MAC-08 (old DR) walked; MAC-11 (WP4-16 DR: 0–40 ms action delay and foot friction
 that now really goes down to 0.7) only stands: `air_time` hits 0 from ~600 iterations
@@ -415,12 +421,23 @@ Watch `air_time` in the training log: if it is 0 for 500+ iterations, the run ha
 settled on standing (you may stop it early and record that). Commit `report.json`,
 `run.json`, `eval.json` under `docs/experiments/mac13/`.
 
-Result:
+Result (env: mac-m5, 2026-11-19):
 ```
-revision:
-A (no delay): walks? vx 0.15/0.25 (DR on), falls, latency 20/40/60 ms, air_time trend:
-B (friction >= 1): walks? vx 0.15/0.25 (DR on), falls, friction_0.5, air_time trend:
-notes:
+revision: 75d5eea (same code as main 6164ca5), git_dirty false; 8 workers, load avg 10-13
+A (no delay): WALKS. vx 0.101 / 0.163 at 0.15 / 0.25 (DR on; 67 % / 65 %), 0 falls;
+  nominal (DR off) 0.135 / 0.216; latency 20/40/60 ms: 0.090 / 0.063 / 0.046
+  (60 / 42 / 31 % of 0.15), 0 falls; friction_0.5 0.134, friction_1.5 0.136;
+  pushes 0.3 m/s fwd/side: 0 falls; knee p95 0.195 / 0.216, max 0.52 (DR on);
+  air_time (mean per 250 it) 0.005 -> 0.025 by it 500 -> 0.030 at 3000, never 0;
+  reward/step 0.022 -> 0.127; wall 2383 s
+B (friction >= 1): STANDS. vx 0.000 in every case (DR on/off, all robustness cases),
+  0 falls; friction_0.5 0.000; air_time 0.0067 -> 0.0001 by it 500, ~0 from it 629
+  to 3000; reward/step plateaus ~0.099 from it 1500; wall 2190 s
+policy.onnx sha256: A 9a2823b3fe2e4377e706050ed805f092de42d0cdad2203d628e3ff5ad0b3a7f6
+                    B 09b31691ae7027f916c24d443ca6a728b8a3b80ede7e51fbc35eb16e5b24a3b1
+notes: the 0-40 ms DR action delay stops the gait, not the lower friction. G4.3
+  first pass holds for A; latency_40ms (42 %) misses the MAC-11 >= 50 % target.
+  JSONs in docs/experiments/mac13/{a,b}/ (report.json history every 10th iteration).
 ```
 
 ---
