@@ -47,8 +47,8 @@ def _python_runtime(conn: socket.socket, n: int, torque_off_after: int | None) -
         conn.sendall(struct.pack(f"<BQBI{n}d", rb.TAG_ACTION, step, int(enable), 0, *default))
 
 
-def _run(torque_off_after: int | None = None) -> dict:
-    bridge = rb.SimBridge(cfg=rb.BridgeConfig(seconds=2.0))
+def _run(torque_off_after: int | None = None, **cfg: float) -> dict:
+    bridge = rb.SimBridge(cfg=rb.BridgeConfig(seconds=2.0, **cfg))
     a, b = socket.socketpair()
     t = threading.Thread(target=_python_runtime, args=(b, bridge.n, torque_off_after))
     t.start()
@@ -124,3 +124,18 @@ def test_body_velocity_is_in_the_trunk_frame():
     d.qvel[0:3] = [0.0, 0.2, 0.0]
     d.qvel[5] = 0.3
     np.testing.assert_allclose(rb.body_velocity(d), [0.2, 0.0, 0.3], atol=1e-12)
+
+
+def test_servo_model_override_and_curve_still_stand():
+    # WP4-30: the STS3215 limit and curve reach the hello and the physics.
+    bridge = rb.SimBridge(cfg=rb.BridgeConfig(torque_limit=1.91, motor_no_load_speed=5.45))
+    assert np.allclose(bridge.torque_limit, 1.91)
+    out = _run(torque_limit=1.91, motor_no_load_speed=5.45)
+    assert out["steps"] == 100 and out["max_tilt_deg"] < 2.0
+
+
+def test_motor_force_range_drives_less_along_the_motion():
+    from bipedlab.design import actuators
+
+    lo, hi = actuators.motor_force_range(np.ones(3), np.array([-5.0, 0.0, 2.5]), 5.0)
+    assert np.allclose(hi, [1.0, 1.0, 0.5]) and np.allclose(lo, [0.0, -1.0, -1.0])

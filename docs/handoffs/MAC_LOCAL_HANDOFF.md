@@ -1784,5 +1784,45 @@ verdict: with its real curve, B (STS3215 @ 7.4 V) can be learned: the fine-tune 
 
 ---
 
+## MAC-38 — biped_v1: the STS3215 policy through the Rust runtime (WP4-30, gate G4.4)
+Status: `awaiting-mac` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`)
+
+MAC-37 (mac-m5) trained a policy that walks under the STS3215 @ 7.4 V torque-speed
+curve. `runtime_sim.py --torque-limit / --motor-no-load-speed` (and `BridgeConfig`) now
+apply the same servo model in the sim bridge. The runtime gets the 1.91 N·m limit in
+the hello, so its torque budget uses it too. Run the MAC-16 check with that model, from
+a clean worktree of origin/main and with absolute paths. Do this on a quiet Mac: VM
+load gave deadline misses before.
+```bash
+(cd runtime && cargo build --locked --release)
+P=<mac37>/runs/mac37-b
+uv run python scripts/export_mlp.py $P/policy.onnx --out $P/policy.bpml \
+    --rust-bin runtime/target/release/mlp-eval > runs/mac38/mlp.json
+for v in 0.15 0.25; do
+  uv run python scripts/runtime_sim.py --seconds 20 --realtime --env-label mac-m5 \
+      --torque-limit 1.91 --motor-no-load-speed 5.45 \
+      --log runs/mac38/v$v.bplog --out runs/mac38/v$v.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --command 0:20:$v:0:0
+done
+```
+Commit `mlp.json` and the two result JSONs under `docs/experiments/mac38/`, without the
+logs.
+
+**Acceptance (WP4-30):** for both commands, `fell` false, no latched fault, 1000
+periods, `deadline_misses` ≤ 10, `vx_body_mean` ≥ 50 % of the command, and
+|`wz`| ≤ 0.08 if the bridge reports it. If the supervisor latches a fault, name it.
+Nothing touches `safety.rs`.
+
+Result:
+```
+revision:
+mlp.json max error:
+v0.15: fell / fault / periods / misses / vx_body_mean / wz:
+v0.25: fell / fault / periods / misses / vx_body_mean / wz:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
