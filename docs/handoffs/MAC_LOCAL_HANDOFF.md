@@ -1636,5 +1636,52 @@ verdict: WP4-25 acceptance met (sizing for all five types, table vs WP4-01). Our
 
 ---
 
+## MAC-36 — biped_v1: the torque demand without the 0.52 N·m clip (WP4-26, input to WP4-05)
+Status: `awaiting-mac` · Deps: MAC-35 done, MAC-25 done (its newest `runs/mac25/model_<n>.pt` and `policy.onnx`)
+
+MAC-35 (mac-m5) found the MAC-25 gait's walking max torque sitting on the 0.52 N·m limit
+at hip roll, hip pitch and knee, so its 2× requirement (≥ 1.04) is only a lower bound.
+`BipedVelocityEnv(torque_limit=…)`, `train_ppo.py --torque-limit` and
+`eval_biped.py --torque-limit` now override the model's force limit, and the `sizing`
+block flags `at_torque_limit` when a walking max reaches it. Use a clean worktree of
+origin/main, absolute paths, and `caffeinate -i nohup`. Steps:
+1. Same policy, limit raised (no training), to see how far the clipped joints go:
+```bash
+uv run python scripts/eval_biped.py <mac25>/runs/mac25/policy.onnx --dr --robustness \
+    --envs 8 --seconds 20 --torque-limit 1.5 --out runs/mac36/eval-mac25-tl1.5.json
+```
+2. Fine-tune MAC-25 with the limit at 1.5 N·m (MAC-25 flags plus `--torque-limit 1.5`),
+   500 iterations, then score its export with the same limit:
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 500 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \
+    --torque-limit 1.5 --resume <mac25>/runs/mac25/model_<newest>.pt --run-dir runs/mac36 \
+    --save-every 100 --out runs/mac36/report.json
+uv run python scripts/eval_biped.py runs/mac36/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --torque-limit 1.5 --out runs/mac36/eval.json
+```
+Keep the falls rule (stop if the falls pass 1.0 per iteration for 100 iterations, and
+score the last good checkpoint). Commit `report.json`, `run.json` and both eval JSONs
+under `docs/experiments/mac36/`, with each policy.onnx sha256.
+
+**Acceptance (WP4-26):** in step 2, no joint has `at_torque_limit`, and the policy still
+meets the MAC-25 rows (0.15 / 0.25 walk with DR on and off, |wz| ≤ 0.08, 40 ms latency
+≥ 80 % vx, 0 falls). Report the per-joint table (required torque / speed, RMS) for
+steps 1 and 2 next to MAC-35. If a joint still reaches 1.5, say so: its requirement
+stays a lower bound. MAC-25 stays the reference policy; this run only measures demand.
+
+Result:
+```
+revision:
+step 1 table (MAC-25 at 1.5 N*m; at_torque_limit?):
+step 2 wall time; falls rule fired?:
+step 2 table (fine-tune at 1.5 N*m; at_torque_limit?):
+step 2 MAC-25 rows:
+policy.onnx sha256:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

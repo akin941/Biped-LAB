@@ -278,3 +278,12 @@ def test_parallel_env_matches_serial():
             np.testing.assert_array_equal(o1.obs, o2.obs)
             np.testing.assert_array_equal(o1.joint_torque, o2.joint_torque)
             np.testing.assert_array_equal(o1.slew_limited, o2.slew_limited)
+
+
+def test_torque_limit_override():
+    # WP4-26: a higher limit lets the actuators push past the XL330-class 0.52 N*m.
+    env = bve.BipedVelocityEnv(num_envs=1, torque_limit=1.5)
+    assert np.allclose(env.model.actuator_forcerange, [[-1.5, 1.5]] * bve.ACT_DIM)
+    assert np.allclose(bve.BipedVelocityEnv(num_envs=1).model.actuator_forcerange[:, 1], 0.52)
+    with pytest.raises(ValueError):
+        bve.BipedVelocityEnv(num_envs=1, torque_limit=0.0)

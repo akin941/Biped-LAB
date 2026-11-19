@@ -97,6 +97,7 @@ def run_case(
     action_delay: int = 0,
     foot_friction: float | None = None,
     push_dv: tuple[float, float] | None = None,
+    torque_limit: float | None = None,
 ) -> dict[str, Any]:
     env = bve.BipedVelocityEnv(
         num_envs=num_envs,
@@ -105,6 +106,7 @@ def run_case(
         common_step=2000 * 24,
         dr=dr,
         action_delay=action_delay,
+        torque_limit=torque_limit,
     )
     if foot_friction is not None:
         if dr:
@@ -166,6 +168,7 @@ def run_case(
         "push_dv": None if push_dv is None else list(push_dv),
         "twist": list(twist),
         "dr": dr,
+        "torque_limit": float(env.model.actuator_forcerange[0, 1]),
         "num_envs": num_envs,
         "seconds": seconds,
         "falls": int((~alive).sum()),
@@ -222,6 +225,8 @@ def sizing_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
         and c["joints"] is not None
     ]  # fmt: skip
     out: dict[str, Any] = {"margin": SIZING_MARGIN, "cases_used": len(walking), "joints": {}}
+    limits = {c["torque_limit"] for c in walking if c.get("torque_limit") is not None}
+    limit = max(limits) if limits else None
     for name in JOINT_GROUPS:
         rows = [c["joints"][name] for c in walking]
         if not rows:
@@ -232,15 +237,25 @@ def sizing_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
             "speed_p95": max(r["speed_p95"] for r in rows),
             "required_torque": SIZING_MARGIN * max(r["torque_max"] for r in rows),
             "required_speed": SIZING_MARGIN * max(r["speed_p95"] for r in rows),
+            # A walking max at the force limit means the demand was clipped (MAC-35):
+            # the requirement is then a lower bound.
+            "at_torque_limit": limit is not None
+            and max(r["torque_max"] for r in rows) >= 0.99 * limit,
         }
     return out
 
 
 def robustness_cases(
-    policy: BatchOnnxPolicy | None, num_envs: int, seconds: float, seed: int
+    policy: BatchOnnxPolicy | None,
+    num_envs: int,
+    seconds: float,
+    seed: int,
+    torque_limit: float | None = None,
 ) -> list[dict[str, Any]]:
     """G4.3 robustness: friction, pushes and latency, one factor per case, DR off."""
-    run = partial(run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False)
+    run = partial(
+        run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False, torque_limit=torque_limit
+    )
     cases = [run(case=f"friction_{mu}", foot_friction=mu) for mu in ROBUST_FRICTION]
     cases += [run(case=name, push_dv=dv) for name, dv in ROBUST_PUSHES.items()]
     cases += [
@@ -260,16 +275,25 @@ def main() -> None:
     parser.add_argument(
         "--robustness", action="store_true", help="add friction, push and latency cases"
     )
+    parser.add_argument(
+        "--torque-limit", type=float, default=None,
+        help="actuator force limit in N*m (default: the model's 0.52; WP4-26)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
+    tl = args.torque_limit
     policy = BatchOnnxPolicy(args.policy)
     cases = []
     for dr in [False, True] if args.dr else [False]:
         for twist in TWISTS:
-            cases.append(run_case(policy, twist, args.envs, args.seconds, args.seed, dr))
-        cases.append(run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr))
+            cases.append(
+                run_case(policy, twist, args.envs, args.seconds, args.seed, dr, torque_limit=tl)
+            )
+        cases.append(
+            run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr, torque_limit=tl)
+        )
     if args.robustness:
-        cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed))
+        cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed, tl))
     report = {
         "environment": bench.environment(),
         "policy": str(args.policy),
