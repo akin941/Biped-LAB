@@ -578,7 +578,7 @@ notes: faster than MAC-14 in the Python env with DR on (0.150 / 0.228). The runt
 ---
 
 ## MAC-17 — Microduck: tighter velocity tracking on BAM (WP3-12, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-15 done (its final checkpoint), WP3-12 merged
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-15 done (its final checkpoint), WP3-12 merged
 
 MAC-15 (mac-m5) keeps the MAC-06 gait on BAM (0.4 → 0.203 m/s, 0 falls) but only
 walks above a command threshold: 0.1 → 0.000, 0.2 → 0.000, 0.3 → 0.120. Upstream's
@@ -601,15 +601,24 @@ the JSONs under `docs/experiments/mac17/`.
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If the threshold only moves, record
 the new sweep.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met, the threshold did not move down
 ```
-revision:
-wall time:
-reward first -> last quarter, tracking term trend:
-sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM):
-g1-3.json (stand 20 s, vx at 0.2 command, falls):
-policy.onnx sha256:
-notes:
+revision: 441e731 (main), git_dirty false; resumed from mac15-seed0/model_6000.pt
+  (it 6000 -> 8000), --track-lin-std2 0.05, 8 workers, load avg 9-16
+wall time: 2308 s (38 min)
+reward first -> last quarter, tracking term trend: 0.0911 -> 0.0974 (rose);
+  track_linear_velocity 0.0198 (first 100 it) -> 0.0210-0.0215 (from it 1200), on the
+  tighter kernel (MAC-15's 0.025 was on std2 0.1, so not directly comparable);
+  air_time 0.013-0.014 throughout
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM): 0.0001 / 0.0002 / 0.078 / 0.131
+  (0.2 from g1-3.json, others from sweep-bam.json; MAC-15: 0.0001 / 0.0000 / 0.120 /
+  0.149); backward_0.3, lateral_0.3, turn_1.0 ~0
+eval.json (0.4 cmd): vx 0.199 / 0.193 (noise on / off), 0 falls; zero-action 8/8 falls
+g1-3.json (4 repeats x 10 s): no falls, tilt < 3 deg; walk_forward_0.2 vx 0.0002
+policy.onnx sha256: e39b7180d6cf072ff6fb19c4d452308e22c935e0fdfea5617e7a049237a7548e
+notes: a tighter linear kernel alone does not get the policy out of standing at low
+  commands; the 0.3 point got slower. Standing at 0.2 still earns 45 % of the term
+  plus the full upright/pose/head terms, so the gradient towards stepping stays weak.
 ```
 
 ---
