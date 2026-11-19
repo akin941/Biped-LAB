@@ -110,3 +110,17 @@ def test_policy_observation_matches_the_env_actor_terms():
             env.twist[0],
         )
         np.testing.assert_allclose(obs, r.critic_obs[0, :OBS_DIM], atol=1e-6)
+
+
+def test_body_velocity_is_in_the_trunk_frame():
+    # WP4-20: a trunk yawed 90 deg moving along world +y moves forward in its own frame.
+    import math
+
+    import mujoco
+
+    m = mujoco.MjModel.from_xml_string(rb.biped.to_mjcf())
+    d = mujoco.MjData(m)
+    d.qpos[3:7] = [math.cos(math.pi / 4), 0.0, 0.0, math.sin(math.pi / 4)]
+    d.qvel[0:3] = [0.0, 0.2, 0.0]
+    d.qvel[5] = 0.3
+    np.testing.assert_allclose(rb.body_velocity(d), [0.2, 0.0, 0.3], atol=1e-12)
