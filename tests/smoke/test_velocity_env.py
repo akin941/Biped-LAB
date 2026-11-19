@@ -97,6 +97,27 @@ def test_twist_sampling_fractions(scene):
     assert np.all(np.abs(t) <= ve.TWIST_RANGE + 1e-12)
 
 
+def test_posture_gate_scales_posture_terms_by_tracking(scene):
+    # WP3-14: standing at a nonzero command no longer keeps the full posture rewards.
+    acts = small_actions(5, 2, seed=3, scale=0.05)
+    outs = []
+    for gate in (False, True):
+        env = MicroduckVelocityEnv(scene, num_envs=2, noise=False, posture_gate=gate)
+        env.freeze_commands(np.array([0.3, 0.0, 0.0]))
+        env.twist[1] = 0.0  # env 1 stands at a zero command: not gated
+        for a in acts:
+            out = env.step(a)
+        outs.append(out.terms)
+    plain, gated = outs
+    track = (plain["track_linear_velocity"] / (2.0 * 0.02)) * (
+        plain["track_angular_velocity"] / (2.0 * 0.02)
+    )
+    for k in ("upright", "pose", "head_pose_tracking"):
+        np.testing.assert_allclose(gated[k][0], plain[k][0] * track[0], rtol=1e-4)
+        np.testing.assert_allclose(gated[k][1], plain[k][1], rtol=1e-6)
+    assert gated["upright"][0] < plain["upright"][0]
+
+
 def test_forward_floor_knob_reaches_slow_commands(scene):
     # WP3-13: upstream's floor (0.3) never draws a forward-only command below 0.3 m/s.
     def forward_draws(**kw):

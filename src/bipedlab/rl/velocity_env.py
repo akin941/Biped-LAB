@@ -197,6 +197,11 @@ class MicroduckVelocityEnv:
     # makes 75 % of them exactly 0.3 m/s and none below, so a pure 0.1-0.2 m/s forward
     # command is rare (only via the mixed vx/vy/wz draw) and the BAM gaits start at ~0.3.
     forward_min_vx: float = FORWARD_MIN_VX
+    # WP3-14: under a nonzero command, scale the posture rewards (upright, pose, head
+    # pose) by the tracking kernels. Off upstream. On BAM a policy that stands at a
+    # 0.2-0.3 m/s command still keeps the full posture terms (MAC-17, MAC-20), and those
+    # outweigh what stepping would add to tracking.
+    posture_gate: bool = False
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -564,6 +569,11 @@ class MicroduckVelocityEnv:
             "head_pose_tracking": np.mean(np.exp(-np.square(head_err / HEAD_STD)), axis=1),
             "head_pose_bias": -np.mean(np.abs(self.head_bias_ema), axis=1),
         }
+        if self.posture_gate:
+            track = values["track_linear_velocity"] * values["track_angular_velocity"]
+            gate = np.where(active, track, 1.0)
+            for k in ("upright", "pose", "head_pose_tracking"):
+                values[k] = values[k] * gate
         weights = dict(WEIGHTS)
         weights["action_rate_l2"] = stage_value(ACTION_RATE_STAGES, self.common_step)
         weights["head_pose_bias"] = stage_value(HEAD_BIAS_STAGES, self.common_step)
