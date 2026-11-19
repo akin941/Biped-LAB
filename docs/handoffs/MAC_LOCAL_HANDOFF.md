@@ -972,7 +972,7 @@ policy.onnx sha256: 5c5e9f3566f78a96d73d4f03f611d0ef9fee06af2dcc8853ae3cd6f8c2e6
 ---
 
 ## MAC-25 — biped_v1: mirror loss instead of augmentation (WP4-24)
-Status: `awaiting-mac` · Deps: MAC-23 done; run after MAC-24
+Status: `done (mac-m5, 2026-11-19): accepted, new reference policy` · Deps: MAC-23 done; run after MAC-24
 
 MAC-23 (mac-m5, `--symmetry aug`) degraded from about iteration 100. Reward fell from
 0.102 to 0.068, falls rose to about 2.2 per iteration, and turning was lost (0.8 → 0.20).
@@ -1003,14 +1003,32 @@ iteration for 100 iterations, stop and evaluate the last good checkpoint.
 |wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
 of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
 
-Result:
+Result (env: mac-m5, 2026-11-19): ACCEPTED, all six rows pass; replaces MAC-14 as reference
 ```
-revision:
-loss_symmetry first -> last; falls trend:
-vx / wz at 0.15, 0.25 (DR off / on):
-zero command wz, turn 0.8 wz (DR off / on):
-latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+revision: f5f71eb (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
+  4000), --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5, 8 workers;
+  983 s; reward 0.101 -> 0.111; knee torque mean 0.24 -> 0.17 N.m
+loss_symmetry first -> last; falls trend: 0.030 (first 100 it; per-it peak 0.057 at
+  it 2) -> 0.0037 (last 100 it); falls/it 2.38 (first 100, resume transient as in
+  MAC-21) -> 0.25 -> 0.08-0.14 from it 300 (watchdog from it 200: never above 0.15)
+vx / wz at 0.15, 0.25 (DR off / on): off 0.166 / -0.047, 0.252 / +0.006;
+  on 0.142 / -0.052, 0.219 / -0.028
+zero command wz, turn 0.8 wz (DR off / on): zero -0.034 / -0.020; turn 0.579 / 0.523
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25: 0.141 / 0.125 / 0.110
+  (94 / 83 / 73 % of 0.15); runtime 0.177 / -0.133, 0.266 / -0.041 (fell false,
+  latched 0; deadline_misses 4 / 0, period_max 53.8 / 32.6 ms, a VM was using several
+  cores; distance 2.36 / 4.66 m; parity 1.3e-6)
 verdict vs MAC-14 and MAC-21:
+  |wz| <= 0.08, DR off: 0.047 / 0.006  pass (MAC-14 0.186 / 0.239, MAC-21 0.103 / 0.097)
+  |wz| <= 0.08, DR on:  0.052 / 0.028  pass (MAC-14 0.128 / 0.159, MAC-21 0.044 / 0.040)
+  |wz| <= 0.05 zero:    0.034 / 0.020  pass (MAC-14 0.021 / 0.001, MAC-21 0.047 / 0.035)
+  turn 0.8 >= 0.5:      0.579 / 0.523  pass (MAC-14 0.622 / 0.558, MAC-21 0.625 / 0.536)
+  40 ms >= 80 %:        83 %           pass (MAC-14 86 %, MAC-21 81 %)
+  0 falls:              0              pass
+  -> accepted: MAC-25 is the new biped_v1 reference policy. Through the runtime the
+  0.15 case still yaws -0.133 (MAC-14 -0.190), which is not an acceptance row but is the
+  remaining gap; knee p95 0.17-0.24 (max at the clip in some DR-on cases).
+policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745a52b
 ```
 
 ---
