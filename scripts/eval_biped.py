@@ -104,6 +104,8 @@ def run_case(
     steps, settle = round(seconds / bve.STEP_DT), round(SETTLE_S / bve.STEP_DT)
     alive = np.ones(num_envs, dtype=bool)
     vx: list[np.ndarray] = []
+    vy: list[np.ndarray] = []
+    wz: list[np.ndarray] = []
     knee: list[np.ndarray] = []
     limited: list[np.ndarray] = []
     wanted_step: list[np.ndarray] = []
@@ -125,10 +127,19 @@ def run_case(
             break
         if t >= settle:
             vx.append(np.where(alive, out.critic_obs[:, bve.OBS_DIM], np.nan))
+            vy.append(np.where(alive, out.critic_obs[:, bve.OBS_DIM + 1], np.nan))
+            # Critic's clean gyro (first actor term): body yaw rate. WP4-21: MAC-16
+            # saw -0.15..-0.19 rad/s yaw drift at a zero yaw command in the runtime.
+            wz.append(np.where(alive, out.critic_obs[:, 2], np.nan))
         knee.append(out.joint_torque[alive][:, bve.KNEES].ravel())
         for k, v in out.terms.items():
             terms.setdefault(k, []).append(float(v[alive].mean()))
     vx_arr = np.array(vx) if vx else np.full((1, num_envs), np.nan)
+
+    def nanmean(rows: list[np.ndarray]) -> float | None:
+        a = np.array(rows) if rows else np.full((1, num_envs), np.nan)
+        return float(np.nanmean(a)) if np.isfinite(a).any() else None
+
     k = np.concatenate(knee) if knee else np.zeros(1)
     return {
         "policy": "zero-action" if policy is None else "onnx",
@@ -142,6 +153,8 @@ def run_case(
         "seconds": seconds,
         "falls": int((~alive).sum()),
         "vx_mean": float(np.nanmean(vx_arr)) if np.isfinite(vx_arr).any() else None,
+        "vy_mean": nanmean(vy),
+        "wz_mean": nanmean(wz),
         "knee_torque": {
             "mean": float(k.mean()),
             "p95": float(np.percentile(k, 95)),
