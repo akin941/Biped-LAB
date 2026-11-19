@@ -1,0 +1,316 @@
+{
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "policy": "runs/mac34-nodr/eval-20400/policy.onnx",
+  "reward": {
+    "posture_gate": false
+  },
+  "cases": [
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.2,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.19045399129390717,
+      "vx_per_env": [
+        0.1914544701576233,
+        0.19044560194015503,
+        0.18931619822978973,
+        0.18959690630435944,
+        0.19001543521881104,
+        0.1899539977312088,
+        0.19220183789730072,
+        0.19064724445343018
+      ],
+      "wz_mean": -0.02759456038149131,
+      "reward_per_step": 0.14482110419869423,
+      "terms_per_step": {
+        "track_linear_velocity": 0.029503019090741874,
+        "track_angular_velocity": 0.031960202511399985,
+        "upright": 0.03766680148988962,
+        "pose": 0.0008960339167388156,
+        "body_ang_vel": -9.842948243203864e-05,
+        "angular_momentum": -7.190628277327339e-09,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0025320851972792297,
+        "air_time": 0.03010499873291701,
+        "foot_clearance": -9.359439564650529e-05,
+        "foot_swing_height": -6.765005137947356e-05,
+        "foot_slip": -1.9562402130333113e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.028413421027362346,
+        "head_pose_bias": -0.010929650585483614
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.2,
+        0.0,
+        0.0
+      ],
+      "noise": false,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.18221990764141083,
+      "vx_per_env": [
+        0.18220220506191254,
+        0.1820678859949112,
+        0.18260328471660614,
+        0.18239568173885345,
+        0.18192623555660248,
+        0.18207909166812897,
+        0.18240736424922943,
+        0.18207740783691406
+      ],
+      "wz_mean": -0.034859575998251915,
+      "reward_per_step": 0.14344661936163902,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03115239360742271,
+        "track_angular_velocity": 0.03091648284904659,
+        "upright": 0.037638039149343966,
+        "pose": 0.0011004663045096094,
+        "body_ang_vel": -0.00010452581602567079,
+        "angular_momentum": -5.692345574239542e-09,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.002362922409316525,
+        "air_time": 0.028199999324046075,
+        "foot_clearance": -7.026748276075522e-05,
+        "foot_swing_height": -3.285372477694182e-05,
+        "foot_slip": -1.2775664987398906e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.028348165802657605,
+        "head_pose_bias": -0.011337075255421951
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.2817654013633728,
+      "vx_per_env": [
+        0.2818911373615265,
+        0.2837079167366028,
+        0.2817477285861969,
+        0.2824805676937103,
+        0.2813415229320526,
+        0.28014880418777466,
+        0.2821195125579834,
+        0.2806861996650696
+      ],
+      "wz_mean": -0.03664605105408568,
+      "reward_per_step": 0.1450743964165449,
+      "terms_per_step": {
+        "track_linear_velocity": 0.030642138777300716,
+        "track_angular_velocity": 0.03260261546447873,
+        "upright": 0.03746284933388233,
+        "pose": 0.0005688751271900401,
+        "body_ang_vel": -6.852273604908987e-05,
+        "angular_momentum": -8.153074534784749e-09,
+        "dof_pos_limits": -3.25939543563436e-06,
+        "action_rate_l2": -0.003387456758413464,
+        "air_time": 0.029219999054446815,
+        "foot_clearance": -0.00016610725178179564,
+        "foot_swing_height": -0.00011928279837320588,
+        "foot_slip": -7.501458669317174e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.028410755023360254,
+        "head_pose_bias": -0.010080698457111794
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "noise": false,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.2786113917827606,
+      "vx_per_env": [
+        0.27924221754074097,
+        0.2782122492790222,
+        0.2775503396987915,
+        0.279255747795105,
+        0.2785463333129883,
+        0.27952662110328674,
+        0.2775801420211792,
+        0.2789774239063263
+      ],
+      "wz_mean": -0.028757721935738383,
+      "reward_per_step": 0.14535106210410595,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03198617264069617,
+        "track_angular_velocity": 0.03161275147646665,
+        "upright": 0.037402389079332354,
+        "pose": 0.0007165575137260021,
+        "body_ang_vel": -7.947596781195899e-05,
+        "angular_momentum": -6.438905423445838e-09,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.003280337709467858,
+        "air_time": 0.0289199989605695,
+        "foot_clearance": -0.00012886006930784788,
+        "foot_swing_height": -6.887853701095991e-05,
+        "foot_slip": -4.281149643642124e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.028340171799063684,
+        "head_pose_bias": -0.010065139862457727
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": -7.760359585518017e-05,
+      "vx_per_env": [
+        -7.894491136539727e-05,
+        -7.302132871700451e-05,
+        -5.579311982728541e-05,
+        -9.200689237331972e-05,
+        -7.634918438270688e-05,
+        -8.876896754372865e-05,
+        -7.904589438112453e-05,
+        -7.689859194215387e-05
+      ],
+      "wz_mean": 4.3425966084806986e-05,
+      "reward_per_step": 0.16576335117220878,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03993620266392827,
+        "track_angular_velocity": 0.039938349254429344,
+        "upright": 0.039442226499319076,
+        "pose": 0.018852890498936178,
+        "body_ang_vel": -6.526896777039326e-07,
+        "angular_momentum": -1.0677782451798621e-10,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -8.37418593800976e-05,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_swing_height": 0.0,
+        "foot_slip": 0.0,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.03498735774308443,
+        "head_pose_bias": -0.007309281183123403
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "noise": false,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": -7.133679173421115e-05,
+      "vx_per_env": [
+        -8.26710311230272e-05,
+        -6.071214011171833e-05,
+        -7.053488661767915e-05,
+        -7.283806917257607e-05,
+        -7.562650716863573e-05,
+        -6.977233715588227e-05,
+        -6.83720936649479e-05,
+        -7.016731979092583e-05
+      ],
+      "wz_mean": -9.579584955737258e-05,
+      "reward_per_step": 0.16662781170010565,
+      "terms_per_step": {
+        "track_linear_velocity": 0.039937109485268595,
+        "track_angular_velocity": 0.039950760446488855,
+        "upright": 0.03948418048769236,
+        "pose": 0.019102679256349803,
+        "body_ang_vel": -5.606797836608113e-07,
+        "angular_momentum": -1.0633129387901356e-10,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -8.483113089017614e-06,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_swing_height": 0.0,
+        "foot_slip": 0.0,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.035151612162590024,
+        "head_pose_bias": -0.0069894881284453736
+      }
+    },
+    {
+      "policy": "zero-action",
+      "actuator": "bam",
+      "twist": [
+        0.2,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 8,
+      "vx_mean": null,
+      "vx_per_env": [],
+      "wz_mean": null,
+      "reward_per_step": 0.12408291427270761,
+      "terms_per_step": {
+        "track_linear_velocity": 0.028419327482374176,
+        "track_angular_velocity": 0.02116665298608736,
+        "upright": 0.01906691820070918,
+        "pose": 0.019187647228439648,
+        "body_ang_vel": -0.0032163687081929455,
+        "angular_momentum": -2.910968829982437e-08,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": 0.0,
+        "air_time": 0.0,
+        "foot_clearance": -5.177432908134333e-06,
+        "foot_swing_height": -8.629360384056492e-05,
+        "foot_slip": -3.937996301474014e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.039870508310813756,
+        "head_pose_bias": -0.00031633472325582923
+      }
+    }
+  ]
+}
