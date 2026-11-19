@@ -1029,6 +1029,11 @@ verdict vs MAC-14 and MAC-21:
   0.15 case still yaws -0.133 (MAC-14 -0.190), which is not an acceptance row but is the
   remaining gap; knee p95 0.17-0.24 (max at the clip in some DR-on cases).
 policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745a52b
+quiet re-check (2026-11-19, 20:20Z, recorded in MAC-33): runtime 0.15 / 0.25 again, VM at
+  ~1.2-3.8 cores (mean ~2.3) during the run, load avg ~3: deadline_misses 0 / 0,
+  period_max 30.0 / 29.9 ms, compute_max 155 / 170 us, 1000 periods, fell false, latched 0,
+  vx / wz unchanged (0.177 / -0.133, 0.266 / -0.041). The earlier 4 misses (and 2 in a
+  re-run under load) were load. JSONs: docs/experiments/mac25/quiet-runtime-v*.json
 ```
 
 ---
