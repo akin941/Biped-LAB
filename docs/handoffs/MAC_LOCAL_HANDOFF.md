@@ -1204,5 +1204,44 @@ notes: this checkpoint is the first Microduck BAM policy to pass G3.3 on the M5,
 
 ---
 
+## MAC-29 — Microduck: confirm the G3.3 pass holds (WP3-17, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-28 done (its `model_17300.pt`)
+
+MAC-28 (mac-m5): `--track-ang-ref-speed 1.0` raised training falls to 1.93/it, and the
+rule stopped the run at 17300. model_17300 meets G1.3 on BAM: 0.2 gives 0.160–0.161 (80 %)
+with |wz| 0.011, it stands 30 s, and 0.3 / 0.4 give 0.255 / 0.342. But it comes from a run
+that was unstable: at 17100 the curve was back (0.2 → 0.068, wz −0.25). Turning stayed
+lost, so the yaw ref did not help with what it was for, and it is dropped here. Continue
+model_17300 with the stable MAC-27 flags (no `--track-ang-ref-speed`) for 1000 iterations.
+The goal is a G3.3 pass that holds across checkpoints, not a single lucky one. Use a
+clean worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 0.5 \
+    --resume <mac28>/runs/mac28-seed0/model_17300.pt --run-dir runs/mac29-seed0 \
+    --save-every 100 --out runs/mac29-seed0/report.json
+```
+Keep the same falls rule. Export and evaluate model_17500, 17800, 18000 and 18300, or
+the last ones saved if the rule stops the run. Use the `--resume <ckpt> --iters 0` export
+from MAC-28. For each, run G1.3 (BAM) and the sweep (0.1–0.4, backward 0.3, lateral 0.3,
+turn 1.0, with dy and the yaw rate). For the best one, also run eval_velocity_env at 0.4
+and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under `docs/experiments/mac29/`.
+
+**Acceptance (G3.3 confirmed):** at least two consecutive evaluated checkpoints meet G1.3
+with BAM (0.2 m/s within ±30 %, 0 falls, |wz| at 0.2 below 0.05). The training falls
+rule must not fire. Turning is out of scope here (WP3-18).
+
+Result:
+```
+revision:
+wall time; training falls trend; rule fired?:
+per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 wz:
+best checkpoint: eval_velocity_env 0.4, long stands:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
