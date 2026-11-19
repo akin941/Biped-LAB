@@ -44,6 +44,10 @@ gate item has evidence in the named environment.
   - G3.2 PPO smoke train (≤ 5 min) in CI-nightly; reward increases — `gha-linux`
   - G3.3 a policy trained from scratch on the M5 (CPU/MPS measured) stands and walks
     forward per G1.3 thresholds — `mac-m5`
+    - Met (mac-m5, 2026-11-19, MAC-32): `model_19700` on BAM, 0.2 m/s → 0.168–0.170
+      (G1.3 ±30 %), 30 s stand, 0 falls, on consecutive checkpoints. Lineage: MAC-06
+      (from scratch on the M5, MJCF actuators), then BAM fine-tunes MAC-15 → MAC-32; no
+      upstream weights. Turning on BAM is still open (WP3-20).
   - G3.4 domain-randomization ablation report (with vs without) — `mac-m5`
   - G3.5 export to ONNX and run in the same runner — `mac-m5` + `gha-linux`
     - `gha-linux` part (WP3-09, 2026-11-06): every nightly `ppo-smoke` policy is exported

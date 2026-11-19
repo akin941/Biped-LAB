@@ -1454,5 +1454,45 @@ policy.onnx sha256: 19700 398f399aab64332d13083a81a8b31ff96c06c40b2622b76a79eb30
 
 ---
 
+## MAC-33 — Microduck: bring turning back on the G3.3 policy (WP3-20)
+Status: `awaiting-mac` · Deps: MAC-32 done (its `model_19700.pt`)
+
+MAC-32 (mac-m5) met G3.3, and model_19700 is the Microduck reference. Turning is still
+weak: turn 1.0 reached at most 0.465, and 0.5 stays at ≈ 0.01. In MAC-28,
+`--track-ang-ref-speed 1.0` had no effect on turning, because the run became unstable
+(1.93 falls/it) and was stopped after 300 iterations. Training is now steady (KL 0.005,
+mirror loss 1.0, falls ≤ 0.84/it), so try the yaw ref again on top of it. It makes
+standing still cost as much at a 0.5 turn as at 1.0. Continue model_19700 with the
+MAC-32 flags plus `--track-ang-ref-speed 1.0`, for 1500 iterations. Use a clean worktree
+of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 1500 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 1.0 \
+    --desired-kl 0.005 --turn-fraction 0.4 --track-ang-ref-speed 1.0 \
+    --resume <mac32>/runs/mac32-seed0/model_19700.pt --run-dir runs/mac33-seed0 \
+    --save-every 100 --out runs/mac33-seed0/report.json
+```
+Keep the falls rule. For every checkpoint from 19800 to 21200, run G1.3 (BAM) and the
+MAC-30 turn eval. For the MAC-30 eval, pass `--track-ang-ref-speed 1.0` as well, with
+`--twist 0 0 1.0 --twist 0 0 0.5 --twist 0 0 0`. Run the sweep on the best one. Commit
+the JSONs under `docs/experiments/mac33/`.
+
+**Acceptance (WP3-20):** on two consecutive checkpoints, turn 1.0 gives wz ≥ 0.7 and
+turn 0.5 gives ≥ 0.35. Those same checkpoints must still meet G1.3 with BAM (0.2 within
+±30 %, |wz| < 0.05, 0 falls), and the falls rule must not fire. If turning improves but
+G3.3 breaks, report both. model_19700 stays the reference until a checkpoint does both.
+
+Result:
+```
+revision:
+wall time; loss_symmetry; training falls trend; rule fired?:
+per checkpoint (G1.3 0.2 vx / wz; turn 1.0 / 0.5 / 0 wz):
+best: sweep, long stands:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
