@@ -479,7 +479,7 @@ notes: the gait forms by it ~500 (delay 0) and survives the 0-20 ms and 0-40 ms
 ---
 
 ## MAC-15 — Microduck: fine-tune the MAC-06 gait on BAM (WP3-11, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-06 and MAC-12 done
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-06 and MAC-12 done
 
 MAC-12 (BAM from scratch, 3000 it, mac-m5) only learned to stand: vx −0.0001 at the
 0.2 command, reward 0.043 → 0.084 almost all from upright/pose/head terms. MAC-06
@@ -505,15 +505,27 @@ the gait was lost; record the iteration. Commit the JSONs under `docs/experiment
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: stands ≥ 20 s, vx = 0.2 m/s within
 ±30 % over 10 s, no falls).
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met, walks on BAM only at forward commands >= 0.3
 ```
-revision:
-wall time:
-reward/step first -> last quarter, tracking term trend:
-eval.json (vx at 0.4 cmd, falls):
-g1-3.json (stand 20 s, vx at 0.2 command, falls):
-policy.onnx sha256:
-notes:
+revision: 59d9553 (main), git_dirty false; resumed from mac06-seed0/model_3000.pt
+  (it 3000 -> 6000), 8 workers; a VM used ~4.4 cores during the run (load avg 9-32)
+wall time: 3502 s (58 min)
+reward/step first -> last quarter, tracking term trend: 0.0869 -> 0.0989 (rose);
+  track_linear_velocity 0.0246 (first 100 it) -> 0.0256 (last), never near the MAC-12
+  0.008 level, so the gait was not lost; air_time 0.013-0.015 throughout
+eval.json (vx at 0.4 cmd, falls): 0.203 / 0.197 (noise on / off), 0 falls; zero
+  command vx 0.000; zero-action baseline 8/8 falls
+g1-3.json (4 repeats x 10 s): no falls anywhere, tilt < 2 deg; walk_forward_0.2
+  vx 0.0000 (0 %), walk_backward_0.15 0.0000, turn_left_0.5 none
+diag (1 repeat, docs/experiments/mac15/diag/): BAM sweep forward 0.1 / 0.3 / 0.4 ->
+  vx 0.0001 / 0.120 / 0.149, backward_0.3 / lateral_0.3 / turn_1.0 ~0; BAM walking
+  with --init settle / straight: vx at 0.2 -0.0002 / 0.011; MJCF walking (upstream
+  init): vx 0.117 at 0.2
+policy.onnx sha256: ddda1a28ae7a344b19d67ca49be86e251e33f37dbd7d23c05548e60b6a18c518
+notes: fine-tuning kept the forward gait on BAM (MAC-12 from scratch had none), but
+  it starts only above a command threshold between 0.2 and 0.3 m/s, and only
+  forwards. The same policy on MJCF walks at 0.2, so BAM's weaker response moves the
+  threshold. G1.3 measures exactly the 0.2 point, so it reads 0.
 ```
 
 ---
