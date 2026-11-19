@@ -1243,5 +1243,42 @@ verdict:
 
 ---
 
+## MAC-30 — Microduck: why turning was lost, a reward check (WP3-18, diagnostic)
+Status: `awaiting-mac` · Deps: MAC-29 done; the MAC-24 `policy.onnx` (run it after MAC-29)
+
+MAC-24 turned at 1.0 rad/s (wz 0.965) on BAM. Every policy since MAC-26 stands still at
+turn-only commands (0.5 and 1.0 give ≈ 0). There are two possible causes. (a) The current
+reward pays standing more than turning, a reward-design problem. (b) Turning still pays
+more, and the policy forgot it, an optimisation problem. `eval_velocity_env.py` now takes
+`--twist` (repeatable) and the training reward flags, and it reports `wz_mean`. Score
+both policies under the reward MAC-27 / MAC-29 train with. This is evaluation only, a few
+minutes, with no training. Run it from a clean worktree of origin/main:
+```bash
+for p in <mac24>/runs/mac24-seed0/policy.onnx <mac28>/runs/mac28-seed0/policy-17300.onnx \
+         <mac29 best>.onnx; do
+  uv run python scripts/eval_velocity_env.py "$p" --actuators bam --envs 8 --seconds 10 \
+      --track-lin-std2 0.05 --posture-gate --track-lin-ref-speed 0.4 \
+      --twist 0 0 1.0 --twist 0 0 0.5 --twist 0.2 0 0 --twist 0 0 0 \
+      --out docs/experiments/mac30/$(basename "$(dirname "$p")")-$(basename "$p" .onnx).json
+done
+```
+Use the ONNX names that the MAC-28 / MAC-29 exports actually have. If the MAC-24 ONNX is
+gone, export it from MAC-24's last checkpoint with the MAC-24 flags and `--iters 0`.
+Commit the JSONs under `docs/experiments/mac30/`.
+
+**Report:** per policy and twist, give `wz_mean`, `vx_mean`, falls, `reward_per_step`,
+and the `track_angular_velocity`, `track_linear_velocity`, `upright` and `pose` terms
+(noise off). The verdict is (a) if MAC-24's turning earns less `reward_per_step` at
+turn 1.0 than the standing policies, and (b) otherwise.
+
+Result:
+```
+revision:
+turn 1.0 / turn 0.5 / fwd 0.2 / zero, per policy:
+verdict (a) or (b):
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
