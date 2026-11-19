@@ -298,3 +298,22 @@ def test_dr_deterministic_shards_and_parallel(scene):
             np.testing.assert_array_equal(out.critic_obs, halves)
             differs |= not np.array_equal(out.critic_obs, plain.step(act).critic_obs)
     assert differs  # DR changes the physics
+
+
+def test_speed_relative_kernel_makes_standing_cost_the_same(scene):
+    # WP3-15: with a fixed width, standing at 0.2 m/s keeps far more tracking reward
+    # than standing at 0.4; scaling the width by the command speed evens that out.
+    def standing_tracking(vx, **kw):
+        env = MicroduckVelocityEnv(scene, num_envs=1, noise=False, **kw)
+        env.freeze_commands(np.array([vx, 0.0, 0.0]))
+        out = env.step(np.zeros((1, mp.ACT_DIM), dtype=np.float32))
+        return float(out.terms["track_linear_velocity"][0])
+
+    fixed = [standing_tracking(v, track_lin_std2=0.05) for v in (0.2, 0.4)]
+    rel = [standing_tracking(v, track_lin_std2=0.05, track_lin_ref_speed=0.4) for v in (0.2, 0.4)]
+    assert fixed[0] > 5 * fixed[1]
+    assert rel[0] < 0.5 * fixed[0]
+    np.testing.assert_allclose(rel[1], fixed[1], rtol=1e-6)
+    assert rel[0] <= 2 * rel[1]  # standing at 0.2 no longer pays more than at 0.4
+    with pytest.raises(ValueError):
+        MicroduckVelocityEnv(scene, num_envs=1, track_lin_ref_speed=0.0)
