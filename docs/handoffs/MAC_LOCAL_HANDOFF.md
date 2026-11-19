@@ -518,7 +518,8 @@ eval.json (vx at 0.4 cmd, falls): 0.203 / 0.197 (noise on / off), 0 falls; zero
 g1-3.json (4 repeats x 10 s): no falls anywhere, tilt < 2 deg; walk_forward_0.2
   vx 0.0000 (0 %), walk_backward_0.15 0.0000, turn_left_0.5 none
 diag (1 repeat, docs/experiments/mac15/diag/): BAM sweep forward 0.1 / 0.3 / 0.4 ->
-  vx 0.0001 / 0.120 / 0.149, backward_0.3 / lateral_0.3 / turn_1.0 ~0; BAM walking
+  vx 0.0001 / 0.120 / 0.149, backward_0.3 / lateral_0.3 ~0, turn_1.0 wz 0.941
+  (corrected in MAC-24: first recorded as ~0 from vx); BAM walking
   with --init settle / straight: vx at 0.2 -0.0002 / 0.011; MJCF walking (upstream
   init): vx 0.117 at 0.2
 policy.onnx sha256: ddda1a28ae7a344b19d67ca49be86e251e33f37dbd7d23c05548e60b6a18c518
@@ -848,7 +849,8 @@ reward first -> last quarter, air_time and upright trend, training falls:
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
   vx 0.0005 / 0.061 / 0.219 / 0.120; dy +0.549 / +2.176 m in 10 s
   (MAC-20: 0.0002 / 0.0002 / 0.0002 / 0.170); backward_0.3 vx -0.150 (dy +0.26),
-  lateral_0.3 and turn_1.0 ~0
+  lateral_0.3 ~0 (dy 0.008), turn_1.0 wz 0.757 (corrected in MAC-24: first
+  recorded as ~0 from vx)
 eval.json (0.4 cmd): vx 0.311 / 0.301 (noise on / off), 0 falls; zero-action 8/8 falls
 g1-3.json (4 repeats x 10 s): stand_still no fall, vx 0.0003, tilt 1.0 deg;
   walk_forward_0.2 vx 0.061-0.070 (33 % of 0.2, needs 0.14-0.26), dy -1.16 m,
@@ -919,7 +921,7 @@ verdict vs MAC-14 and MAC-21:
 ---
 
 ## MAC-24 — Microduck: continue the posture-gate run on BAM (WP3-14, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-22 done (its `model_10000.pt`); run after MAC-23
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-22 done (its `model_10000.pt`); run after MAC-23
 
 MAC-22 (mac-m5) broke the standing optimum: with the posture gate the policy steps at
 0.2 (0.061–0.070 m/s) and 0.3 (0.219) and walks backward (−0.150). It was still
@@ -942,13 +944,29 @@ checkpoint and evaluate it. Commit the JSONs under `docs/experiments/mac24/`.
 record whether vx at 0.2 and the drift moved, since that decides between more training
 and adding drift pressure (yaw / lateral tracking).
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met; better above 0.3, back to standing at 0.2
 ```
-revision:
-wall time:
-reward, air_time, tracking, training falls trend:
+revision: 61caa14 (main), git_dirty false; resumed from mac22-seed0/model_10000.pt
+  (it 10000 -> 13000), same flags as MAC-22, 8 workers; a VM used ~4-6 cores
+  (load avg 10-33)
+wall time: 4292 s (72 min)
+reward, air_time, tracking, training falls trend (500-it means): reward 0.0375 ->
+  0.0413; air_time 0.0155 -> 0.0144-0.0151; track_linear_velocity 0.0236 -> 0.0247;
+  falls/it 1.12 / 1.25 / 0.99 / 1.05 / 0.94 / 0.98 (one bucket above MAC-22's 1.18,
+  then below, so no stop)
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
-G1.3 (BAM) verdict:
+  vx 0.0002 / 0.0004 / 0.193 / 0.260, backward_0.3 -0.211 (MAC-22: 0.0005 / 0.061 /
+  0.219 / 0.120, -0.150); dy -0.002 / +0.572 / +1.458 m, wz -0.001 / +0.085 / +0.070
+  (MAC-22: dy -1.16 / +0.55 / +2.18, wz -0.19 / +0.02 / +0.19);
+  lateral_0.3 dy +1.06 m (first lateral motion; MAC-22 0.008), turn_1.0 wz 0.965
+  (MAC-22 0.757); eval_velocity_env 0.4: vx 0.316 / 0.313, 0 falls
+G1.3 (BAM) verdict: not met. walk_forward_0.2 vx 0.0004 (MAC-22: 0.061),
+  walk_backward_0.15 and turn_left_0.5 ~0, stand_still fine, 0 falls.
+  vx at 0.2 moved DOWN (back to standing) while the drift at 0.4 shrank
+  (dy 2.18 -> 1.46 m) and lateral and turning got better, so more training at the same
+  sampling does not reach 0.2. The policy still stands at every small command
+  (fwd 0.1-0.2, back 0.15, turn 0.5).
+policy.onnx sha256: 5c5e9f3566f78a96d73d4f03f611d0ef9fee06af2dcc8853ae3cd6f8c2e64bb7
 ```
 
 ---

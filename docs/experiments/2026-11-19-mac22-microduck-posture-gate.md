@@ -16,7 +16,8 @@ train: microduck, --actuator bam --dr --track-lin-std2 0.05 --forward-min-vx 0.1
 | fwd 0.4 (sweep) | 0.131, dy −1.12 | 0.170, dy +0.74 | 0.120, dy +2.18 |
 | fwd 0.4 (eval_velocity_env) | 0.199 | 0.217 | **0.311** |
 | back 0.3 | ≈ 0 | ≈ 0 | **−0.150** |
-| lateral 0.3, turn 1.0, back 0.15, turn 0.5 | ≈ 0 | ≈ 0 | ≈ 0 |
+| lateral 0.3, back 0.15, turn 0.5 | ≈ 0 | ≈ 0 | ≈ 0 |
+| turn 1.0 (wz) | −0.001 | 0.001 | 0.757* |
 
 No falls in any eval. Training falls per iteration went 1.97 → 1.18 (MAC-17: about 1.3–1.5), so
 the run was not stopped. `air_time` 0.0149 → 0.0159. Reward/step 0.041 → 0.038. The reward
@@ -37,3 +38,5 @@ optimum is broken.** This is the first BAM policy that steps at 0.2 and 0.3 and 
 Files: `mac22/` holds `run.json` (resume path shortened), `eval.json`, `g1-3.json`,
 `sweep-bam.json` and `report.json` (history every 10th iteration).
 policy.onnx sha256 `4b2a2cc1bcf1b2511c1efa78c35f4606a43e90e352e64c4649bd7a8ac317259b` (not committed).
+
+\* Correction (MAC-24): turn 1.0 was first recorded as ≈ 0 because the vx column was read; its yaw rate is 0.757 rad/s.
