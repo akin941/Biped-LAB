@@ -1,0 +1,27 @@
+{
+  "onnx": "runs/mac19/policy.onnx",
+  "onnx_sha256": "a793cbb9b579bfdb5218ca4a467b86c9630ed721f7dcd6fe087ca60309213fca",
+  "mlp": "runs/mac19/policy.bpml",
+  "mlp_sha256": "c5aca071568f0bf75ad117381c9edadd5a336686118c7fa91ecf3d7a5510c427",
+  "in_dim": 39,
+  "out_dim": 10,
+  "ops": [
+    "shift",
+    "scale",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense"
+  ],
+  "numpy_vs_onnxruntime": {
+    "max_abs_err": 1.4603137969970703e-06,
+    "ok": true
+  },
+  "rust_vs_onnxruntime": {
+    "max_abs_err": 1.3113021850585938e-06,
+    "ok": true
+  }
+}
