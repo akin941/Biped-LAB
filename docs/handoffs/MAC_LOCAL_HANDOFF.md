@@ -863,7 +863,7 @@ notes: first Microduck BAM policy that steps at 0.2 and 0.3 and walks backward. 
 ---
 
 ## MAC-23 — biped_v1: mirror-symmetry training against the yaw drift (WP4-23)
-Status: `awaiting-mac` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
+Status: `done (mac-m5, 2026-11-19): not accepted, regression` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
 
 MAC-19 and MAC-21 show that the yaw kernel alone only trades one error for another:
 std² 0.1 kills turning, std² 0.25 halves the drift but flips it to the left (+0.10 rad/s
@@ -888,19 +888,38 @@ batch, so expect roughly 1.5–2× the MAC-21 wall time (444 s).
 |wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
 of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
 
-Result:
+Result (env: mac-m5, 2026-11-19): NOT accepted, a regression (training degraded)
 ```
-revision:
-vx / wz at 0.15, 0.25 (DR off / on):
-zero command wz, turn 0.8 wz (DR off / on):
-latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+revision: 4329183 (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
+  4000), --track-yaw-std2 0.25 --symmetry aug, 8 workers; 1221 s (2.75x MAC-21)
+training trend (100-it means): reward 0.098 -> 0.102 (it 100) -> 0.068 (it 900),
+  falling for 800 it; falls/it 1.14 -> 0.37 (it 200) -> 2.18 (it 800); knee torque
+  mean 0.20 -> 0.31 N.m; track_angular_velocity 0.0032 -> 0.0008; air_time ~0.027
+vx / wz at 0.15, 0.25 (DR off / on): off 0.178 / +0.164, 0.251 / +0.188;
+  on 0.135 / -0.026, 0.203 / -0.037
+zero command wz, turn 0.8 wz (DR off / on): zero +0.005 / +0.007; turn 0.195 / 0.196
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25: 0.143 / 0.118 / 0.102
+  (95 / 79 / 68 %); runtime 0.196 / +0.446, 0.265 / +0.622 (walks in circles: distance
+  0.58 / 0.65 m in 20 s; fell false, latched 0, deadline_misses 0, 1000 periods)
+knee torque: p95 at the 0.52 N.m clip in nearly every policy case (MAC-14 ~0.19)
 verdict vs MAC-14 and MAC-21:
+  |wz| <= 0.08, DR off: 0.164 / 0.188  FAIL (MAC-14 0.186 / 0.239, MAC-21 0.103 / 0.097)
+  |wz| <= 0.08, DR on:  0.026 / 0.037  pass (MAC-21 0.044 / 0.040)
+  |wz| <= 0.05 zero:    0.005 / 0.007  pass (MAC-21 0.047 / 0.035)
+  turn 0.8 >= 0.5:      0.195 / 0.196  FAIL (MAC-14 0.622 / 0.558, MAC-21 0.625 / 0.536)
+  40 ms >= 80 %:        79 %           FAIL (MAC-14 86 %, MAC-21 81 %)
+  0 falls:              0              pass
+  -> worse than MAC-21 and MAC-14. MAC-14 stays the reference. The run was still
+  degrading at the end (reward down, falls and knee torque up), which points at the
+  augmentation itself (mirror maps for actions or the command/yaw sign, or the doubled
+  batch with unchanged PPO settings) rather than too few iterations. Worth a cloud
+  check before another symmetry run.
 ```
 
 ---
 
 ## MAC-23 — biped_v1: mirror-symmetry training against the yaw drift (WP4-23)
-Status: `awaiting-mac` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
+Status: `done (mac-m5, 2026-11-19): not accepted, regression` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
 
 MAC-19 and MAC-21 show that the yaw kernel alone only trades one error for another:
 std² 0.1 kills turning, std² 0.25 halves the drift but flips it to the left (+0.10 rad/s
@@ -925,13 +944,32 @@ batch, so expect roughly 1.5–2× the MAC-21 wall time (444 s).
 |wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
 of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
 
-Result:
+Result (env: mac-m5, 2026-11-19): NOT accepted, a regression (training degraded)
 ```
-revision:
-vx / wz at 0.15, 0.25 (DR off / on):
-zero command wz, turn 0.8 wz (DR off / on):
-latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+revision: 4329183 (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
+  4000), --track-yaw-std2 0.25 --symmetry aug, 8 workers; 1221 s (2.75x MAC-21)
+training trend (100-it means): reward 0.098 -> 0.102 (it 100) -> 0.068 (it 900),
+  falling for 800 it; falls/it 1.14 -> 0.37 (it 200) -> 2.18 (it 800); knee torque
+  mean 0.20 -> 0.31 N.m; track_angular_velocity 0.0032 -> 0.0008; air_time ~0.027
+vx / wz at 0.15, 0.25 (DR off / on): off 0.178 / +0.164, 0.251 / +0.188;
+  on 0.135 / -0.026, 0.203 / -0.037
+zero command wz, turn 0.8 wz (DR off / on): zero +0.005 / +0.007; turn 0.195 / 0.196
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25: 0.143 / 0.118 / 0.102
+  (95 / 79 / 68 %); runtime 0.196 / +0.446, 0.265 / +0.622 (walks in circles: distance
+  0.58 / 0.65 m in 20 s; fell false, latched 0, deadline_misses 0, 1000 periods)
+knee torque: p95 at the 0.52 N.m clip in nearly every policy case (MAC-14 ~0.19)
 verdict vs MAC-14 and MAC-21:
+  |wz| <= 0.08, DR off: 0.164 / 0.188  FAIL (MAC-14 0.186 / 0.239, MAC-21 0.103 / 0.097)
+  |wz| <= 0.08, DR on:  0.026 / 0.037  pass (MAC-21 0.044 / 0.040)
+  |wz| <= 0.05 zero:    0.005 / 0.007  pass (MAC-21 0.047 / 0.035)
+  turn 0.8 >= 0.5:      0.195 / 0.196  FAIL (MAC-14 0.622 / 0.558, MAC-21 0.625 / 0.536)
+  40 ms >= 80 %:        79 %           FAIL (MAC-14 86 %, MAC-21 81 %)
+  0 falls:              0              pass
+  -> worse than MAC-21 and MAC-14. MAC-14 stays the reference. The run was still
+  degrading at the end (reward down, falls and knee torque up), which points at the
+  augmentation itself (mirror maps for actions or the command/yaw sign, or the doubled
+  batch with unchanged PPO settings) rather than too few iterations. Worth a cloud
+  check before another symmetry run.
 ```
 
 ---
