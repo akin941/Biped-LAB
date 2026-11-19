@@ -18,7 +18,10 @@ CENTRE = ["trunk_base", "yaw_roll_motion", "jaw_soft"]
 
 @pytest.fixture(scope="module")
 def env():
-    scene = upstream.microduck_scene("scene_walk.xml")
+    try:
+        scene = upstream.microduck_scene("scene_walk.xml")
+    except upstream.UpstreamError as exc:
+        pytest.skip(str(exc))
     if not scene.exists():
         pytest.skip("upstream Microduck scene not available")
     return ve.MicroduckVelocityEnv(scene, num_envs=2, noise=False)
