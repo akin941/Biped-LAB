@@ -43,3 +43,20 @@ def test_cases_report_lateral_and_yaw_rates():
     # WP4-21: the zero-action stance neither turns nor slides.
     still = eval_biped.run_case(None, (0.0, 0.0, 0.0), 1, 3.0, 0, False)
     assert abs(still["wz_mean"]) < 0.02 and abs(still["vy_mean"]) < 0.02
+
+
+def test_joint_stats_and_sizing_summary():
+    # WP4-25: per joint type stats; the knee holds the crouched stance against gravity.
+    still = eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 3.0, 0, False)
+    joints = still["joints"]
+    assert set(joints) == set(eval_biped.JOINT_GROUPS)
+    knee = joints["knee"]
+    assert 0 < knee["torque_rms"] <= knee["torque_max"] and knee["torque_p95"] <= knee["torque_max"]
+    assert knee["speed_p95"] <= knee["speed_max"] and knee["power_mean_w"] >= 0
+    # The zero-action baseline is left out of the sizing; a walking case is used, with 2x.
+    assert eval_biped.sizing_summary([still])["cases_used"] == 0
+    walking = dict(still, policy="onnx")
+    sizing = eval_biped.sizing_summary([walking])
+    assert sizing["cases_used"] == 1
+    assert sizing["joints"]["knee"]["required_torque"] == 2.0 * knee["torque_max"]
+    assert sizing["joints"]["knee"]["required_speed"] == 2.0 * knee["speed_p95"]

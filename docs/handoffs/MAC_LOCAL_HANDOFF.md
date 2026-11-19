@@ -1587,5 +1587,39 @@ verdict: G3.4: A (trained with DR) degrades less under DR. Its speed barely move
 
 ---
 
+## MAC-35 — biped_v1: size the actuators from our own gait (WP4-25, input to G4.1 / WP4-05)
+Status: `awaiting-mac` · Deps: MAC-25 done (its `runs/mac25/policy.onnx`)
+
+WP4-01 sized our joints from Microduck's walking dynamic factors. Now `eval_biped.py`
+reports, per joint type (both legs pooled), |torque| RMS / p95 / max, |speed| p95 / max
+and mechanical power, plus a `sizing` block: 2× the worst walking max torque and p95
+speed (G4.1 margin), from the policy's nominal walking cases with DR off and on. Run
+it on the MAC-25 reference from a clean worktree of origin/main, with the absolute
+policy path. No training; eval only.
+```bash
+uv run python scripts/eval_biped.py <mac25>/runs/mac25/policy.onnx --dr --robustness \
+    --envs 8 --seconds 20 --out runs/mac35/eval.json
+uv run python scripts/size_biped.py --out runs/mac35/size-wp4-01.json
+```
+Commit both JSONs under `docs/experiments/mac35/`, with the policy.onnx sha256.
+
+**Acceptance (WP4-25):** the `sizing` block exists for all five joint types. Put a
+table in the result next to WP4-01 (`size-wp4-01.json`): required torque (N·m) and
+speed (rad/s) per joint, and RMS torque. Name the joints whose 2× requirement is above
+the XL330-class placeholder (0.52 N·m). Also say whether any robustness case
+(pushes, friction) has a max torque above the walking max.
+
+Result:
+```
+revision:
+policy.onnx sha256:
+table (joint: required torque / speed, RMS; WP4-01 required):
+joints above 0.52 N*m:
+robustness cases above walking max:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

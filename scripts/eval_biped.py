@@ -14,6 +14,12 @@ command with DR off, so a failure points at its cause (WP4-12): foot friction fi
 below and above the DR range, a single forward and a single sideways push of
 ``PUSH_DV`` at ``PUSH_AT_S``, and 1-3 control periods (20-60 ms) of action latency.
 
+Each case also reports per joint type (both legs pooled) the |torque| RMS / p95 / max,
+the |joint speed| p95 / max and the mean / p95 mechanical power |torque * speed|
+(``joints``, WP4-25), and the report's ``sizing`` block turns the walking cases into
+requirements with the G4.1 margin (2x the worst max torque and p95 speed), so WP4-01
+can be re-done from our own learned gait instead of Microduck's dynamic factors.
+
 The knee numbers re-check the WP4-01 requirement with a learned gait: the committed
 model uses the XL330-class placeholder (0.52 N*m force limit), so a p95 close to
 0.52 means the knee is saturating.
@@ -33,6 +39,7 @@ from typing import Any
 import numpy as np
 
 from bipedlab import bench
+from bipedlab.design import biped
 from bipedlab.rl import biped_velocity_env as bve
 
 SETTLE_S = 2.0
@@ -45,6 +52,10 @@ PUSH_AT_S = 4.0
 PUSH_DV = 0.3  # m/s in the trunk's heading frame, 1.5x the DR push
 ROBUST_PUSHES = {"push_forward": (PUSH_DV, 0.0), "push_sideways": (0.0, PUSH_DV)}
 ROBUST_DELAYS = (1, 2, 3)  # control periods of 20 ms
+SIZING_MARGIN = 2.0  # G4.1
+JOINT_GROUPS = {
+    j: np.array([bve.JOINT_INDEX[f"{s}_{j}"] for s in biped.SIDES]) for j in biped.LEG_JOINTS
+}
 
 
 class BatchOnnxPolicy:
@@ -107,6 +118,8 @@ def run_case(
     vy: list[np.ndarray] = []
     wz: list[np.ndarray] = []
     knee: list[np.ndarray] = []
+    torque_rows: list[np.ndarray] = []
+    speed_rows: list[np.ndarray] = []
     limited: list[np.ndarray] = []
     wanted_step: list[np.ndarray] = []
     terms: dict[str, list[float]] = {}
@@ -132,6 +145,10 @@ def run_case(
             # saw -0.15..-0.19 rad/s yaw drift at a zero yaw command in the runtime.
             wz.append(np.where(alive, out.critic_obs[:, 2], np.nan))
         knee.append(out.joint_torque[alive][:, bve.KNEES].ravel())
+        if t >= settle:
+            idx = np.flatnonzero(alive)
+            torque_rows.append(out.joint_torque[idx])
+            speed_rows.append(np.abs(np.array([env.datas[int(i)].qvel[env.qvel_idx] for i in idx])))
         for k, v in out.terms.items():
             terms.setdefault(k, []).append(float(v[alive].mean()))
     vx_arr = np.array(vx) if vx else np.full((1, num_envs), np.nan)
@@ -160,6 +177,7 @@ def run_case(
             "p95": float(np.percentile(k, 95)),
             "max": float(k.max()),
         },  # fmt: skip
+        "joints": joint_stats(torque_rows, speed_rows),
         "slew_limited_fraction": float(np.concatenate(limited).mean()),
         # Without delay: |policy target - previous target|; delayed cases mix two periods.
         "wanted_target_step_mean": (
@@ -167,6 +185,55 @@ def run_case(
         ),
         "terms_per_step": {name: float(np.mean(v)) for name, v in terms.items()},
     }
+
+
+def joint_stats(
+    torque_rows: list[np.ndarray], speed_rows: list[np.ndarray]
+) -> dict[str, dict[str, float]] | None:
+    """Per joint type (both legs pooled): |torque|, |speed| and |torque * speed| stats."""
+    if not torque_rows:
+        return None
+    tau, omega = np.concatenate(torque_rows), np.concatenate(speed_rows)
+    out = {}
+    for name, cols in JOINT_GROUPS.items():
+        t, w = tau[:, cols].ravel(), omega[:, cols].ravel()
+        p = t * w
+        out[name] = {
+            "torque_rms": float(np.sqrt(np.mean(t**2))),
+            "torque_p95": float(np.percentile(t, 95)),
+            "torque_max": float(t.max()),
+            "speed_p95": float(np.percentile(w, 95)),
+            "speed_max": float(w.max()),
+            "power_mean_w": float(p.mean()),
+            "power_p95_w": float(np.percentile(p, 95)),
+        }
+    return out
+
+
+def sizing_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """G4.1 requirements from the learned gait: 2x the worst walking max torque / p95 speed.
+
+    Uses the policy's nominal cases (DR off and on) with a nonzero command; the zero-action
+    baseline and the one-factor robustness cases are left out.
+    """
+    walking = [
+        c for c in cases
+        if c["policy"] == "onnx" and c["case"] == "nominal" and any(c["twist"])
+        and c["joints"] is not None
+    ]  # fmt: skip
+    out: dict[str, Any] = {"margin": SIZING_MARGIN, "cases_used": len(walking), "joints": {}}
+    for name in JOINT_GROUPS:
+        rows = [c["joints"][name] for c in walking]
+        if not rows:
+            continue
+        out["joints"][name] = {
+            "torque_max": max(r["torque_max"] for r in rows),
+            "torque_rms": max(r["torque_rms"] for r in rows),
+            "speed_p95": max(r["speed_p95"] for r in rows),
+            "required_torque": SIZING_MARGIN * max(r["torque_max"] for r in rows),
+            "required_speed": SIZING_MARGIN * max(r["speed_p95"] for r in rows),
+        }
+    return out
 
 
 def robustness_cases(
@@ -203,7 +270,12 @@ def main() -> None:
         cases.append(run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr))
     if args.robustness:
         cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed))
-    report = {"environment": bench.environment(), "policy": str(args.policy), "cases": cases}
+    report = {
+        "environment": bench.environment(),
+        "policy": str(args.policy),
+        "cases": cases,
+        "sizing": sizing_summary(cases),
+    }
     text = json.dumps(report, indent=2)
     print(text)
     if args.out:
