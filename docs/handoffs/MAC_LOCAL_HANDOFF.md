@@ -759,7 +759,7 @@ notes: spreading the forward draws over 0.1-0.4 made the policy stand at more of
 ---
 
 ## MAC-21 — biped_v1: a milder yaw kernel (WP4-22)
-Status: `awaiting-mac` · Deps: MAC-19 done
+Status: `done (mac-m5, 2026-11-19): not accepted (DR-off yaw row)` · Deps: MAC-19 done
 
 MAC-19 (mac-m5, std² 0.1): the walking drift at 0.25 is gone, but the policy now spins
 in place at a zero command (wz −0.35 / −0.27) and turns only 0.14 at a 0.8 command
@@ -781,13 +781,68 @@ Then run the MAC-16-style runtime check at 0.15 and 0.25. Run it after MAC-20 if
 **Acceptance:** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on; |wz| ≤ 0.05 at the
 zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 % of vx; 0 falls.
 
+Result (env: mac-m5, 2026-11-19): 4 of 5 acceptance rows met; |wz| with DR off misses
+```
+revision: 5633e4d (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
+  4000), --track-yaw-std2 0.25, 8 workers; 444 s; reward 0.100 -> 0.111; air_time ~0.029;
+  track_angular_velocity 0.0028 -> 0.0057 per step; runtime runs with no training load
+vx / wz at 0.15, 0.25 (DR off / on): off 0.170 / +0.103, 0.260 / +0.097;
+  on 0.142 / +0.044, 0.222 / +0.040   (MAC-14: off -0.186 / -0.239, on -0.128 / -0.159)
+zero command wz, turn 0.8 wz (DR off / on): zero +0.047 / +0.035; turn 0.625 / 0.536
+  (MAC-14: zero -0.021 / +0.001; turn 0.622 / 0.558)
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25: 0.143 / 0.122 / 0.110
+  (95 / 81 / 73 % of 0.15); runtime 0.185 / +0.165, 0.276 / +0.080 (fell false,
+  latched 0, deadline_misses 0, 1000 periods, period_max 28.1 ms; parity 1.4e-6)
+verdict vs MAC-14 (acceptance rows):
+  |wz| <= 0.08 at 0.15 / 0.25, DR off: 0.103 / 0.097  FAIL (MAC-14 0.186 / 0.239)
+  |wz| <= 0.08 at 0.15 / 0.25, DR on:  0.044 / 0.040  pass (MAC-14 0.128 / 0.159)
+  |wz| <= 0.05 at zero command:        0.047 / 0.035  pass (MAC-14 0.021 / 0.001)
+  turn 0.8 -> wz >= 0.5:               0.625 / 0.536  pass (MAC-14 0.622 / 0.558)
+  40 ms latency >= 80 % of vx (cmd):   81 %           pass (MAC-14 86 %)
+  0 falls:                             0 everywhere   pass
+  -> not accepted. The drift is about halved and now goes LEFT (sign flip), turning
+  is kept, but the DR-off row fails, and the zero-command, turn (DR on) and latency rows are
+  slightly worse than MAC-14. MAC-14 stays the reference; MAC-21 is the best yaw
+  candidate so far. Runtime 0.15 still yaws +0.165.
+```
+
+---
+
+## MAC-22 — Microduck: posture gate on BAM (WP3-14, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-17 done (its `model_8000.pt`), MAC-20 done, WP3-14 merged
+
+MAC-20 (mac-m5): spreading the forward commands down to 0.1 m/s raised the threshold.
+The policy now also stands at 0.3 and walks only at 0.4. Slow commands taught it to
+stand, because standing keeps the full upright, pose and head pose rewards, and those
+outweigh the tracking gain from stepping. `--posture-gate` scales those three terms by
+the tracking kernels whenever the command is nonzero, so standing at 0.2 m/s
+(std² 0.05) keeps only 45 % of them. Continue from MAC-17 (not MAC-20) for 2000
+iterations with the gate, std² 0.05 and the forward floor at 0.1, from a clean worktree
+of origin/main, using the absolute checkpoint path. Run it after MAC-21, under
+`caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --resume <mac17>/runs/mac17-seed0/model_8000.pt --run-dir runs/mac22-seed0 \
+    --save-every 100 --out runs/mac22-seed0/report.json
+```
+Then run the same evals as MAC-20: eval_velocity_env at 0.4, G1.3 (BAM), and the
+forward sweep at 0.1 / 0.3 / 0.4 with `displacement_y_m`. Watch `upright` and the falls
+in the training history. If falls rise above MAC-17's, stop at that checkpoint and
+record it. Commit the JSONs under `docs/experiments/mac22/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If only the threshold moves, record
+the new sweep.
+
 Result:
 ```
 revision:
-vx / wz at 0.15, 0.25 (DR off / on):
-zero command wz, turn 0.8 wz (DR off / on):
-latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
-verdict vs MAC-14:
+wall time:
+reward first -> last quarter, air_time and upright trend, training falls:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
+g1-3.json (stand, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
 ```
 
 ---
