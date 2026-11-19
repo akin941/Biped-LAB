@@ -88,6 +88,7 @@ def make_runner(
     act_dim: int = mp.ACT_DIM,
     init_std: float = 1.0,
     symmetry: str | None = None,
+    mirror_loss_coeff: float = 1.0,
 ) -> Any:
     from rsl_rl.env import VecEnv
     from rsl_rl.runners import OnPolicyRunner
@@ -156,14 +157,31 @@ def make_runner(
             "desired_kl": 0.01,
             "max_grad_norm": 1.0,
             "rnd_cfg": None,
-            "symmetry_cfg": symmetry_cfg(symmetry),
+            "symmetry_cfg": symmetry_cfg(symmetry, mirror_loss_coeff),
         },
     }
-    return OnPolicyRunner(Adapter(), cfg, log_dir=None, device="cpu")
+    runner = OnPolicyRunner(Adapter(), cfg, log_dir=None, device="cpu")
+    # Keep PPO's losses (surrogate, value, entropy, symmetry) in the history row of the
+    # iteration they belong to: the row is written during the rollout, the update follows.
+    update = runner.alg.update
+
+    def update_and_record(*a: Any, **kw: Any) -> Any:
+        losses = update(*a, **kw)
+        if rec.rows and isinstance(losses, dict):
+            rec.rows[-1].update({f"loss_{k}": float(v) for k, v in losses.items() if v is not None})
+        return losses
+
+    runner.alg.update = update_and_record
+    return runner
 
 
-def symmetry_cfg(mode: str | None) -> dict[str, Any] | None:
-    """biped_v1 left/right mirror (WP4-23): "aug" data augmentation, "loss" mirror loss."""
+def symmetry_cfg(mode: str | None, mirror_loss_coeff: float = 1.0) -> dict[str, Any] | None:
+    """biped_v1 left/right mirror (WP4-23): "aug" data augmentation, "loss" mirror loss.
+
+    Augmentation gives each mirrored sample the original's old log-probability, so on an
+    asymmetric warm start (MAC-14) the PPO ratios of the mirrored half are far from 1:
+    MAC-23 (mac-m5) degraded from iteration ~100. Fine-tune with "loss" instead (WP4-24).
+    """
     if mode is None:
         return None
     from bipedlab.rl import biped_symmetry
@@ -171,7 +189,7 @@ def symmetry_cfg(mode: str | None) -> dict[str, Any] | None:
     return {
         "use_data_augmentation": mode in ("aug", "both"),
         "use_mirror_loss": mode in ("loss", "both"),
-        "mirror_loss_coeff": 1.0,
+        "mirror_loss_coeff": mirror_loss_coeff,
         "data_augmentation_func": biped_symmetry.data_augmentation,
     }
 
@@ -245,6 +263,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
     if not biped_v1 and args.symmetry is not None:
         raise SystemExit("--symmetry is a biped_v1 option")
+    if args.mirror_loss_coeff <= 0:
+        raise SystemExit("--mirror-loss-coeff must be > 0")
     if biped_v1 and args.posture_gate:
         raise SystemExit("--posture-gate is a Microduck option")
     if biped_v1 and args.forward_min_vx is not None:
@@ -290,7 +310,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     try:
         if args.init_std is None:
             args.init_std = BIPED_INIT_STD if biped_v1 else 1.0
-        runner = make_runner(env, rec, act_dim, args.init_std, args.symmetry)
+        runner = make_runner(
+            env, rec, act_dim, args.init_std, args.symmetry, args.mirror_loss_coeff
+        )
         if args.resume:
             runner.load(str(args.resume))
         done = 0
@@ -326,6 +348,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
         "symmetry": args.symmetry,
+        "mirror_loss_coeff": args.mirror_loss_coeff if args.symmetry else None,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -361,6 +384,10 @@ def main() -> None:
     parser.add_argument(
         "--symmetry", choices=("aug", "loss", "both"), default=None,
         help="biped_v1 left/right mirror: data augmentation, mirror loss or both (WP4-23)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--mirror-loss-coeff", type=float, default=1.0,
+        help="weight of the mirror loss with --symmetry loss/both (rsl-rl default 1.0)",
     )  # fmt: skip
     parser.add_argument(
         "--posture-gate", action="store_true",

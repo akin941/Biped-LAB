@@ -918,62 +918,6 @@ verdict vs MAC-14 and MAC-21:
 
 ---
 
-## MAC-23 — biped_v1: mirror-symmetry training against the yaw drift (WP4-23)
-Status: `done (mac-m5, 2026-11-19): not accepted, regression` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
-
-MAC-19 and MAC-21 show that the yaw kernel alone only trades one error for another:
-std² 0.1 kills turning, std² 0.25 halves the drift but flips it to the left (+0.10 rad/s
-with DR off). biped_v1 is mirror-symmetric, so the policy should be too. MAC-23 repeats
-MAC-21 (std² 0.25, resumed from MAC-14) and adds `--symmetry aug`: rsl-rl trains on a
-left/right mirrored copy of every sample (`bipedlab.rl.biped_symmetry`), so a drift in
-one direction is paid for by the mirrored drift in the other. The only change versus
-MAC-21 is the symmetry flag. The mirror maps were checked in the cloud against a
-physically mirrored MuJoCo state (`tests/unit/test_biped_symmetry.py`).
-```bash
-uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
-    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry aug \
-    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac23 --save-every 100 \
-    --out runs/mac23/report.json
-uv run python scripts/eval_biped.py runs/mac23/policy.onnx --dr --robustness --envs 8 \
-    --seconds 20 --out runs/mac23/eval.json
-```
-Then run the MAC-16-style runtime check at 0.15 and 0.25. Augmentation doubles the PPO
-batch, so expect roughly 1.5–2× the MAC-21 wall time (444 s).
-
-**Acceptance (same rows as MAC-21):** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on;
-|wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
-of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
-
-Result (env: mac-m5, 2026-11-19): NOT accepted, a regression (training degraded)
-```
-revision: 4329183 (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
-  4000), --track-yaw-std2 0.25 --symmetry aug, 8 workers; 1221 s (2.75x MAC-21)
-training trend (100-it means): reward 0.098 -> 0.102 (it 100) -> 0.068 (it 900),
-  falling for 800 it; falls/it 1.14 -> 0.37 (it 200) -> 2.18 (it 800); knee torque
-  mean 0.20 -> 0.31 N.m; track_angular_velocity 0.0032 -> 0.0008; air_time ~0.027
-vx / wz at 0.15, 0.25 (DR off / on): off 0.178 / +0.164, 0.251 / +0.188;
-  on 0.135 / -0.026, 0.203 / -0.037
-zero command wz, turn 0.8 wz (DR off / on): zero +0.005 / +0.007; turn 0.195 / 0.196
-latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25: 0.143 / 0.118 / 0.102
-  (95 / 79 / 68 %); runtime 0.196 / +0.446, 0.265 / +0.622 (walks in circles: distance
-  0.58 / 0.65 m in 20 s; fell false, latched 0, deadline_misses 0, 1000 periods)
-knee torque: p95 at the 0.52 N.m clip in nearly every policy case (MAC-14 ~0.19)
-verdict vs MAC-14 and MAC-21:
-  |wz| <= 0.08, DR off: 0.164 / 0.188  FAIL (MAC-14 0.186 / 0.239, MAC-21 0.103 / 0.097)
-  |wz| <= 0.08, DR on:  0.026 / 0.037  pass (MAC-21 0.044 / 0.040)
-  |wz| <= 0.05 zero:    0.005 / 0.007  pass (MAC-21 0.047 / 0.035)
-  turn 0.8 >= 0.5:      0.195 / 0.196  FAIL (MAC-14 0.622 / 0.558, MAC-21 0.625 / 0.536)
-  40 ms >= 80 %:        79 %           FAIL (MAC-14 86 %, MAC-21 81 %)
-  0 falls:              0              pass
-  -> worse than MAC-21 and MAC-14. MAC-14 stays the reference. The run was still
-  degrading at the end (reward down, falls and knee torque up), which points at the
-  augmentation itself (mirror maps for actions or the command/yaw sign, or the doubled
-  batch with unchanged PPO settings) rather than too few iterations. Worth a cloud
-  check before another symmetry run.
-```
-
----
-
 ## MAC-24 — Microduck: continue the posture-gate run on BAM (WP3-14, gate G3.3)
 Status: `awaiting-mac` · Deps: MAC-22 done (its `model_10000.pt`); run after MAC-23
 
@@ -1005,6 +949,50 @@ wall time:
 reward, air_time, tracking, training falls trend:
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
 G1.3 (BAM) verdict:
+```
+
+---
+
+## MAC-25 — biped_v1: mirror loss instead of augmentation (WP4-24)
+Status: `awaiting-mac` · Deps: MAC-23 done; run after MAC-24
+
+MAC-23 (mac-m5, `--symmetry aug`) degraded from about iteration 100. Reward fell from
+0.102 to 0.068, falls rose to about 2.2 per iteration, and turning was lost (0.8 → 0.20).
+The cloud check found nothing wrong with the mirror maps: body positions of a mirrored
+state match link for link, and actuator order equals joint order. The cause is how
+rsl-rl augments. Each mirrored sample gets the *original* sample's old log-probability.
+MAC-14 is asymmetric (it drifts), so on the mirrored half the PPO ratio
+π(mirror a | mirror o) / π_old(a | o) is far from 1. Where the advantage is negative,
+the clipped surrogate keeps the unclipped term and pushes hard. Augmentation suits
+training from scratch, not a warm start. `--symmetry loss` keeps PPO on the real samples
+only and adds `coeff · ‖π(mirror o) − mirror(π(o))‖²`, which pulls the policy toward
+symmetry gradually. The history now also records PPO's losses (`loss_symmetry`,
+`loss_surrogate`, …). Repeat MAC-21 (std² 0.25, from MAC-14) with the mirror loss at
+0.5. This is MAC-21 plus one change.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \
+    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac25 --save-every 100 \
+    --out runs/mac25/report.json
+uv run python scripts/eval_biped.py runs/mac25/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac25/eval.json
+```
+Then run the MAC-16-style runtime check at 0.15 and 0.25. Watch `loss_symmetry`, which
+should fall, and the falls, which should stay near MAC-21's. If the falls pass 1.0 per
+iteration for 100 iterations, stop and evaluate the last good checkpoint.
+
+**Acceptance (same rows as MAC-21):** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on;
+|wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
+of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
+
+Result:
+```
+revision:
+loss_symmetry first -> last; falls trend:
+vx / wz at 0.15, 0.25 (DR off / on):
+zero command wz, turn 0.8 wz (DR off / on):
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+verdict vs MAC-14 and MAC-21:
 ```
 
 ---
