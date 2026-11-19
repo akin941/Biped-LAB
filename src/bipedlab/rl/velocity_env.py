@@ -193,6 +193,10 @@ class MicroduckVelocityEnv:
     # standing policy 67 % of the tracking reward at a 0.2 m/s command, and on BAM the
     # trained gaits only start above ~0.2-0.3 m/s (MAC-15, alpha_walking alike).
     track_lin_std2: float = TRACK_LIN_STD2
+    # WP3-13: floor of the forward-only command draws. Upstream's max(|U(-0.4, 0.4)|, 0.3)
+    # makes 75 % of them exactly 0.3 m/s and none below, so a pure 0.1-0.2 m/s forward
+    # command is rare (only via the mixed vx/vy/wz draw) and the BAM gaits start at ~0.3.
+    forward_min_vx: float = FORWARD_MIN_VX
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -352,7 +356,7 @@ class MicroduckVelocityEnv:
         twist = rng.uniform(-TWIST_RANGE, TWIST_RANGE)
         r = rng.uniform()
         if r < FORWARD_FRACTION:
-            twist = np.array([max(abs(twist[0]), FORWARD_MIN_VX), 0.0, 0.0])
+            twist = np.array([max(abs(twist[0]), self.forward_min_vx), 0.0, 0.0])
         elif r < FORWARD_FRACTION + TURN_FRACTION:
             twist = np.array([0.0, 0.0, rng.choice([-1.0, 1.0]) * rng.uniform(*TURN_WZ)])
         if rng.uniform() < stage_value(STANDING_STAGES, self.common_step):

@@ -223,6 +223,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("biped_v1 has MJCF position actuators only")
     if biped_v1 and args.track_lin_std2 is not None:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
+    if biped_v1 and args.forward_min_vx is not None:
+        raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and args.track_yaw_std2 is not None:
         raise SystemExit("--track-yaw-std2 is a biped_v1 option")
     resume: dict[str, Any] | None = None
@@ -247,6 +249,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     else:
         if args.track_lin_std2 is not None:
             kwargs["track_lin_std2"] = args.track_lin_std2
+        if args.forward_min_vx is not None:
+            kwargs["forward_min_vx"] = args.forward_min_vx
         scene = upstream.microduck_scene("scene_walk.xml")
         env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
         kwargs["actuator"] = args.actuator
@@ -293,6 +297,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "dr_friction": args.dr_friction,
         "track_lin_std2": args.track_lin_std2,
         "track_yaw_std2": args.track_yaw_std2,
+        "forward_min_vx": args.forward_min_vx,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -324,6 +329,10 @@ def main() -> None:
     parser.add_argument(
         "--track-lin-std2", type=float, default=None,
         help="Microduck linear tracking kernel std^2 (default 0.1, upstream; WP3-12)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--forward-min-vx", type=float, default=None,
+        help="Microduck floor of forward-only command draws (default 0.3, upstream; WP3-13)",
     )  # fmt: skip
     parser.add_argument(
         "--track-yaw-std2", type=float, default=None,

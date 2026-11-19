@@ -97,6 +97,22 @@ def test_twist_sampling_fractions(scene):
     assert np.all(np.abs(t) <= ve.TWIST_RANGE + 1e-12)
 
 
+def test_forward_floor_knob_reaches_slow_commands(scene):
+    # WP3-13: upstream's floor (0.3) never draws a forward-only command below 0.3 m/s.
+    def forward_draws(**kw):
+        env = MicroduckVelocityEnv(scene, num_envs=1, seed=11, **kw)
+        draws = []
+        for _ in range(3000):
+            env._sample_twist(0)
+            draws.append(env.twist[0].copy())
+        t = np.array(draws)
+        return t[(t[:, 0] > 0) & (t[:, 1] == 0) & (t[:, 2] == 0), 0]
+
+    assert forward_draws().min() >= 0.3
+    slow = forward_draws(forward_min_vx=0.1)
+    assert slow.min() >= 0.1 and np.mean(slow < 0.3) > 0.4
+
+
 def test_curricula_follow_env_steps(scene):
     assert ve.stage_value(ve.ACTION_RATE_STAGES, 0) == -0.1
     assert ve.stage_value(ve.ACTION_RATE_STAGES, 500 * 24 - 1) == -0.1
