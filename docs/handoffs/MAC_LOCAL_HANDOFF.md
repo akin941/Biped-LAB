@@ -1034,7 +1034,7 @@ policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745
 ---
 
 ## MAC-26 — Microduck: speed-relative tracking kernel on BAM (WP3-15, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-24 done (its `model_13000.pt`); run after MAC-25
+Status: `done (mac-m5, 2026-11-19): G3.3 not met` · Deps: MAC-24 done (its `model_13000.pt`); run after MAC-25
 
 MAC-24 (mac-m5) improved everything above 0.3 m/s (0.4 → 0.260, backward −0.211,
 first lateral motion, turn 1.0 → 0.965), but at 0.2 it went back to standing (vx
@@ -1061,13 +1061,28 @@ evaluate the last good checkpoint. Commit the JSONs under `docs/experiments/mac2
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). Also record
 whether 0.3 / 0.4 stayed at the MAC-24 level.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met; 0.2 and slow backward step, fast commands and turning regress
 ```
-revision:
-wall time:
-reward, air_time, tracking, training falls trend:
+revision: 2ac6883 (main), git_dirty false; resumed from mac24-seed0/model_13000.pt
+  (it 13000 -> 15000), MAC-24 flags + --track-lin-ref-speed 0.4, 8 workers; a VM used
+  ~5-7 cores (load avg 11-20)
+wall time: 3124 s (52 min)
+reward, air_time, tracking, training falls trend (250-it means): reward 0.0295 ->
+  0.0235 (kernel tighter, scale smaller); air_time 0.0169 -> 0.0181; track_linear_velocity
+  0.0174 -> 0.0170 (flat on the tighter kernel); upright 0.012; falls/it 1.18 / 1.39 /
+  1.20 / 1.14 / 1.45 / 1.34 / 1.32 / 1.07, 200-it mean never above 1.5 (no stop)
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
-G1.3 (BAM) verdict:
+  vx 0.0003 / 0.097 / 0.110 / 0.116, backward_0.3 -0.210 (MAC-24: 0.0002 / 0.0004 /
+  0.193 / 0.260, -0.211); dy -1.10 / -1.80 / -2.24 m, wz -0.16 / -0.17 / -0.19
+  (MAC-24: dy -0.00 / +0.57 / +1.46, wz -0.00 / +0.09 / +0.07); lateral_0.3 dy +0.64
+  (MAC-24 +1.06); turn_1.0 wz 0.002 (MAC-24 0.965, lost); eval_velocity_env 0.4:
+  vx 0.319 / 0.312, 0 falls
+G1.3 (BAM) verdict: not met. walk_forward_0.2 vx 0.091-0.099 (48 %, needs 0.14-0.26),
+  dy -1.10 m, wz -0.16; walk_backward_0.15 vx -0.073 (48 %, new: MAC-24 ~0);
+  turn_left_0.5 ~0; stand_still fine; 0 falls. 0.3 / 0.4 did NOT stay at the MAC-24
+  level (0.193 / 0.260 -> 0.110 / 0.116), and the gait now curves right at every
+  forward speed.
+policy.onnx sha256: fd220aaa52439603bdf0bead51187b0dd5b2b6a42813b39a515ecac39a55d35a
 ```
 
 ---
