@@ -1317,5 +1317,50 @@ verdict (a) or (b): (b). At turn 1.0 MAC-24's turning (wz 0.88) earns 0.106 rewa
 
 ---
 
+## MAC-31 — Microduck: steadier PPO and more turn commands (WP3-19, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-28 `model_17300.pt`, MAC-29 / MAC-30 done
+
+MAC-29 (mac-m5) did not confirm G3.3. The falls rule fired at 17900. The best
+checkpoints reached 0.125–0.135 at 0.2 (≥ 0.14 needed), and the yaw drift changes sign
+from checkpoint to checkpoint. model_17300 was a snapshot, not a steady state. MAC-30
+(mac-m5): under the current reward, turning in place at 1.0 pays about 2× standing
+(MAC-24 0.106/step against 0.048–0.052), so turning was forgotten, not outscored
+(verdict b). Two new knobs, both off by default:
+- `--desired-kl` sets the PPO adaptive-lr KL target (default 0.01). 0.005 takes smaller
+  steps, aimed at the checkpoint-to-checkpoint swings.
+- `--turn-fraction` sets the share of turn-only command draws (default 0.15). 0.30
+  rehearses turning twice as often.
+
+Continue model_17300 with the MAC-27 flags plus both knobs for 1500 iterations. Use a
+clean worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 1500 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 0.5 \
+    --desired-kl 0.005 --turn-fraction 0.3 \
+    --resume <mac28>/runs/mac28-seed0/model_17300.pt --run-dir runs/mac31-seed0 \
+    --save-every 100 --out runs/mac31-seed0/report.json
+```
+Keep the MAC-29 falls rule (stop, then evaluate the last 4 checkpoints). Evaluate model_17600,
+17900, 18200, 18500 and 18800 (or the last ones saved) as in MAC-29: G1.3 (BAM) and the
+sweep, with dy and the yaw rate. Also run the MAC-30 eval (`--twist 0 0 1.0 --twist 0 0 0.5`
+with the training reward flags) for each. For the best one, run eval_velocity_env at 0.4
+and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under `docs/experiments/mac31/`.
+
+**Acceptance:** G3.3 confirmed as in MAC-29 (two consecutive checkpoints meet G1.3 with
+BAM, |wz| at 0.2 below 0.05, falls rule not fired). WP3-18 also passes if turn 1.0 gives
+wz ≥ 0.7 on those checkpoints.
+
+Result:
+```
+revision:
+wall time; training falls trend; rule fired?:
+per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 / 0.5 wz:
+best checkpoint: eval_velocity_env 0.4, long stands:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

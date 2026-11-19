@@ -335,3 +335,19 @@ def test_speed_relative_yaw_kernel_makes_standing_cost_the_same(scene):
     np.testing.assert_allclose(standing_yaw(0.0, track_ang_ref_speed=1.0), standing_yaw(0.0))
     with pytest.raises(ValueError):
         MicroduckVelocityEnv(scene, num_envs=1, track_ang_ref_speed=0.0)
+
+
+def test_turn_fraction_changes_the_command_mix(scene):
+    # WP3-19: more turn-only draws (vx = vy = 0, wz != 0) when turn_fraction is raised.
+    def turn_only_share(**kw):
+        env = MicroduckVelocityEnv(scene, num_envs=1, noise=False, **kw)
+        n = 0
+        for _ in range(400):
+            env._sample_twist(0)
+            t = env.twist[0]
+            n += bool(t[0] == 0 and t[1] == 0 and t[2] != 0)
+        return n / 400
+
+    assert turn_only_share(turn_fraction=0.5) > turn_only_share() + 0.2
+    with pytest.raises(ValueError):
+        MicroduckVelocityEnv(scene, num_envs=1, turn_fraction=0.9)

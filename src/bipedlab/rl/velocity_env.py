@@ -214,6 +214,9 @@ class MicroduckVelocityEnv:
     # but 14 % at 1.0; MAC-26 / MAC-27 (BAM) stand still at both turn commands.
     # None = fixed width (upstream). Commands with no yaw part keep the width.
     track_ang_ref_speed: float | None = None
+    # WP3-19: share of turn-only command draws (upstream 0.15). MAC-30 (BAM): turning in
+    # place still pays ~2x standing at 1.0 rad/s, yet every policy since MAC-26 forgot it.
+    turn_fraction: float = TURN_FRACTION
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -225,6 +228,8 @@ class MicroduckVelocityEnv:
             raise ValueError("track_lin_ref_speed must be > 0")
         if self.track_ang_ref_speed is not None and self.track_ang_ref_speed <= 0:
             raise ValueError("track_ang_ref_speed must be > 0")
+        if not 0 <= self.turn_fraction <= 1 - FORWARD_FRACTION:
+            raise ValueError(f"turn_fraction must be in [0, {1 - FORWARD_FRACTION}]")
         self.model, _ = mp.load_model_for_policy(self.scene, self.actuator)
         m = self.model
         m.opt.iterations = SOLVER_ITERATIONS
@@ -378,7 +383,7 @@ class MicroduckVelocityEnv:
         r = rng.uniform()
         if r < FORWARD_FRACTION:
             twist = np.array([max(abs(twist[0]), self.forward_min_vx), 0.0, 0.0])
-        elif r < FORWARD_FRACTION + TURN_FRACTION:
+        elif r < FORWARD_FRACTION + self.turn_fraction:
             twist = np.array([0.0, 0.0, rng.choice([-1.0, 1.0]) * rng.uniform(*TURN_WZ)])
         if rng.uniform() < stage_value(STANDING_STAGES, self.common_step):
             twist[:] = 0.0

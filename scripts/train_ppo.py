@@ -89,6 +89,7 @@ def make_runner(
     init_std: float = 1.0,
     symmetry: str | None = None,
     mirror_loss_coeff: float = 1.0,
+    desired_kl: float = 0.01,
 ) -> Any:
     from rsl_rl.env import VecEnv
     from rsl_rl.runners import OnPolicyRunner
@@ -154,7 +155,7 @@ def make_runner(
             "schedule": "adaptive",
             "gamma": 0.99,
             "lam": 0.95,
-            "desired_kl": 0.01,
+            "desired_kl": desired_kl,
             "max_grad_norm": 1.0,
             "rnd_cfg": None,
             "symmetry_cfg": symmetry_cfg(symmetry, mirror_loss_coeff, act_dim),
@@ -265,6 +266,10 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("biped_v1 has MJCF position actuators only")
     if biped_v1 and args.track_lin_std2 is not None:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
+    if args.desired_kl <= 0:
+        raise SystemExit("--desired-kl must be > 0")
+    if biped_v1 and args.turn_fraction is not None:
+        raise SystemExit("--turn-fraction is a Microduck option")
     if args.mirror_loss_coeff <= 0:
         raise SystemExit("--mirror-loss-coeff must be > 0")
     if biped_v1 and args.posture_gate:
@@ -307,6 +312,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["track_lin_ref_speed"] = args.track_lin_ref_speed
         if args.track_ang_ref_speed is not None:
             kwargs["track_ang_ref_speed"] = args.track_ang_ref_speed
+        if args.turn_fraction is not None:
+            kwargs["turn_fraction"] = args.turn_fraction
         scene = upstream.microduck_scene("scene_walk.xml")
         env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
         kwargs["actuator"] = args.actuator
@@ -321,8 +328,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         if args.init_std is None:
             args.init_std = BIPED_INIT_STD if biped_v1 else 1.0
         runner = make_runner(
-            env, rec, act_dim, args.init_std, args.symmetry, args.mirror_loss_coeff
-        )
+            env, rec, act_dim, args.init_std, args.symmetry, args.mirror_loss_coeff,
+            args.desired_kl,
+        )  # fmt: skip
         if args.resume:
             runner.load(str(args.resume))
         done = 0
@@ -359,6 +367,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "posture_gate": args.posture_gate,
         "track_lin_ref_speed": args.track_lin_ref_speed,
         "track_ang_ref_speed": args.track_ang_ref_speed,
+        "turn_fraction": args.turn_fraction,
+        "desired_kl": args.desired_kl,
         "symmetry": args.symmetry,
         "mirror_loss_coeff": args.mirror_loss_coeff if args.symmetry else None,
         "iterations": len(rec.rows),
@@ -408,6 +418,14 @@ def main() -> None:
     parser.add_argument(
         "--track-lin-ref-speed", type=float, default=None,
         help="Microduck: shrink the linear kernel width below this command speed (WP3-15)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--turn-fraction", type=float, default=None,
+        help="Microduck share of turn-only command draws (default 0.15, upstream; WP3-19)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--desired-kl", type=float, default=0.01,
+        help="PPO adaptive-lr KL target (default 0.01); lower is more conservative (WP3-19)",
     )  # fmt: skip
     parser.add_argument(
         "--track-ang-ref-speed", type=float, default=None,
