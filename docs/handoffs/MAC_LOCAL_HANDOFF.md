@@ -443,7 +443,7 @@ notes: the 0-40 ms DR action delay stops the gait, not the lower friction. G4.3
 ---
 
 ## MAC-14 — biped_v1 with the DR delay ramped in (WP4-19, gate G4.3)
-Status: `awaiting-mac` · Deps: MAC-13 done, WP4-19 merged
+Status: `done (mac-m5, 2026-11-19)` · Deps: MAC-13 done, WP4-19 merged
 
 MAC-13 (mac-m5): run A (no DR delay) walks, run B (delay 0–40 ms from the start,
 friction ≥ 1) only stands, so the delay is what stopped the gait. Since WP4-19 the DR
@@ -460,12 +460,20 @@ Watch `air_time` around iterations 1000 and 1500: if it drops to 0 after a stage
 widens the delay, record the iteration. Commit `report.json`, `run.json`, `eval.json`
 under `docs/experiments/mac14/`.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G4.3 first pass met, and the latency target is met too
 ```
-revision:
-walks? vx 0.15/0.25 (DR on), falls, latency 20/40/60 ms (vx / command), friction_0.5,
-push, knee torque p95/max, air_time at 1000/1500/3000 it:
-notes:
+revision: a944b05 (main), git_dirty false; 8 workers, load avg 10-14; wall 1815 s
+walks? YES. vx 0.150 / 0.228 at 0.15 / 0.25 (DR on; 100 % / 91 %), DR off 0.179 / 0.264;
+  0 falls in every case; latency 20/40/60 ms: 0.148 / 0.129 / 0.114 (99 / 86 / 76 %
+  of 0.15); friction_0.5 0.175, friction_1.5 0.185; push fwd / side 0.180 / 0.177,
+  0 falls; knee p95 0.188 / 0.223, max 0.41 / 0.51 N.m (DR on, 0.15 / 0.25);
+  air_time (100-it mean) 0.0279 at 1000, 0.0277 at 1500, 0.0289 at 2900: no drop
+  when a delay stage widens; reward/step 0.053 -> 0.110 (first -> last quarter)
+policy.onnx sha256: 83766219233e60a14315ea78e9ee0ff68fcfa680787542f215d0cc8e8be6f78f
+notes: the gait forms by it ~500 (delay 0) and survives the 0-20 ms and 0-40 ms
+  stages. Against MAC-13 A (no delay): DR-on tracking 67 -> 100 %, latency_40ms
+  42 -> 86 % (MAC-11 target >= 50 %). Stand command: vx 0.004 (DR on), no drift.
+  JSONs in docs/experiments/mac14/ (report.json history every 10th iteration).
 ```
 
 ---
