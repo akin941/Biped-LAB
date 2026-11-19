@@ -1029,6 +1029,11 @@ verdict vs MAC-14 and MAC-21:
   0.15 case still yaws -0.133 (MAC-14 -0.190), which is not an acceptance row but is the
   remaining gap; knee p95 0.17-0.24 (max at the clip in some DR-on cases).
 policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745a52b
+quiet re-check (2026-11-19, 20:20Z, recorded in MAC-33): runtime 0.15 / 0.25 again, VM at
+  ~1.2-3.8 cores (mean ~2.3) during the run, load avg ~3: deadline_misses 0 / 0,
+  period_max 30.0 / 29.9 ms, compute_max 155 / 170 us, 1000 periods, fell false, latched 0,
+  vx / wz unchanged (0.177 / -0.133, 0.266 / -0.041). The earlier 4 misses (and 2 in a
+  re-run under load) were load. JSONs: docs/experiments/mac25/quiet-runtime-v*.json
 ```
 
 ---
@@ -1455,7 +1460,7 @@ policy.onnx sha256: 19700 398f399aab64332d13083a81a8b31ff96c06c40b2622b76a79eb30
 ---
 
 ## MAC-33 — Microduck: bring turning back on the G3.3 policy (WP3-20)
-Status: `awaiting-mac` · Deps: MAC-32 done (its `model_19700.pt`)
+Status: `done (mac-m5, 2026-11-19): WP3-20 not met; G3.3 holds` · Deps: MAC-32 done (its `model_19700.pt`)
 
 MAC-32 (mac-m5) met G3.3, and model_19700 is the Microduck reference. Turning is still
 weak: turn 1.0 reached at most 0.465, and 0.5 stays at ≈ 0.01. In MAC-28,
@@ -1483,13 +1488,42 @@ turn 0.5 gives ≥ 0.35. Those same checkpoints must still meet G1.3 with BAM (0
 ±30 %, |wz| < 0.05, 0 falls), and the falls rule must not fire. If turning improves but
 G3.3 breaks, report both. model_19700 stays the reference until a checkpoint does both.
 
-Result:
+Result (env: mac-m5, 2026-11-19): WP3-20 NOT met (turn 0.5 stays ~0); G3.3 still holds
 ```
-revision:
-wall time; loss_symmetry; training falls trend; rule fired?:
-per checkpoint (G1.3 0.2 vx / wz; turn 1.0 / 0.5 / 0 wz):
-best: sweep, long stands:
-verdict:
+revision: 54151b4 (main), git_dirty false; resumed from mac32-seed0/model_19700.pt, MAC-32
+  flags + --track-ang-ref-speed 1.0, 8 workers; VM ~2-5 cores
+wall time; loss_symmetry; training falls trend; rule fired?: 1311 s (22 min), all 1500 it;
+  loss_symmetry 0.0074 -> 0.0078 (first / last 100 it); falls/it (100-it means) 0.73-1.26,
+  watchdog 200-it mean <= 0.94 -> NO, the rule did not fire. track_angular_velocity
+  0.0107 -> 0.0094 (fell); tracking ~0.023; reward 0.031 -> 0.028
+per checkpoint (G1.3 0.2 vx / wz; turn 1.0 / 0.5 / 0 wz, env eval with the yaw ref; G = meets G1.3):
+  19800 0.132-0.137 / -0.124;  0.691 / 0.008 / -0.001
+  19900 0.135-0.147 / -0.097;  1.041 / 0.008 / -0.000   (turn 1.0 >= 0.7, fails G1.3)
+  20000 0.181-0.183 / +0.025;  0.694 / 0.004 / -0.000  G
+  20100 0.141-0.144 / -0.074;  0.397 / 0.002 / -0.001
+  20200 0.162-0.165 / -0.013;  0.335 / 0.003 / -0.001  G
+  20300 0.155-0.156 / +0.002;  0.573 / 0.004 / -0.000  G
+  20400 0.171-0.172 / -0.004;  0.364 / 0.006 / -0.000  G
+  20500 0.148-0.150 / -0.013;  0.472 / 0.003 / -0.000  G
+  20600 0.137-0.140 / +0.110;  0.254 / 0.002 / -0.000
+  20700 0.158-0.160 / -0.005;  0.398 / 0.002 / +0.000  G
+  20800 0.160-0.161 / +0.010;  0.399 / 0.009 / +0.000  G
+  20900 0.083-0.088 / +0.214;  0.355 / 0.006 / -0.000
+  21000 0.169-0.171 / -0.038;  0.337 / 0.005 / -0.000  G
+  21100 0.151-0.153 / +0.043;  0.400 / 0.003 / -0.000  G
+  21200 0.155-0.156 / +0.069;  0.604 / 0.011 / +0.000
+  0 falls in every G1.3 case; G1.3 turn_left_0.5 wz <= 0.009 everywhere
+best: 20000 (passes G1.3, highest turn 1.0 among the passing ones). sweep: fwd 0.1 / 0.3 /
+  0.4 -> 0.083 / 0.265 / 0.296 (first steps at 0.1), back 0.3 -0.217, lateral dy +0.76;
+  turn_1.0 FELL at 3.96 s (in the sweep's upstream init; the env eval turned 0.694 without
+  falls). Long stands: 4 x 20 s / 4 x 30 s 0 falls, tilt <= 1.0 deg; 0.2 for 4 x 20 s
+  0.176-0.179, 0 falls
+verdict: WP3-20 not met. Turn 0.5 gives <= 0.011 on every checkpoint (>= 0.35 needed), and
+  turn 1.0 >= 0.7 appears once (19900), on a checkpoint that fails G1.3. The yaw ref did
+  not move turn 0.5 at all, and the yaw term fell during the run. G3.3 still holds:
+  10 of 15 meet G1.3, in runs 20200-20500 (4) and 20700-20800 and 21000-21100, with no
+  falls-rule stop. model_19700 stays the reference.
+policy.onnx sha256: 20000 e87b7134d0a8d823f65eff3b92e5e23be45830012097e060a46195ecde6edbdb
 ```
 
 ---
