@@ -691,5 +691,42 @@ notes:
 
 ---
 
+## MAC-20 — Microduck: train slow forward commands on BAM (WP3-13, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-17 done (its `model_8000.pt`), WP3-13 merged
+
+MAC-17 (mac-m5): with std² 0.05 the threshold did not move (0.2 → 0.000, 0.3 → 0.078).
+Cloud reading of the command sampler: forward-only draws are max(|U(−0.4, 0.4)|, 0.3),
+so 75 % of them are exactly 0.3 m/s and none are below 0.3. A pure 0.1–0.25 m/s
+forward command only shows up inside the mixed vx/vy/wz draw. `--forward-min-vx 0.1`
+spreads the forward draws over 0.1–0.4. Continue MAC-17 for 2000 iterations from a
+clean worktree of origin/main, using the absolute checkpoint path. Run it after MAC-19
+if the Mac is busy, under `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 \
+    --resume <mac17>/runs/mac17-seed0/model_8000.pt --run-dir runs/mac20-seed0 \
+    --save-every 100 --out runs/mac20-seed0/report.json
+```
+Then run the same evals as MAC-17: eval_velocity_env at 0.4, the G1.3 eval (BAM) and
+the forward sweep at 0.1 / 0.3 / 0.4 (0.2 from G1.3). Also record the sweep's lateral
+drift (`displacement_y_m`): at 0.3, MAC-17 drifted −1.0 m in 10 s. Commit the JSONs
+under `docs/experiments/mac20/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If only the threshold moves, record
+the new sweep.
+
+Result:
+```
+revision:
+wall time:
+reward first -> last quarter, air_time trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
+g1-3.json (stand, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
