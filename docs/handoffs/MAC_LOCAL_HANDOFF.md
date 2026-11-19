@@ -664,7 +664,7 @@ notes: the drift appears only when walking forward (zero command wz ~0), and gro
 ---
 
 ## MAC-19 — biped_v1: fine-tune MAC-14 against the yaw drift (WP4-22)
-Status: `awaiting-mac` · Deps: MAC-18 done, WP4-22 merged
+Status: `done (mac-m5, 2026-11-19): mixed, yaw control regressed` · Deps: MAC-18 done, WP4-22 merged
 
 MAC-18 (mac-m5): the MAC-14 policy itself yaws −0.13…−0.24 rad/s while walking at a
 zero yaw command (worse with DR off), the runtime path is faithful. biped_v1 is
@@ -686,16 +686,27 @@ Then MAC-16's runtime check with `runs/mac19/policy.onnx` (export to BPML as in 
 for 0.15 and 0.25. Commit `report.json`, `run.json`, `eval.json` and the runtime JSON
 under `docs/experiments/mac19/`.
 
-Result:
+Result (env: mac-m5, 2026-11-19): mixed, the forward drift shrinks but yaw control regresses
 ```
-revision:
-Python env vx / wz at 0.15, 0.25 (DR off):
-Python env vx / wz at 0.15, 0.25 (DR on):
-turn 0.8 wz (DR off / on):
-latency 20/40/60 ms vx:
-runtime vx / wz at 0.15, 0.25:
-falls / knee p95:
-notes:
+revision: 8f94394 (main), git_dirty false; resumed from mac14/model_3000.pt (it 3000 ->
+  4000), --track-yaw-std2 0.1, 8 workers; 658 s; reward 0.101 -> 0.106; air_time ~0.029
+  throughout (gait kept); runtime check ran with no training on the Mac
+Python env vx / wz at 0.15, 0.25 (DR off): 0.153 / -0.046, 0.242 / +0.054
+  (MAC-18: 0.178 / -0.186, 0.264 / -0.239)
+Python env vx / wz at 0.15, 0.25 (DR on):  0.136 / -0.169, 0.217 / -0.022
+  (MAC-18: 0.150 / -0.128, 0.228 / -0.159)
+zero command wz (DR off / on): -0.349 / -0.265 (MAC-18: -0.021 / +0.001) <- new spin in place
+turn 0.8 wz (DR off / on): 0.139 / 0.152 (MAC-18: 0.622 / 0.558) <- turning mostly lost
+latency 20/40/60 ms vx: 0.139 / 0.125 / 0.114 (93 / 83 / 76 %)
+runtime vx / wz at 0.15, 0.25: 0.162 / -0.210, 0.246 / -0.004; fell false, latched 0,
+  deadline_misses 0, 1000 periods, period_max 24.9 ms; parity 1.3e-6
+falls / knee p95: 0 falls in every case; knee p95 0.19-0.26, max 0.52 (clip) in several
+policy.onnx sha256: a793cbb9b579bfdb5218ca4a467b86c9630ed721f7dcd6fe087ca60309213fca
+notes: the tighter yaw kernel cut the forward drift at 0.25 (and at 0.15 without DR),
+  but the policy now spins at a zero command and barely follows a turn command, and
+  at 0.15 the runtime / DR-on drift is still -0.17...-0.21. The track_angular_velocity
+  term stayed ~0.0025-0.0029 per step all run. Not an improvement overall; MAC-14
+  stays the reference policy.
 ```
 
 ---
