@@ -1205,7 +1205,7 @@ notes: this checkpoint is the first Microduck BAM policy to pass G3.3 on the M5,
 ---
 
 ## MAC-29 — Microduck: confirm the G3.3 pass holds (WP3-17, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-28 done (its `model_17300.pt`)
+Status: `done (mac-m5, 2026-11-19): not confirmed (falls rule fired, no checkpoint passes)` · Deps: MAC-28 done (its `model_17300.pt`)
 
 MAC-28 (mac-m5): `--track-ang-ref-speed 1.0` raised training falls to 1.93/it, and the
 rule stopped the run at 17300. model_17300 meets G1.3 on BAM: 0.2 gives 0.160–0.161 (80 %)
@@ -1232,13 +1232,28 @@ and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under `docs/experiments/m
 with BAM (0.2 m/s within ±30 %, 0 falls, |wz| at 0.2 below 0.05). The training falls
 rule must not fire. Turning is out of scope here (WP3-18).
 
-Result:
+Result (env: mac-m5, 2026-11-19): NOT confirmed; the falls rule fired and no checkpoint meets G1.3
 ```
-revision:
-wall time; training falls trend; rule fired?:
+revision: 3e276f0 (main), git_dirty false; resumed from mac28-seed0/model_17300.pt with the
+  MAC-27 flags, 8 workers; a VM used ~4-7 cores
+wall time; training falls trend; rule fired?: 15 min until stopped. falls/it (100-it means)
+  2.15 / 1.57 / 1.28 / 1.53 / 1.47 / 1.64; the watchdog's 200-it mean read 1.43, 1.41,
+  1.50, then 1.55 at it 600 -> YES, the rule fired; training stopped at it 17900 (600
+  of 1000). loss_symmetry 0.0148 -> 0.0111; air_time ~0.019; tracking ~0.017.
+  Evaluated the last four saved checkpoints: 17600, 17700, 17800, 17900.
 per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 wz:
-best checkpoint: eval_velocity_env 0.4, long stands:
-verdict:
+  17600: 0.132-0.133 (66 %) / -0.050; -0.154; 0.179 (wz -0.12) / 0.198 (wz -0.18); 0.002
+  17700: 0.081-0.092 / -0.132;          -0.084; 0.216 (wz -0.05) / 0.221 (wz +0.12); 0.002
+  17800: 0.128-0.135 / -0.097;          -0.119; 0.168 (wz -0.15) / 0.220 (wz -0.12); 0.002
+  17900: 0.125-0.129 (63 %) / +0.025;   -0.120; 0.141 (wz +0.14) / 0.239 (wz +0.08); 0.001
+  0 falls in every G1.3 case; stand_still fine; turn_left_0.5 wz <= 0.006 everywhere
+best checkpoint: 17600. eval_velocity_env 0.4: vx 0.295 / 0.303 (noise on / off), 0 falls;
+  stand 4 x 20 s and 4 x 30 s: 0 falls, tilt 1.6 deg; 0.2 for 4 x 20 s: 0.113-0.116, 0 falls
+verdict: not confirmed. No checkpoint reaches 0.14 at 0.2 with |wz| < 0.05 (best 0.133 at
+  |wz| 0.050), and the training falls rule fired. MAC-28's model_17300 (0.160) was a
+  snapshot, not a stable state: from it the gait drifts again (|wz| up to 0.18 at 0.4)
+  and 0.2 settles at 63-66 %, the MAC-27 level.
+policy.onnx sha256: 17600 e6401b86666adc6eb77afcb260fe8a0ff935f9123f0f2d241583a34a53b347e4
 ```
 
 ---
