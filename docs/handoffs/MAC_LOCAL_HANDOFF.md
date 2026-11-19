@@ -1637,7 +1637,7 @@ verdict: WP4-25 acceptance met (sizing for all five types, table vs WP4-01). Our
 ---
 
 ## MAC-36 — biped_v1: the torque demand without the 0.52 N·m clip (WP4-26, input to WP4-05)
-Status: `awaiting-mac` · Deps: MAC-35 done, MAC-25 done (its newest `runs/mac25/model_<n>.pt` and `policy.onnx`)
+Status: `done (mac-m5, 2026-11-20): demand measured; step 2 misses the 40 ms row` · Deps: MAC-35 done, MAC-25 done (its newest `runs/mac25/model_<n>.pt` and `policy.onnx`)
 
 MAC-35 (mac-m5) found the MAC-25 gait's walking max torque sitting on the 0.52 N·m limit
 at hip roll, hip pitch and knee, so its 2× requirement (≥ 1.04) is only a lower bound.
@@ -1670,15 +1670,40 @@ meets the MAC-25 rows (0.15 / 0.25 walk with DR on and off, |wz| ≤ 0.08, 40 ms
 steps 1 and 2 next to MAC-35. If a joint still reaches 1.5, say so: its requirement
 stays a lower bound. MAC-25 stays the reference policy; this run only measures demand.
 
-Result:
+Result (env: mac-m5, 2026-11-20): demand measured unclipped (no at_torque_limit); step 2 misses the 40 ms row
 ```
-revision:
-step 1 table (MAC-25 at 1.5 N*m; at_torque_limit?):
-step 2 wall time; falls rule fired?:
-step 2 table (fine-tune at 1.5 N*m; at_torque_limit?):
-step 2 MAC-25 rows:
-policy.onnx sha256:
-verdict:
+revision: c0836f2 (main), git_dirty false; eval_biped --dr --robustness, 8 envs x 20 s, --torque-limit 1.5
+step 1 table (MAC-25 at 1.5 N*m; required = 2x walking max / 2x p95 speed; RMS; at_torque_limit):
+  hip_yaw      0.39 N.m /  3.0 rad/s; RMS 0.055; no    (MAC-35 at 0.52: 0.37 / 2.8)
+  hip_roll     1.19 N.m /  5.5 rad/s; RMS 0.180; no    (MAC-35: >=1.04 / 5.5, clipped)
+  hip_pitch    1.17 N.m / 14.2 rad/s; RMS 0.172; no    (MAC-35: >=1.04 / 13.7, clipped)
+  knee         0.82 N.m / 12.1 rad/s; RMS 0.109; no    (MAC-35: >=1.04 / 12.2, clipped)
+  ankle_pitch  0.76 N.m /  8.0 rad/s; RMS 0.119; no    (MAC-35: 0.81 / 7.7)
+  walking max torques: hip roll 0.593, hip pitch 0.583, knee 0.410, ankle 0.379, hip yaw 0.197;
+  0 falls in all 15 cases; 40 ms latency 0.126 (84 %)
+step 2 wall time; falls rule fired?: 576 s (10 min), all 500 it from mac25/model_4000.pt; falls/it
+  0.25 -> 0.04-0.14 (100-it mean <= 0.14 after it 100) -> no; reward 0.106 -> 0.117; knee
+  torque mean 0.153 -> 0.134 N.m
+step 2 table (fine-tune at 1.5 N*m; at_torque_limit):
+  hip_yaw      0.40 N.m /  3.3 rad/s; RMS 0.049; no
+  hip_roll     1.36 N.m /  5.2 rad/s; RMS 0.187; no    (walking max 0.679, DR on at 0.25)
+  hip_pitch    1.14 N.m / 14.1 rad/s; RMS 0.167; no
+  knee         0.95 N.m / 13.7 rad/s; RMS 0.113; no
+  ankle_pitch  0.82 N.m /  8.0 rad/s; RMS 0.124; no
+  robustness maxima: friction_1.5 hip roll 0.61, push_sideways hip roll 0.59 / knee 0.43; all
+  below the walking max
+step 2 MAC-25 rows: 0.15 / 0.25 DR off vx 0.161 / 0.252, |wz| 0.034 / 0.032 (pass); DR on vx
+  0.132 / 0.215, |wz| 0.048 / 0.010 (pass); 40 ms latency 0.110 = 73 % of 0.15 (FAIL, >= 80 %);
+  0 falls (pass); also turn 0.8 0.717 / 0.626, zero command |wz| 0.098 / 0.056 (MAC-25 0.034 / 0.020)
+policy.onnx sha256: step 2 e992476a52e381b8f36de99a9ef68fae88b6ccbc0c8a7f07a8e1eea393ef7ac3;
+  step 1 used MAC-25 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745a52b
+verdict: no joint reaches the 1.5 limit in either step, so the requirements are measured, not lower
+  bounds. With the 2x margin: hip roll 1.2-1.4 N.m, hip pitch about 1.15 N.m at about 14 rad/s, knee 0.8-0.95 N.m
+  at 12-14 rad/s, ankle about 0.8 N.m, hip yaw about 0.4 N.m. WP4-26 acceptance only partly met: no
+  at_torque_limit (met), but the step 2 policy keeps only 73 % at 40 ms latency (MAC-25 row
+  fails) and its zero-command yaw got worse. MAC-25 stays the reference; for sizing, step 1
+  (the reference gait itself, unclipped) and step 2 agree within about 15 %, except hip roll (+14 %)
+  and knee (+16 %) in step 2.
 ```
 
 ---
