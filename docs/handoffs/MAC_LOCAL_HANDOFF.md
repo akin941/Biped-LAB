@@ -518,5 +518,39 @@ notes:
 
 ---
 
+## MAC-16 — The trained biped_v1 policy walks through the Rust runtime (WP4-20, G4.3 + G4.4)
+Status: `awaiting-mac` · Deps: MAC-14 done (its `runs/mac14/policy.onnx`), WP4-20 merged
+
+G4.3 was measured in the Python env and G4.4 with the stand controller. This runs
+the MAC-14 policy inside the runtime (safety supervisor, 50 Hz wall clock) against
+the sim bridge, and reads the walk from the bridge's WP4-20 metrics
+(`vx_body_mean`, `distance_xy_m`, `fell`, from 2 s on).
+```bash
+(cd runtime && cargo build --locked --release)
+P=runs/mac14   # MAC-14 run dir (absolute path if you work in another worktree)
+uv run python scripts/export_mlp.py $P/policy.onnx --out $P/policy.bpml \
+    --rust-bin runtime/target/release/mlp-eval > /tmp/mac16-mlp.json
+for v in 0.15 0.25; do
+  uv run python scripts/runtime_sim.py --seconds 20 --realtime --env-label mac-m5 \
+      --log runs/mac16/v$v.bplog --out runs/mac16/v$v.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --command 0:20:$v:0:0
+done
+```
+**Acceptance:** for both commands `fell` false, no latched fault, 1000 periods,
+`deadline_misses` ≤ 10, and `vx_body_mean` ≥ 50 % of the command (G4.3 first-pass
+bar); note how far it is from MAC-14's Python-env vx (0.150 / 0.228). Commit the two
+JSONs and `mac16-mlp.json` under `docs/experiments/mac16/` (not the `.bplog`/`.npz`).
+
+Result:
+```
+revision:
+mlp parity (max abs diff):
+v0.15: vx_body_mean, distance, fell, latched, deadline_misses, period_max_us:
+v0.25: vx_body_mean, distance, fell, latched, deadline_misses, period_max_us:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

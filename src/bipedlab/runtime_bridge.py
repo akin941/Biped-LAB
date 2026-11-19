@@ -140,6 +140,16 @@ def policy_observation(
     return np.concatenate([np.asarray(p, dtype=np.float64) for p in parts]).astype(np.float32)
 
 
+def body_velocity(d: mujoco.MjData) -> np.ndarray:
+    """(vx, vy, wz) of the floating base in its own frame (free joint: world linear velocity)."""
+    q = d.qpos[3:7]
+    inv = np.empty(4)
+    mujoco.mju_negQuat(inv, q)
+    v = np.empty(3)
+    mujoco.mju_rotVecQuat(v, d.qvel[0:3], inv)
+    return np.array([v[0], v[1], d.qvel[5]])
+
+
 def _recv_exact(conn: socket.socket, size: int) -> bytes:
     chunks, got = [], 0
     while got < size:
@@ -165,6 +175,7 @@ class BridgeConfig:
     temperature_drift: float = 0.0  # deg C/s
     action_timeout_s: float = 5.0
     record: bool = False  # keep every state sent and action received in out["trace"]
+    measure_from: float = 2.0  # s, start of the window for the walking metrics (WP4-20)
 
 
 class SimBridge:
@@ -222,6 +233,11 @@ class SimBridge:
             out["trace"] = trace
         prev = self.default.copy()
         pushed = False
+        # WP4-20 walking metrics over [measure_from, end): mean trunk velocity in the
+        # body frame (the frame the command is given in) and distance travelled.
+        vel_sum = np.zeros(3)
+        vel_n = 0
+        start_xy: np.ndarray | None = None
         wall0 = time.perf_counter()
         step = 0
         while d.time < cfg.seconds - 1e-9:
@@ -279,6 +295,17 @@ class SimBridge:
                 pushed = True
             for _ in range(self.substeps):
                 mujoco.mj_step(m, d)
+            if d.time >= cfg.measure_from - 1e-9:
+                if start_xy is None:
+                    start_xy = d.qpos[0:2].copy()
+                vel_sum += body_velocity(d)
+                vel_n += 1
+        if vel_n:
+            mean = vel_sum / vel_n
+            out["vx_body_mean"], out["vy_body_mean"], out["wz_mean"] = (float(v) for v in mean)
+            assert start_xy is not None
+            out["distance_xy_m"] = float(np.linalg.norm(d.qpos[0:2] - start_xy))
+        out["fell"] = out["first_tilt_over_45_step"] is not None
         out["steps"] = step if not out["stalled"] else step - 1
         out["sim_time_s"] = float(d.time)
         out["wall_s"] = time.perf_counter() - wall0

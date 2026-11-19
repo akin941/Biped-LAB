@@ -39,6 +39,9 @@ def test_stands_for_ten_seconds_at_50_hz():
     assert sim["steps"] == rt["periods"] == 500  # 10 s at 50 Hz, lockstep
     assert rt["latched"] == 0 and sim["bits_seen"] == 0
     assert sim["max_tilt_deg"] < 2.0
+    # WP4-20 walking metrics: standing still, so no travel and no fall.
+    assert not sim["fell"] and abs(sim["vx_body_mean"]) < 0.01
+    assert sim["distance_xy_m"] < 0.01
 
 
 def test_tilt_fault_turns_torque_off_in_the_same_period():
@@ -53,6 +56,7 @@ def test_tilt_fault_turns_torque_off_in_the_same_period():
 def test_small_push_does_not_trip():
     r = run(seconds=5.0, push_at=2.0, push_dv=(0.0, 0.5, 0.0))
     assert r["runtime"]["latched"] == 0 and r["sim"]["torque_off_step"] is None
+    assert not r["sim"]["fell"]
 
 
 def test_nonfinite_targets_are_replaced_by_the_last_safe_ones():

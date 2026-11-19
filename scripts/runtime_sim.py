@@ -27,6 +27,9 @@ def main() -> None:
     parser.add_argument("--push-at", type=float, default=None)
     parser.add_argument("--push-dv", type=float, nargs=3, default=(0.0, 1.0, 0.0))
     parser.add_argument("--stall-at", type=float, default=None)
+    parser.add_argument(
+        "--measure-from", type=float, default=2.0, help="s, start of the vx/distance window"
+    )
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
         "--log",
@@ -43,7 +46,8 @@ def main() -> None:
     parser.add_argument("runtime_args", nargs="*", help="extra biped-runtime arguments after --")
     args = parser.parse_args()
     cfg = rb.BridgeConfig(seconds=args.seconds, push_at=args.push_at,
-                          push_dv=tuple(args.push_dv), stall_at=args.stall_at)  # fmt: skip
+                          push_dv=tuple(args.push_dv), stall_at=args.stall_at,
+                          measure_from=args.measure_from)  # fmt: skip
     extra = [*args.runtime_args, *(["--realtime"] if args.realtime else [])]
     if args.log:
         args.log.parent.mkdir(parents=True, exist_ok=True)
