@@ -1088,7 +1088,7 @@ policy.onnx sha256: fd220aaa52439603bdf0bead51187b0dd5b2b6a42813b39a515ecac39a55
 ---
 
 ## MAC-27 — Microduck: mirror loss against the curving gait (WP3-16, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-26 done (its `model_15000.pt`)
+Status: `done (mac-m5, 2026-11-19): G3.3 not met (0.2 -> 63 %)` · Deps: MAC-26 done (its `model_15000.pt`)
 
 MAC-26 (mac-m5): the speed-relative kernel made the policy step at slow commands for
 the first time. It reached 0.091–0.099 at 0.2 (48 %) and walked backward at 0.15.
@@ -1117,12 +1117,27 @@ last good checkpoint. Commit the JSONs under `docs/experiments/mac27/`.
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). Also record
 |wz| at 0.2 / 0.3 / 0.4 against MAC-26's 0.16–0.19.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met but close (0.2 -> 62-64 %); the curve is gone
 ```
-revision:
-wall time; loss_symmetry first -> last; training falls trend:
+revision: 6c04cbe (main), git_dirty false; resumed from mac26-seed0/model_15000.pt
+  (it 15000 -> 17000), MAC-26 flags + --symmetry loss --mirror-loss-coeff 0.5,
+  8 workers; a VM used ~6-7 cores
+wall time; loss_symmetry first -> last; training falls trend: 2746 s (46 min);
+  loss_symmetry 0.0203 -> 0.0117 (250-it means); falls/it 1.05-1.45 (250-it means),
+  200-it mean never above 1.5 (no stop); air_time ~0.018; tracking ~0.017; reward
+  0.026 -> 0.024
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
-G1.3 (BAM) verdict:
+  vx 0.0005 / 0.127 / 0.200 / 0.274, backward_0.3 -0.182 (MAC-26: 0.0003 / 0.097 /
+  0.110 / 0.116, -0.210; MAC-24: 0.193 / 0.260 at 0.3 / 0.4);
+  dy +0.17 / -0.01 / -0.18 m, wz -0.002 / -0.020 / -0.018
+  (MAC-26: |wz| 0.16 / 0.17 / 0.19, dy -1.10 / -1.80 / -2.24);
+  backward_0.3 dy +0.79, wz -0.14; lateral_0.3 dy +0.49; turn_1.0 wz 0.003 (still lost);
+  eval_velocity_env 0.4: vx 0.292 / 0.282, 0 falls
+G1.3 (BAM) verdict: not met, but close. walk_forward_0.2 vx 0.124-0.127 (62-64 %, needs
+  >= 0.14), |wz| 0.002; walk_backward_0.15 vx -0.123 (82 %); turn_left_0.5 ~0;
+  stand_still fine; 0 falls. The mirror loss removed the forward curve and brought
+  0.3 / 0.4 back above MAC-24; turning (0.5 and 1.0) is the part still missing.
+policy.onnx sha256: f62cbb0b26a603ae3e5f2f2a512d23761a628b75cdc1d8b55f5aaa88c6dd937f
 ```
 
 ---
