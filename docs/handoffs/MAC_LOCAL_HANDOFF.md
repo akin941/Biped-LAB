@@ -1244,7 +1244,7 @@ verdict:
 ---
 
 ## MAC-30 — Microduck: why turning was lost, a reward check (WP3-18, diagnostic)
-Status: `awaiting-mac` · Deps: MAC-29 done; the MAC-24 `policy.onnx` (run it after MAC-29)
+Status: `done (mac-m5, 2026-11-19): verdict (b)` · Deps: MAC-29 done; the MAC-24 `policy.onnx` (run it after MAC-29)
 
 MAC-24 turned at 1.0 rad/s (wz 0.965) on BAM. Every policy since MAC-26 stands still at
 turn-only commands (0.5 and 1.0 give ≈ 0). There are two possible causes. (a) The current
@@ -1271,11 +1271,33 @@ and the `track_angular_velocity`, `track_linear_velocity`, `upright` and `pose` 
 (noise off). The verdict is (a) if MAC-24's turning earns less `reward_per_step` at
 turn 1.0 than the standing policies, and (b) otherwise.
 
-Result:
+Result (env: mac-m5, 2026-11-19): verdict (b), turning still pays; the policies forgot it
 ```
-revision:
-turn 1.0 / turn 0.5 / fwd 0.2 / zero, per policy:
-verdict (a) or (b):
+revision: 70b875d (main), git_dirty false; eval only, BAM, 8 envs x 10 s, reward flags
+  --track-lin-std2 0.05 --posture-gate --track-lin-ref-speed 0.4; noise off below
+turn 1.0 / turn 0.5 / fwd 0.2 / zero, per policy (wz, vx, falls, reward/step |
+  track_ang, track_lin, upright, pose):
+  MAC-24 policy.onnx:
+    turn 1.0  wz 0.880 vx 0.011 0  0.1064 | 0.0267 0.0316 0.0214 0.0066
+    turn 0.5  wz 0.002 vx 0.000 0  0.1159 | 0.0250 0.0399 0.0247 0.0114
+    fwd 0.2   wz -0.001 vx 0.000 0 0.0317 | 0.0398 0.0017 0.0017 0.0008
+    zero      wz 0.001 vx 0.000 0  0.1657 | 0.0399 0.0399 0.0399 0.0172
+  MAC-28 model_17300:
+    turn 1.0  wz 0.003 vx 0.000 0  0.0520 | 0.0070 0.0399 0.0069 0.0022
+    turn 0.5  wz 0.004 vx 0.000 0  0.1120 | 0.0249 0.0399 0.0248 0.0089
+    fwd 0.2   wz -0.007 vx 0.165 0 0.0651 | 0.0261 0.0116 0.0081 0.0005
+    zero      wz -0.001 vx 0.000 0 0.1565 | 0.0398 0.0399 0.0398 0.0106
+  MAC-29 model_17600:
+    turn 1.0  wz 0.005 vx 0.000 0  0.0475 | 0.0074 0.0399 0.0067 0.0023
+    turn 0.5  wz 0.002 vx 0.000 0  0.1142 | 0.0249 0.0399 0.0246 0.0114
+    fwd 0.2   wz -0.050 vx 0.140 0 0.0677 | 0.0304 0.0106 0.0075 0.0002
+    zero      wz -0.001 vx 0.000 0 0.1626 | 0.0399 0.0399 0.0400 0.0158
+verdict (a) or (b): (b). At turn 1.0 MAC-24's turning (wz 0.88) earns 0.106 reward/step under
+  the current reward, about 2x the standing policies (0.052 / 0.048); its yaw term is 4x
+  theirs and the gated upright term 3x. Turning pays more, so this is an optimisation
+  problem (forgotten), not reward design. Caveat: at turn 0.5 all three, MAC-24 too,
+  stand, and standing still keeps 62 % of the yaw term (0.025 of 0.040) and about 0.11-0.12
+  reward/step, so 0.5 has little pressure under the current yaw kernel.
 ```
 
 ---
