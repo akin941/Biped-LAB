@@ -32,7 +32,7 @@ from typing import Any
 import mujoco
 import numpy as np
 
-from bipedlab.design import biped
+from bipedlab.design import actuators, biped
 
 MAGIC = b"BPLB"
 VERSION = 2
@@ -176,6 +176,10 @@ class BridgeConfig:
     action_timeout_s: float = 5.0
     record: bool = False  # keep every state sent and action received in out["trace"]
     measure_from: float = 2.0  # s, start of the window for the walking metrics (WP4-20)
+    # Servo model (WP4-30): force limit override (N*m) and DC-motor torque-speed curve
+    # (no-load speed, rad/s), as in BipedVelocityEnv. None keeps the ideal 0.52 N*m.
+    torque_limit: float | None = None
+    motor_no_load_speed: float | None = None
 
 
 class SimBridge:
@@ -191,6 +195,13 @@ class SimBridge:
         self.upper = m.jnt_range[self.joints, 1].copy()
         self.default = m.key_ctrl[0].copy()
         self.kp = m.actuator_gainprm[:, 0].copy()
+        if self.cfg.torque_limit is not None:
+            if self.cfg.torque_limit <= 0:
+                raise ValueError("torque_limit must be > 0")
+            m.actuator_forcerange[:] = [-self.cfg.torque_limit, self.cfg.torque_limit]
+            m.actuator_forcelimited[:] = 1
+        if self.cfg.motor_no_load_speed is not None and self.cfg.motor_no_load_speed <= 0:
+            raise ValueError("motor_no_load_speed must be > 0")
         self.torque_limit = m.actuator_forcerange[:, 1].copy()
         self.substeps = round(self.cfg.control_dt / m.opt.timestep)
         if not math.isclose(self.substeps * m.opt.timestep, self.cfg.control_dt):
@@ -294,6 +305,11 @@ class SimBridge:
                 d.qvel[0:3] += cfg.push_dv
                 pushed = True
             for _ in range(self.substeps):
+                if cfg.motor_no_load_speed is not None:
+                    lo, hi = actuators.motor_force_range(
+                        self.torque_limit, d.qvel[self.vadr], cfg.motor_no_load_speed
+                    )
+                    m.actuator_forcerange[:, 0], m.actuator_forcerange[:, 1] = lo, hi
                 mujoco.mj_step(m, d)
             if d.time >= cfg.measure_from - 1e-9:
                 if start_xy is None:

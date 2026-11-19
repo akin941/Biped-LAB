@@ -16,6 +16,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+import numpy as np
+
 RPM = 2 * math.pi / 60
 MARGIN = 2.0
 
@@ -107,3 +109,16 @@ def fit(c: Candidate, r: Requirement) -> dict[str, float | bool]:
         "rms_over_stall": r.rms_torque / c.stall_torque,
         "passes": torque_margin >= MARGIN and speed_margin >= MARGIN and loaded >= r.peak_speed,
     }
+
+
+def motor_force_range(
+    stall: np.ndarray, joint_speed: np.ndarray, no_load_speed: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """DC-motor force range (lower, upper) at the given joint speeds (WP4-28).
+
+    Driving along the motion is capped at stall * (1 - |w| / w0), down to 0 at the
+    no-load speed w0; braking against the motion keeps the full stall limit.
+    """
+    w = joint_speed / no_load_speed
+    drive = stall * np.clip(1.0 - np.abs(w), 0.0, 1.0)
+    return -np.where(w < 0, drive, stall), np.where(w > 0, drive, stall)

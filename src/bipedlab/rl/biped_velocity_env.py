@@ -56,7 +56,7 @@ import mujoco
 import numpy as np
 
 from bipedlab import REPO_ROOT
-from bipedlab.design import biped
+from bipedlab.design import actuators, biped
 from bipedlab.rl.velocity_env import axis_angle_matrix, rotate, rotate_inverse, stage_value
 
 DEFAULT_SCENE = REPO_ROOT / "simulation/custom-biped/biped_v1.xml"
@@ -518,11 +518,11 @@ class BipedVelocityEnv:
     def _motor_limits(self, d: mujoco.MjData) -> None:
         """Set this physics step's force range from the joint speeds (WP4-28)."""
         assert self.motor_no_load_speed is not None
-        w = d.qvel[self.actuator_dof] / self.motor_no_load_speed
-        drive = self.stall_torque * np.clip(1.0 - np.abs(w), 0.0, 1.0)
-        fr = self.model.actuator_forcerange
-        fr[:, 1] = np.where(w > 0, drive, self.stall_torque)
-        fr[:, 0] = -np.where(w < 0, drive, self.stall_torque)
+        lo, hi = actuators.motor_force_range(
+            self.stall_torque, d.qvel[self.actuator_dof], self.motor_no_load_speed
+        )
+        self.model.actuator_forcerange[:, 0] = lo
+        self.model.actuator_forcerange[:, 1] = hi
 
     def step(self, actions: np.ndarray) -> BipedStepResult:
         actions = np.asarray(actions, dtype=np.float32)
