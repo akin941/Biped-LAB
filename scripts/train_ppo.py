@@ -232,6 +232,12 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     env_cls: type
     if biped_v1:
         scene, env_cls, act_dim = bve.DEFAULT_SCENE, bve.BipedVelocityEnv, bve.ACT_DIM
+        if args.dr_delay_max is not None:
+            kwargs["dr_delay_max"] = args.dr_delay_max
+        if args.dr_friction is not None:
+            kwargs["dr_foot_friction"] = tuple(args.dr_friction)
+    elif args.dr_delay_max is not None or args.dr_friction is not None:
+        raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
         scene = upstream.microduck_scene("scene_walk.xml")
         env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
@@ -275,6 +281,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "actuator": args.actuator,
         "dr": args.dr,
         "init_std": args.init_std,
+        "dr_delay_max": args.dr_delay_max,
+        "dr_friction": args.dr_friction,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -295,6 +303,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--actuator", choices=["mjcf", "bam"], default="mjcf")
     parser.add_argument("--dr", action="store_true", help="domain randomization on")
+    parser.add_argument(
+        "--dr-delay-max", type=int, default=None,
+        help="biped_v1 DR action delay 0..N periods (default 2; 0 = off, WP4-18 ablation)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--dr-friction", type=float, nargs=2, default=None, metavar=("LO", "HI"),
+        help="biped_v1 DR foot friction range (default 0.7 1.3)",
+    )  # fmt: skip
     parser.add_argument(
         "--init-std",
         type=float,

@@ -169,6 +169,9 @@ class BipedVelocityEnv:
     dr: bool = False
     target_slew: float | None = TARGET_SLEW
     action_delay: int = 0
+    # DR ablation knobs (WP4-18): extra DR delay range and foot friction range.
+    dr_delay_max: int = DR_ACTION_DELAY_MAX
+    dr_foot_friction: tuple[float, float] = FOOT_FRICTION
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -176,8 +179,8 @@ class BipedVelocityEnv:
         n = self.num_envs
         if n < 1:
             raise ValueError("num_envs must be at least 1")
-        if self.action_delay < 0:
-            raise ValueError("action_delay must be >= 0")
+        if self.action_delay < 0 or self.dr_delay_max < 0:
+            raise ValueError("action_delay and dr_delay_max must be >= 0")
         m = mujoco.MjModel.from_xml_path(str(self.scene))
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
@@ -194,7 +197,7 @@ class BipedVelocityEnv:
         self.episode_steps = z(n, dtype=np.int64)
         self.last_action = z((n, ACT_DIM), dtype=np.float32)
         self.last_target = np.tile(self.default_pose, (n, 1))
-        max_delay = self.action_delay + (DR_ACTION_DELAY_MAX if self.dr else 0)
+        max_delay = self.action_delay + (self.dr_delay_max if self.dr else 0)
         # history[k] = the action produced k periods ago (0 = this period).
         self.action_history = z((max_delay + 1, n, ACT_DIM), dtype=np.float32)
         self.delay = np.full(n, self.action_delay, dtype=np.int64)
@@ -265,7 +268,7 @@ class BipedVelocityEnv:
         self.armature_scale = np.ones((n, len(self.hinge_dofs)))
         self.push_left = np.zeros(n)
         for i, rng in enumerate(self._dr_rngs):
-            self.foot_friction[i] = rng.uniform(*FOOT_FRICTION)
+            self.foot_friction[i] = rng.uniform(*self.dr_foot_friction)
             self.encoder_bias[i] = rng.uniform(-ENCODER_BIAS, ENCODER_BIAS, ACT_DIM)
             self.mass_scale[i] = rng.uniform(*MASS_SCALE)
             axis = rng.normal(size=3)
@@ -362,7 +365,7 @@ class BipedVelocityEnv:
         self.action_history[:, i] = 0.0
         self.delay[i] = self.action_delay
         if self.dr:
-            self.delay[i] += int(self._delay_rngs[i].integers(0, DR_ACTION_DELAY_MAX + 1))
+            self.delay[i] += int(self._delay_rngs[i].integers(0, self.dr_delay_max + 1))
         self.air_time[i] = 0.0
         if self._frozen is None:
             self._sample_twist(i)
