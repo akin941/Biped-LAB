@@ -847,5 +847,42 @@ notes:
 
 ---
 
+## MAC-23 — biped_v1: mirror-symmetry training against the yaw drift (WP4-23)
+Status: `awaiting-mac` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
+
+MAC-19 and MAC-21 show that the yaw kernel alone only trades one error for another:
+std² 0.1 kills turning, std² 0.25 halves the drift but flips it to the left (+0.10 rad/s
+with DR off). biped_v1 is mirror-symmetric, so the policy should be too. MAC-23 repeats
+MAC-21 (std² 0.25, resumed from MAC-14) and adds `--symmetry aug`: rsl-rl trains on a
+left/right mirrored copy of every sample (`bipedlab.rl.biped_symmetry`), so a drift in
+one direction is paid for by the mirrored drift in the other. The only change versus
+MAC-21 is the symmetry flag. The mirror maps were checked in the cloud against a
+physically mirrored MuJoCo state (`tests/unit/test_biped_symmetry.py`).
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry aug \
+    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac23 --save-every 100 \
+    --out runs/mac23/report.json
+uv run python scripts/eval_biped.py runs/mac23/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac23/eval.json
+```
+Then run the MAC-16-style runtime check at 0.15 and 0.25. Augmentation doubles the PPO
+batch, so expect roughly 1.5–2× the MAC-21 wall time (444 s).
+
+**Acceptance (same rows as MAC-21):** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on;
+|wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
+of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
+
+Result:
+```
+revision:
+vx / wz at 0.15, 0.25 (DR off / on):
+zero command wz, turn 0.8 wz (DR off / on):
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+verdict vs MAC-14 and MAC-21:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

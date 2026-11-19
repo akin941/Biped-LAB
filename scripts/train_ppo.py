@@ -82,7 +82,13 @@ class Recorder:
             self._knee = []
 
 
-def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM, init_std: float = 1.0) -> Any:
+def make_runner(
+    env: Any,
+    rec: Recorder,
+    act_dim: int = mp.ACT_DIM,
+    init_std: float = 1.0,
+    symmetry: str | None = None,
+) -> Any:
     from rsl_rl.env import VecEnv
     from rsl_rl.runners import OnPolicyRunner
     from tensordict import TensorDict
@@ -150,10 +156,24 @@ def make_runner(env: Any, rec: Recorder, act_dim: int = mp.ACT_DIM, init_std: fl
             "desired_kl": 0.01,
             "max_grad_norm": 1.0,
             "rnd_cfg": None,
-            "symmetry_cfg": None,
+            "symmetry_cfg": symmetry_cfg(symmetry),
         },
     }
     return OnPolicyRunner(Adapter(), cfg, log_dir=None, device="cpu")
+
+
+def symmetry_cfg(mode: str | None) -> dict[str, Any] | None:
+    """biped_v1 left/right mirror (WP4-23): "aug" data augmentation, "loss" mirror loss."""
+    if mode is None:
+        return None
+    from bipedlab.rl import biped_symmetry
+
+    return {
+        "use_data_augmentation": mode in ("aug", "both"),
+        "use_mirror_loss": mode in ("loss", "both"),
+        "mirror_loss_coeff": 1.0,
+        "data_augmentation_func": biped_symmetry.data_augmentation,
+    }
 
 
 def save_checkpoint(
@@ -223,6 +243,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("biped_v1 has MJCF position actuators only")
     if biped_v1 and args.track_lin_std2 is not None:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
+    if not biped_v1 and args.symmetry is not None:
+        raise SystemExit("--symmetry is a biped_v1 option")
     if biped_v1 and args.posture_gate:
         raise SystemExit("--posture-gate is a Microduck option")
     if biped_v1 and args.forward_min_vx is not None:
@@ -268,7 +290,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     try:
         if args.init_std is None:
             args.init_std = BIPED_INIT_STD if biped_v1 else 1.0
-        runner = make_runner(env, rec, act_dim, args.init_std)
+        runner = make_runner(env, rec, act_dim, args.init_std, args.symmetry)
         if args.resume:
             runner.load(str(args.resume))
         done = 0
@@ -303,6 +325,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "track_yaw_std2": args.track_yaw_std2,
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
+        "symmetry": args.symmetry,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -334,6 +357,10 @@ def main() -> None:
     parser.add_argument(
         "--track-lin-std2", type=float, default=None,
         help="Microduck linear tracking kernel std^2 (default 0.1, upstream; WP3-12)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--symmetry", choices=("aug", "loss", "both"), default=None,
+        help="biped_v1 left/right mirror: data augmentation, mirror loss or both (WP4-23)",
     )  # fmt: skip
     parser.add_argument(
         "--posture-gate", action="store_true",
