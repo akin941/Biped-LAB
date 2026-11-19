@@ -782,5 +782,44 @@ verdict vs MAC-14:
 
 ---
 
+## MAC-22 — Microduck: posture gate on BAM (WP3-14, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-17 done (its `model_8000.pt`), MAC-20 done, WP3-14 merged
+
+MAC-20 (mac-m5): spreading the forward commands down to 0.1 m/s raised the threshold.
+The policy now also stands at 0.3 and walks only at 0.4. Slow commands taught it to
+stand, because standing keeps the full upright, pose and head pose rewards, and those
+outweigh the tracking gain from stepping. `--posture-gate` scales those three terms by
+the tracking kernels whenever the command is nonzero, so standing at 0.2 m/s
+(std² 0.05) keeps only 45 % of them. Continue from MAC-17 (not MAC-20) for 2000
+iterations with the gate, std² 0.05 and the forward floor at 0.1, from a clean worktree
+of origin/main, using the absolute checkpoint path. Run it after MAC-21, under
+`caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --resume <mac17>/runs/mac17-seed0/model_8000.pt --run-dir runs/mac22-seed0 \
+    --save-every 100 --out runs/mac22-seed0/report.json
+```
+Then run the same evals as MAC-20: eval_velocity_env at 0.4, G1.3 (BAM), and the
+forward sweep at 0.1 / 0.3 / 0.4 with `displacement_y_m`. Watch `upright` and the falls
+in the training history. If falls rise above MAC-17's, stop at that checkpoint and
+record it. Commit the JSONs under `docs/experiments/mac22/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If only the threshold moves, record
+the new sweep.
+
+Result:
+```
+revision:
+wall time:
+reward first -> last quarter, air_time and upright trend, training falls:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
+g1-3.json (stand, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
