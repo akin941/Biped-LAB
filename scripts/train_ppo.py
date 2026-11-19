@@ -282,8 +282,10 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and args.track_yaw_std2 is not None:
         raise SystemExit("--track-yaw-std2 is a biped_v1 option")
-    if not biped_v1 and args.torque_limit is not None:
-        raise SystemExit("--torque-limit is a biped_v1 option")
+    if not biped_v1 and (args.torque_limit is not None or args.motor_no_load_speed is not None):
+        raise SystemExit("--torque-limit / --motor-no-load-speed are biped_v1 options")
+    if args.motor_no_load_speed is not None and args.motor_no_load_speed <= 0:
+        raise SystemExit("--motor-no-load-speed must be > 0")
     if args.torque_limit is not None and args.torque_limit <= 0:
         raise SystemExit("--torque-limit must be > 0")
     resume: dict[str, Any] | None = None
@@ -305,6 +307,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["track_yaw_std2"] = args.track_yaw_std2
         if args.torque_limit is not None:
             kwargs["torque_limit"] = args.torque_limit
+        if args.motor_no_load_speed is not None:
+            kwargs["motor_no_load_speed"] = args.motor_no_load_speed
     elif args.dr_delay_max is not None or args.dr_friction is not None:
         raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
@@ -370,6 +374,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "track_lin_std2": args.track_lin_std2,
         "track_yaw_std2": args.track_yaw_std2,
         "torque_limit": args.torque_limit,
+        "motor_no_load_speed": args.motor_no_load_speed,
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
         "track_lin_ref_speed": args.track_lin_ref_speed,
@@ -449,6 +454,10 @@ def main() -> None:
     parser.add_argument(
         "--torque-limit", type=float, default=None,
         help="biped_v1 actuator force limit in N*m (default: the model's 0.52; WP4-26)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--motor-no-load-speed", type=float, default=None,
+        help="biped_v1 DC-motor no-load speed in rad/s: torque-speed curve on (WP4-28)",
     )  # fmt: skip
     parser.add_argument(
         "--init-std",

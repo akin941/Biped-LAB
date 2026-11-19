@@ -287,3 +287,22 @@ def test_torque_limit_override():
     assert np.allclose(bve.BipedVelocityEnv(num_envs=1).model.actuator_forcerange[:, 1], 0.52)
     with pytest.raises(ValueError):
         bve.BipedVelocityEnv(num_envs=1, torque_limit=0.0)
+
+
+def test_motor_curve_limits_force_along_the_motion():
+    # WP4-28: driving along the motion is capped by stall * (1 - |w| / w0); braking is not.
+    env = bve.BipedVelocityEnv(num_envs=1, torque_limit=1.0, motor_no_load_speed=10.0)
+    d = env.datas[0]
+    d.qvel[env.actuator_dof] = np.linspace(-15.0, 15.0, bve.ACT_DIM)
+    env._motor_limits(d)
+    w = d.qvel[env.actuator_dof] / 10.0
+    hi, lo = env.model.actuator_forcerange[:, 1], env.model.actuator_forcerange[:, 0]
+    assert np.allclose(hi, np.where(w > 0, np.clip(1 - np.abs(w), 0, 1), 1.0))
+    assert np.allclose(lo, -np.where(w < 0, np.clip(1 - np.abs(w), 0, 1), 1.0))
+    # A curve run still stands at zero action, and reports the stall limit.
+    env = bve.BipedVelocityEnv(num_envs=1, motor_no_load_speed=10.0)
+    for _ in range(50):
+        out = env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert not out.terminated.any() and np.allclose(env.stall_torque, 0.52)
+    with pytest.raises(ValueError):
+        bve.BipedVelocityEnv(num_envs=1, motor_no_load_speed=0.0)

@@ -183,6 +183,10 @@ class BipedVelocityEnv:
     # Actuator force limit override (N*m, WP4-26). None keeps the model's forcerange
     # (the XL330-class 0.52); MAC-35 saw hip roll/pitch and knee sit on that clip.
     torque_limit: float | None = None
+    # DC-motor torque-speed curve (WP4-28): with a no-load speed w0 (rad/s) the force a
+    # joint can push along its motion falls linearly from the stall (force) limit at
+    # rest to 0 at w0; braking against the motion keeps the full limit. None = ideal.
+    motor_no_load_speed: float | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -204,7 +208,11 @@ class BipedVelocityEnv:
                 raise ValueError("torque_limit must be > 0")
             m.actuator_forcerange[:] = [-self.torque_limit, self.torque_limit]
             m.actuator_forcelimited[:] = 1
+        if self.motor_no_load_speed is not None and self.motor_no_load_speed <= 0:
+            raise ValueError("motor_no_load_speed must be > 0")
         self.model = m
+        self.stall_torque = m.actuator_forcerange[:, 1].copy()
+        self.actuator_dof = m.jnt_dofadr[m.actuator_trnid[:, 0]].astype(int)
         self._ids(m)
         self.datas = [mujoco.MjData(m) for _ in range(n)]
         self.max_episode_steps = round(self.episode_s / STEP_DT)
@@ -507,6 +515,15 @@ class BipedVelocityEnv:
         weights["action_rate_l2"] = stage_value(ACTION_RATE_STAGES, self.common_step)
         return {k: (weights[k] * v * STEP_DT).astype(np.float32) for k, v in values.items()}
 
+    def _motor_limits(self, d: mujoco.MjData) -> None:
+        """Set this physics step's force range from the joint speeds (WP4-28)."""
+        assert self.motor_no_load_speed is not None
+        w = d.qvel[self.actuator_dof] / self.motor_no_load_speed
+        drive = self.stall_torque * np.clip(1.0 - np.abs(w), 0.0, 1.0)
+        fr = self.model.actuator_forcerange
+        fr[:, 1] = np.where(w > 0, drive, self.stall_torque)
+        fr[:, 0] = -np.where(w < 0, drive, self.stall_torque)
+
     def step(self, actions: np.ndarray) -> BipedStepResult:
         actions = np.asarray(actions, dtype=np.float32)
         if actions.shape != (self.num_envs, ACT_DIM):
@@ -529,7 +546,12 @@ class BipedVelocityEnv:
         for i, d in enumerate(self.datas):
             self._apply_physics(i)
             d.ctrl[:] = targets[i]
-            mujoco.mj_step(self.model, d, nstep=DECIMATION)
+            if self.motor_no_load_speed is None:
+                mujoco.mj_step(self.model, d, nstep=DECIMATION)
+            else:
+                for _ in range(DECIMATION):
+                    self._motor_limits(d)
+                    mujoco.mj_step(self.model, d)
         self.episode_steps += 1
         self.common_step += 1
         s = self._state()

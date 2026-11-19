@@ -1708,5 +1708,51 @@ verdict: no joint reaches the 1.5 limit in either step, so the requirements are 
 
 ---
 
+## MAC-37 — biped_v1: walk with a real servo's torque-speed curve (WP4-28, input to WP4-05)
+Status: `awaiting-mac` · Deps: MAC-36 done, MAC-25 done (its `runs/mac25/model_4000.pt`)
+
+MAC-36 (mac-m5) measured the gait's demand. WP4-27 (cloud) then found that no surveyed
+servo passes hip pitch or knee: they move at p95 ≈ 7 rad/s, and the policy was trained
+with an ideal actuator. `--motor-no-load-speed` (env, `train_ppo.py`, `eval_biped.py`)
+adds a DC-motor curve. The force along the motion falls from the stall limit at rest
+to 0 at the no-load speed, while braking keeps the full limit. Fine-tune MAC-25 with
+two real candidates (datasheet values in `bipedlab.design.actuators`), 1000 iterations
+each, one after the other. Use a clean worktree of origin/main, absolute paths, and
+`caffeinate -i nohup`.
+- A: XC330-M288-T @ 6 V, `--torque-limit 1.10 --motor-no-load-speed 10.2`
+- B: STS3215 @ 7.4 V, `--torque-limit 1.91 --motor-no-load-speed 5.45`
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \
+    --torque-limit <A/B> --motor-no-load-speed <A/B> \
+    --resume <mac25>/runs/mac25/model_4000.pt --run-dir runs/mac37-<a|b> \
+    --save-every 100 --out runs/mac37-<a|b>/report.json
+uv run python scripts/eval_biped.py runs/mac37-<a|b>/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --torque-limit <A/B> --motor-no-load-speed <A/B> \
+    --out runs/mac37-<a|b>/eval.json
+```
+Keep the falls rule (stop when the falls pass 1.0 per iteration for 100 iterations, then
+score the last good checkpoint). Before training, also score MAC-25 itself with each
+curve (eval only, same flags) as the "no adaptation" baseline. Commit report/run/eval
+JSONs under `docs/experiments/mac37/`, with each policy.onnx sha256.
+
+**Acceptance (WP4-28):** for each candidate, say whether the fine-tune meets the MAC-25
+rows under its curve: 0.15 / 0.25 walking with DR off and on, |wz| ≤ 0.08, 40 ms ≥ 80 %
+of vx, 0 falls. Report the sizing table and the 2× check. A joint passes when its
+torque_max ≤ stall / 2 and its speed_p95 ≤ no-load / 2. MAC-25 stays the reference
+unless one of these walks and passes more joints.
+
+Result:
+```
+revision:
+baselines (MAC-25 under A / B curve; walks? falls?):
+A: wall time; falls rule fired?; MAC-25 rows; sizing table; 2x pass per joint:
+B: wall time; falls rule fired?; MAC-25 rows; sizing table; 2x pass per joint:
+policy.onnx sha256 A / B:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

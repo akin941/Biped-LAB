@@ -74,3 +74,11 @@ def test_torque_limit_override_and_clip_flag():
     walking["joints"]["knee"]["torque_max"] = 0.52
     sizing = eval_biped.sizing_summary([walking])["joints"]
     assert sizing["knee"]["at_torque_limit"] and not sizing["hip_yaw"]["at_torque_limit"]
+
+
+def test_motor_curve_case_records_its_settings():
+    case = eval_biped.run_case(
+        None, (0.15, 0.0, 0.0), 1, 3.0, 0, False, torque_limit=1.1, motor_no_load_speed=10.2
+    )
+    assert case["torque_limit"] == 1.1 and case["motor_no_load_speed"] == 10.2
+    assert case["falls"] == 0
