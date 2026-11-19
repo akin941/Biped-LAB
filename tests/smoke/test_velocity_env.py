@@ -317,3 +317,21 @@ def test_speed_relative_kernel_makes_standing_cost_the_same(scene):
     assert rel[0] <= 2 * rel[1]  # standing at 0.2 no longer pays more than at 0.4
     with pytest.raises(ValueError):
         MicroduckVelocityEnv(scene, num_envs=1, track_lin_ref_speed=0.0)
+
+
+def test_speed_relative_yaw_kernel_makes_standing_cost_the_same(scene):
+    # WP3-17: the yaw kernel, like the linear one in WP3-15.
+    def standing_yaw(wz, **kw):
+        env = MicroduckVelocityEnv(scene, num_envs=1, noise=False, **kw)
+        env.freeze_commands(np.array([0.0, 0.0, wz]))
+        out = env.step(np.zeros((1, mp.ACT_DIM), dtype=np.float32))
+        return float(out.terms["track_angular_velocity"][0])
+
+    fixed = [standing_yaw(w) for w in (0.5, 1.0)]
+    rel = [standing_yaw(w, track_ang_ref_speed=1.0) for w in (0.5, 1.0)]
+    assert fixed[0] > 3 * fixed[1]
+    np.testing.assert_allclose(rel[1], fixed[1], rtol=1e-6)
+    assert rel[0] <= 2 * rel[1]
+    np.testing.assert_allclose(standing_yaw(0.0, track_ang_ref_speed=1.0), standing_yaw(0.0))
+    with pytest.raises(ValueError):
+        MicroduckVelocityEnv(scene, num_envs=1, track_ang_ref_speed=0.0)

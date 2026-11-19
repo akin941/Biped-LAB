@@ -271,6 +271,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--posture-gate is a Microduck option")
     if biped_v1 and args.track_lin_ref_speed is not None:
         raise SystemExit("--track-lin-ref-speed is a Microduck option")
+    if biped_v1 and args.track_ang_ref_speed is not None:
+        raise SystemExit("--track-ang-ref-speed is a Microduck option")
     if biped_v1 and args.forward_min_vx is not None:
         raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and args.track_yaw_std2 is not None:
@@ -303,6 +305,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["posture_gate"] = True
         if args.track_lin_ref_speed is not None:
             kwargs["track_lin_ref_speed"] = args.track_lin_ref_speed
+        if args.track_ang_ref_speed is not None:
+            kwargs["track_ang_ref_speed"] = args.track_ang_ref_speed
         scene = upstream.microduck_scene("scene_walk.xml")
         env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
         kwargs["actuator"] = args.actuator
@@ -354,6 +358,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
         "track_lin_ref_speed": args.track_lin_ref_speed,
+        "track_ang_ref_speed": args.track_ang_ref_speed,
         "symmetry": args.symmetry,
         "mirror_loss_coeff": args.mirror_loss_coeff if args.symmetry else None,
         "iterations": len(rec.rows),
@@ -403,6 +408,10 @@ def main() -> None:
     parser.add_argument(
         "--track-lin-ref-speed", type=float, default=None,
         help="Microduck: shrink the linear kernel width below this command speed (WP3-15)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--track-ang-ref-speed", type=float, default=None,
+        help="Microduck: shrink the yaw kernel width below this yaw-rate command (WP3-17)",
     )  # fmt: skip
     parser.add_argument(
         "--forward-min-vx", type=float, default=None,

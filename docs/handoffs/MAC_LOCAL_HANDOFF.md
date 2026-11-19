@@ -1142,5 +1142,43 @@ policy.onnx sha256: f62cbb0b26a603ae3e5f2f2a512d23761a628b75cdc1d8b55f5aaa88c6dd
 
 ---
 
+## MAC-28 — Microduck: speed-relative yaw kernel to bring turning back (WP3-17, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-27 done (its `model_17000.pt`)
+
+MAC-27 (mac-m5): the mirror loss removed the curve. 0.2 reached 0.124–0.127 (63 %, and 70 %
+is needed), and 0.3 / 0.4 gave 0.200 / 0.274. Turning is still lost: 0.5 and 1.0 give
+≈ 0. The yaw kernel has a fixed std² of 0.5, so standing still keeps 61 % of the yaw
+reward at a 0.5 rad/s turn and 14 % at 1.0. `--track-ang-ref-speed` (WP3-17) scales the
+yaw width the same way WP3-15 scales the linear one, std² × clip(|wz_cmd| / ref, 0.25, 1)².
+With ref 1.0, standing costs the same share at every turn rate. The cloud smoke test
+checks this. Continue MAC-27 with the same flags plus `--track-ang-ref-speed 1.0`. Use
+a clean worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 0.5 \
+    --track-ang-ref-speed 1.0 \
+    --resume <mac27>/runs/mac27-seed0/model_17000.pt --run-dir runs/mac28-seed0 \
+    --save-every 100 --out runs/mac28-seed0/report.json
+```
+Then run the MAC-27 evals: eval_velocity_env at 0.4, G1.3 (BAM), and the sweep at
+0.1 / 0.2 / 0.3 / 0.4, backward 0.3, lateral 0.3 and turn 1.0, with dy and the yaw rate.
+If training falls stay above 1.5 per iteration for 200 iterations after the first 100,
+stop and evaluate the last good checkpoint. Commit the JSONs under `docs/experiments/mac28/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). Also record the
+turn_left_0.5 and turn_1.0 yaw rates, and check that 0.3 / 0.4 and |wz| at 0.2–0.4 stay
+at the MAC-27 level.
+
+Result:
+```
+revision:
+wall time; loss_symmetry; training falls trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4; turn 1.0 wz:
+G1.3 (BAM) verdict (incl. turn_left_0.5 wz):
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
