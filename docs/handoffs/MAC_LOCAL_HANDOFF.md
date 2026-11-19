@@ -809,7 +809,7 @@ verdict vs MAC-14 (acceptance rows):
 ---
 
 ## MAC-22 — Microduck: posture gate on BAM (WP3-14, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-17 done (its `model_8000.pt`), MAC-20 done, WP3-14 merged
+Status: `done (mac-m5, 2026-11-19): G3.3 not met, threshold lowered` · Deps: MAC-17 done (its `model_8000.pt`), MAC-20 done, WP3-14 merged
 
 MAC-20 (mac-m5): spreading the forward commands down to 0.1 m/s raised the threshold.
 The policy now also stands at 0.3 and walks only at 0.4. Slow commands taught it to
@@ -834,15 +834,30 @@ record it. Commit the JSONs under `docs/experiments/mac22/`.
 **Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If only the threshold moves, record
 the new sweep.
 
-Result:
+Result (env: mac-m5, 2026-11-19): G3.3 NOT met, but the gate breaks the standing optimum
 ```
-revision:
-wall time:
+revision: 8c701c2 (main), git_dirty false; resumed from mac17-seed0/model_8000.pt
+  (it 8000 -> 10000), --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate,
+  8 workers, load avg 7-17
+wall time: 1890 s (32 min)
 reward first -> last quarter, air_time and upright trend, training falls:
+  reward 0.0409 -> 0.0376 (did not rise; the gated terms shrink the reward scale);
+  air_time 0.0149 -> 0.0159; upright 0.0133 -> 0.0137 (gated); track_linear_velocity
+  0.0222 -> 0.0232; falls/it (400-it means) 1.97 -> 1.51 -> 1.41 -> 1.18 -> 1.18
+  (MAC-17: 1.48 first 100 it, 1.30 last 500), so no early stop
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM), displacement_y at 0.3 / 0.4:
-g1-3.json (stand, vx at 0.2 command, falls):
-policy.onnx sha256:
-notes:
+  vx 0.0005 / 0.061 / 0.219 / 0.120; dy +0.549 / +2.176 m in 10 s
+  (MAC-20: 0.0002 / 0.0002 / 0.0002 / 0.170); backward_0.3 vx -0.150 (dy +0.26),
+  lateral_0.3 and turn_1.0 ~0
+eval.json (0.4 cmd): vx 0.311 / 0.301 (noise on / off), 0 falls; zero-action 8/8 falls
+g1-3.json (4 repeats x 10 s): stand_still no fall, vx 0.0003, tilt 1.0 deg;
+  walk_forward_0.2 vx 0.061-0.070 (33 % of 0.2, needs 0.14-0.26), dy -1.16 m,
+  yaw -0.19 rad/s; walk_backward_0.15 ~0; turn_left_0.5 ~0; 0 falls
+policy.onnx sha256: 4b2a2cc1bcf1b2511c1efa78c35f4606a43e90e352e64c4649bd7a8ac317259b
+notes: first Microduck BAM policy that steps at 0.2 and 0.3 and walks backward. The
+  0.4 point is slower in the sweep (0.120) than in eval_velocity_env (0.30), with a
+  2.2 m sideways drift, so the gait curves at speed. 0.1, slow backward, lateral and
+  turn still stand.
 ```
 
 ---
