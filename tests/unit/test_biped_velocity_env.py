@@ -187,7 +187,8 @@ def test_action_delay_queue_clears_on_reset():
 
 
 def test_dr_draws_a_per_env_action_delay():
-    env = BipedVelocityEnv(num_envs=16, seed=0, dr=True)
+    late = bve.DR_DELAY_STAGES[-1][0]
+    env = BipedVelocityEnv(num_envs=16, seed=0, dr=True, common_step=late)
     assert set(env.delay) <= set(range(bve.DR_ACTION_DELAY_MAX + 1))
     assert len(set(env.delay)) > 1
     delay = env.delay.copy()
@@ -211,6 +212,18 @@ def test_foot_friction_sets_the_foot_floor_contact():
         mujoco.mj_forward(env.model, d)
         assert d.ncon > 0
         assert all(d.contact[k].friction[0] == pytest.approx(mu) for k in range(d.ncon))
+
+
+def test_dr_delay_widens_with_training():
+    # WP4-19: delay from the start kept the policy standing (MAC-11), so it ramps in.
+    early = BipedVelocityEnv(num_envs=16, seed=0, dr=True)
+    assert not early.delay.any()
+    mid = BipedVelocityEnv(num_envs=16, seed=0, dr=True, common_step=bve.DR_DELAY_STAGES[1][0])
+    assert set(mid.delay) == {0, 1}
+    capped = BipedVelocityEnv(
+        num_envs=16, seed=0, dr=True, dr_delay_max=1, common_step=bve.DR_DELAY_STAGES[-1][0]
+    )
+    assert set(capped.delay) == {0, 1}
 
 
 def test_dr_ablation_knobs():

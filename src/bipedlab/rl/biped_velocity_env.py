@@ -36,7 +36,10 @@ action ``k`` control periods (``k`` x 20 ms) after it was produced; the observat
 "last action" stays the policy's own previous output, as on the robot. With DR, each
 reset also draws an extra 0-``DR_ACTION_DELAY_MAX`` periods per env (WP4-16: the first
 M5 policy halved its speed at 40 ms, MAC-08), from its own random stream so the other
-DR draws are unchanged.
+DR draws are unchanged. The DR delay range follows ``DR_DELAY_STAGES`` (WP4-19): with
+0-40 ms from the first iteration the policy only learned to stand (MAC-11), while the
+same DR without delay walked (MAC-13 run A), so the delay starts at 0 and widens once
+a gait exists. ``dr_delay_max`` caps the range.
 
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
@@ -142,6 +145,8 @@ TRUNK_COM = 0.01  # m, uniform per axis
 ARMATURE_SCALE = (0.9, 1.1)
 IMU_MAX_ANGLE_DEG = 6.0
 DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
+# Upper end of the DR delay draw over training (env steps, IT per PPO iteration).
+DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
 
 @dataclass
@@ -365,7 +370,8 @@ class BipedVelocityEnv:
         self.action_history[:, i] = 0.0
         self.delay[i] = self.action_delay
         if self.dr:
-            self.delay[i] += int(self._delay_rngs[i].integers(0, self.dr_delay_max + 1))
+            hi = min(self.dr_delay_max, stage_value(DR_DELAY_STAGES, self.common_step))
+            self.delay[i] += int(self._delay_rngs[i].integers(0, hi + 1))
         self.air_time[i] = 0.0
         if self._frozen is None:
             self._sample_twist(i)
