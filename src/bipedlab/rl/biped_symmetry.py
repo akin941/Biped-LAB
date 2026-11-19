@@ -88,7 +88,7 @@ def mirror_actions(x: Any) -> Any:
 def data_augmentation(env: Any = None, obs: Any = None, actions: Any = None) -> tuple[Any, Any]:
     """rsl-rl symmetry hook: return [original; mirrored] observations and actions."""
     import torch
-    from tensordict import TensorDict  # type: ignore[import-untyped]
+    from tensordict import TensorDict
 
     out_obs = None
     if obs is not None:
