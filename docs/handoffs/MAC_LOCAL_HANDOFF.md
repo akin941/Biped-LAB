@@ -899,5 +899,77 @@ verdict vs MAC-14 and MAC-21:
 
 ---
 
+## MAC-23 — biped_v1: mirror-symmetry training against the yaw drift (WP4-23)
+Status: `awaiting-mac` · Deps: MAC-21 done; run after MAC-22 if the Mac is busy
+
+MAC-19 and MAC-21 show that the yaw kernel alone only trades one error for another:
+std² 0.1 kills turning, std² 0.25 halves the drift but flips it to the left (+0.10 rad/s
+with DR off). biped_v1 is mirror-symmetric, so the policy should be too. MAC-23 repeats
+MAC-21 (std² 0.25, resumed from MAC-14) and adds `--symmetry aug`: rsl-rl trains on a
+left/right mirrored copy of every sample (`bipedlab.rl.biped_symmetry`), so a drift in
+one direction is paid for by the mirrored drift in the other. The only change versus
+MAC-21 is the symmetry flag. The mirror maps were checked in the cloud against a
+physically mirrored MuJoCo state (`tests/unit/test_biped_symmetry.py`).
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry aug \
+    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac23 --save-every 100 \
+    --out runs/mac23/report.json
+uv run python scripts/eval_biped.py runs/mac23/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac23/eval.json
+```
+Then run the MAC-16-style runtime check at 0.15 and 0.25. Augmentation doubles the PPO
+batch, so expect roughly 1.5–2× the MAC-21 wall time (444 s).
+
+**Acceptance (same rows as MAC-21):** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on;
+|wz| ≤ 0.05 at the zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 %
+of vx; 0 falls. If it passes, it replaces MAC-14 as the reference policy.
+
+Result:
+```
+revision:
+vx / wz at 0.15, 0.25 (DR off / on):
+zero command wz, turn 0.8 wz (DR off / on):
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+verdict vs MAC-14 and MAC-21:
+```
+
+---
+
+## MAC-24 — Microduck: continue the posture-gate run on BAM (WP3-14, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-22 done (its `model_10000.pt`); run after MAC-23
+
+MAC-22 (mac-m5) broke the standing optimum: with the posture gate the policy steps at
+0.2 (0.061–0.070 m/s) and 0.3 (0.219) and walks backward (−0.150). It was still
+improving when it stopped: tracking and air time were rising, and training falls were
+falling (1.97 → 1.18 per iteration). MAC-24 continues the same run with the same
+flags for 3000 more iterations, so the only change is training time. Use a clean
+worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 3000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --resume <mac22>/runs/mac22-seed0/model_10000.pt --run-dir runs/mac24-seed0 \
+    --save-every 100 --out runs/mac24-seed0/report.json
+```
+Then run the MAC-22 evals: eval_velocity_env at 0.4, G1.3 (BAM), and the forward sweep
+at 0.1 / 0.2 / 0.3 / 0.4 plus backward 0.3, with `displacement_y_m` and the yaw rate.
+If training falls rise above MAC-22's last 400 iterations (1.18), stop at that
+checkpoint and evaluate it. Commit the JSONs under `docs/experiments/mac24/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). If it misses,
+record whether vx at 0.2 and the drift moved, since that decides between more training
+and adding drift pressure (yaw / lateral tracking).
+
+Result:
+```
+revision:
+wall time:
+reward, air_time, tracking, training falls trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
+G1.3 (BAM) verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
