@@ -77,3 +77,24 @@ def test_augmentation_doubles_the_batch():
     assert o.batch_size[0] == 10 and a.shape == (10, bve.ACT_DIM)
     torch.testing.assert_close(o["policy"][5:], sym.mirror_obs(obs["policy"]))
     torch.testing.assert_close(a[5:], sym.mirror_actions(acts))
+
+
+def test_mirrored_state_is_geometrically_mirrored():
+    # The joint mirror (swap legs, negate yaw/roll) is an assumption about the model's
+    # axes; check it against geometry: every body lands on its partner's mirror image.
+    env = BipedVelocityEnv(num_envs=2, noise=False)
+    _mirror_state(env, np.random.default_rng(2))
+    m = env.model
+    a, b = env.datas
+    names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, i) for i in range(m.nbody)]
+    for i, name in enumerate(names):
+        partner = name.replace("left_", "@").replace("right_", "left_").replace("@", "right_")
+        j = names.index(partner)
+        np.testing.assert_allclose(b.xpos[j], a.xpos[i] * [1, -1, 1], atol=1e-9)
+
+
+def test_actuators_follow_the_mirrored_joint_order():
+    env = BipedVelocityEnv(num_envs=1, noise=False)
+    m = env.model
+    joints = [m.jnt_qposadr[m.actuator_trnid[k, 0]] for k in range(m.nu)]
+    np.testing.assert_array_equal(joints, env.qpos_idx)
