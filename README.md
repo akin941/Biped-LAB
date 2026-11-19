@@ -9,8 +9,9 @@ sonra gerçek donanımda geliştirmek.
 
 ## Şu an neredeyiz?
 
-**Faz 4 (kendi robotumuz `biped_v1`, simülasyonda) bulutta ilerliyor; Faz 3 ve 4'ün tam
-eğitimleri Mac'te çalıştırılmayı bekliyor.** Güncelleme: 2026-11-06.
+**Kendi robotumuz `biped_v1` simülasyonda yürüyor (G4.3, Mac'te ölçüldü). Sıradaki adım:
+eğitilmiş politikayı Rust çalışma zamanı üzerinden yürütmek (MAC-16), sonra donanım
+kararları.** Güncelleme: 2026-11-19.
 Ayrıntılı durum: [yol haritası](docs/roadmap/ROADMAP.md) ve [görev listesi](docs/roadmap/BACKLOG.md).
 
 | Ne | Durum | Nerede doğrulandı |
@@ -18,11 +19,11 @@ Ayrıntılı durum: [yol haritası](docs/roadmap/ROADMAP.md) ve [görev listesi]
 | Microduck'ın resmi modeli ve resmi politikaları (yürüme, ayakta durma, oturma, top vurma) bizim çalıştırıcımızda | ✅ çalışıyor; resmi yürüme politikası G1.3 hız eşiğini geçemiyor (politikanın sınırı, bizim hatamız değil) | GitHub Linux |
 | Telemetri kaydı ve tek dosyalık HTML rapor | ✅ | GitHub Linux |
 | Pekiştirmeli öğrenme ortamı + her gece kısa PPO eğitimi | ✅ ödül 3 tohumda artıyor | GitHub Linux |
-| Microduck için tam PPO eğitimi (G3.3) | ⏳ Mac'te çalıştırılmayı bekliyor (MAC-06) | — |
+| Microduck için tam PPO eğitimi (G3.3) | ⏳ basit motor modeliyle yürüyor, gerçekçi motor modeliyle (BAM) henüz sadece ayakta duruyor; ince ayar denemesi sürüyor (MAC-15) | Mac (M5) |
 | Kendi robotumuz `biped_v1`: model, boyutlandırma, servo araştırması | ✅ | bulut / GitHub Linux |
-| `biped_v1` eğitim ortamı, titreme düzeltmesi, sağlamlık testleri (itme, sürtünme, gecikme) | ✅ kısa eğitimde robot sadece ayakta duruyor; yürüme tam eğitimi bekliyor | bulut / GitHub Linux |
-| `biped_v1` tam eğitimi ve diz torku ölçümü (G4.3) | ⏳ Mac'te çalıştırılmayı bekliyor (MAC-08) | — |
-| Rust çalışma zamanı ve güvenlik denetleyicisi (G4.4) | ⏳ PR #25, sizin güvenlik onayınızı bekliyor | — |
+| `biped_v1` eğitim ortamı, titreme düzeltmesi, sağlamlık testleri (itme, sürtünme, gecikme) | ✅ | bulut / GitHub Linux |
+| `biped_v1` tam eğitimi ve diz torku ölçümü (G4.3) | ✅ istenen hızın %100 / %91'i, düşme yok, 40 ms gecikmede %86; diz p95 0.19–0.22 N·m (MAC-14) | Mac (M5) |
+| Rust çalışma zamanı ve güvenlik denetleyicisi (G4.4) | ✅ 50 Hz, 1500 periyotta en fazla 1 gecikme (MAC-11); eğitilmiş politikayla çalıştırma sırada (MAC-16) | GitHub Linux + Mac (M5) |
 | Malzeme listesi (BOM) taslağı | ⏳ taslak hazır; voltaj, acil durdurma ve satın alma zamanı sizin kararınız | — |
 | Mac'te kurulum, görsel simülatör, hız ölçümü | ⏳ bekliyor | [Mac görevleri](docs/handoffs/MAC_LOCAL_HANDOFF.md) |
 | Fiziksel donanım | ❌ başlamadı (onayınız olmadan satın alma yok) | — |
