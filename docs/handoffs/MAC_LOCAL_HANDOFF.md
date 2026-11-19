@@ -1033,5 +1033,44 @@ policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745
 
 ---
 
+## MAC-26 — Microduck: speed-relative tracking kernel on BAM (WP3-15, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-24 done (its `model_13000.pt`); run after MAC-25
+
+MAC-24 (mac-m5) improved everything above 0.3 m/s (0.4 → 0.260, backward −0.211,
+first lateral motion, turn 1.0 → 0.965), but at 0.2 it went back to standing (vx
+0.0004). With one fixed kernel width (std² 0.05), standing at 0.2 keeps
+exp(−0.04/0.05) = 45 % of the tracking reward, while standing at 0.4 keeps only 4 %.
+So more training mostly pays the faster commands. `--track-lin-ref-speed 0.4` scales the
+width by (|v_cmd| / 0.4)², down to 1/16 at the floor of a quarter of ref. Standing then
+costs about the same share at every speed (≈ 4 % kept at 0.2 too), and the posture gate
+shrinks with it. Continue MAC-24 with the same flags plus this one, from a clean
+worktree of origin/main, using the absolute checkpoint path, under `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 \
+    --resume <mac24>/runs/mac24-seed0/model_13000.pt --run-dir runs/mac26-seed0 \
+    --save-every 100 --out runs/mac26-seed0/report.json
+```
+Then run the MAC-24 evals: eval_velocity_env at 0.4, G1.3 (BAM), and the sweep at
+0.1 / 0.2 / 0.3 / 0.4, backward 0.3, lateral 0.3 and turn 1.0, with `displacement_y_m`
+and the yaw rate. Expect `track_linear_velocity` to drop at first, because the kernel
+is tighter. If training falls rise above 1.5 per iteration for 200 iterations, stop and
+evaluate the last good checkpoint. Commit the JSONs under `docs/experiments/mac26/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). Also record
+whether 0.3 / 0.4 stayed at the MAC-24 level.
+
+Result:
+```
+revision:
+wall time:
+reward, air_time, tracking, training falls trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
+G1.3 (BAM) verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
