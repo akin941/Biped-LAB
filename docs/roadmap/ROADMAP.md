@@ -49,10 +49,14 @@ gate item has evidence in the named environment.
       (from scratch on the M5, MJCF actuators), then BAM fine-tunes MAC-15 → MAC-32; no
       upstream weights. Turning on BAM is still open (WP3-20).
   - G3.4 domain-randomization ablation report (with vs without) — `mac-m5`
+    - Done (mac-m5, 2026-11-20, MAC-34): model_19700 (trained with DR) vs a no-DR fine-tune.
+      Under DR the DR policy keeps 0.2 → 0.171–0.174 with 0 falls; the no-DR one falls 4 of
+      24 and its yaw doubles. See 2026-11-20-mac34-microduck-dr-ablation-onnx.md.
   - G3.5 export to ONNX and run in the same runner — `mac-m5` + `gha-linux`
     - `gha-linux` part (WP3-09, 2026-11-06): every nightly `ppo-smoke` policy is exported
       and run through `bipedlab eval-policy` (the official policies' runner, BAM). The
-      `mac-m5` part is MAC-06 step 3.
+      `mac-m5` part: met (2026-11-20, MAC-34). model_19700's ONNX meets G1.3 through
+      `bipedlab eval-policy` on the M5.
   - Every run records config, seed, git sha, metrics, artifact sha256.
 
 ## Phase 4 — Original biped in simulation
