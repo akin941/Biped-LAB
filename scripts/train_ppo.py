@@ -282,6 +282,10 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and args.track_yaw_std2 is not None:
         raise SystemExit("--track-yaw-std2 is a biped_v1 option")
+    if not biped_v1 and args.torque_limit is not None:
+        raise SystemExit("--torque-limit is a biped_v1 option")
+    if args.torque_limit is not None and args.torque_limit <= 0:
+        raise SystemExit("--torque-limit must be > 0")
     resume: dict[str, Any] | None = None
     if args.resume:
         resume = torch.load(args.resume, map_location="cpu", weights_only=False)
@@ -299,6 +303,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["dr_foot_friction"] = tuple(args.dr_friction)
         if args.track_yaw_std2 is not None:
             kwargs["track_yaw_std2"] = args.track_yaw_std2
+        if args.torque_limit is not None:
+            kwargs["torque_limit"] = args.torque_limit
     elif args.dr_delay_max is not None or args.dr_friction is not None:
         raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
@@ -363,6 +369,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "dr_friction": args.dr_friction,
         "track_lin_std2": args.track_lin_std2,
         "track_yaw_std2": args.track_yaw_std2,
+        "torque_limit": args.torque_limit,
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
         "track_lin_ref_speed": args.track_lin_ref_speed,
@@ -438,6 +445,10 @@ def main() -> None:
     parser.add_argument(
         "--track-yaw-std2", type=float, default=None,
         help="biped_v1 yaw-rate tracking kernel std^2 (default 0.5; WP4-22)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--torque-limit", type=float, default=None,
+        help="biped_v1 actuator force limit in N*m (default: the model's 0.52; WP4-26)",
     )  # fmt: skip
     parser.add_argument(
         "--init-std",

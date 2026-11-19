@@ -60,3 +60,17 @@ def test_joint_stats_and_sizing_summary():
     assert sizing["cases_used"] == 1
     assert sizing["joints"]["knee"]["required_torque"] == 2.0 * knee["torque_max"]
     assert sizing["joints"]["knee"]["required_speed"] == 2.0 * knee["speed_p95"]
+
+
+def test_torque_limit_override_and_clip_flag():
+    # WP4-26: the override replaces the model's 0.52 N*m force limit in every case.
+    case = eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 3.0, 0, False, torque_limit=1.5)
+    assert case["torque_limit"] == 1.5
+    default = eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 3.0, 0, False)
+    assert default["torque_limit"] == 0.52
+    # A walking max at the limit is flagged as clipped (the requirement is a lower bound).
+    walking = dict(default, policy="onnx")
+    walking["joints"] = {k: dict(v) for k, v in default["joints"].items()}
+    walking["joints"]["knee"]["torque_max"] = 0.52
+    sizing = eval_biped.sizing_summary([walking])["joints"]
+    assert sizing["knee"]["at_torque_limit"] and not sizing["hip_yaw"]["at_torque_limit"]

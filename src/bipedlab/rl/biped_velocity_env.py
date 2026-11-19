@@ -180,6 +180,9 @@ class BipedVelocityEnv:
     # Yaw-rate part of the angular tracking kernel (WP4-22). Roll/pitch rates keep
     # TRACK_ANG_STD2; the default reproduces the MAC-14 reward exactly.
     track_yaw_std2: float = TRACK_ANG_STD2
+    # Actuator force limit override (N*m, WP4-26). None keeps the model's forcerange
+    # (the XL330-class 0.52); MAC-35 saw hip roll/pitch and knee sit on that clip.
+    torque_limit: float | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -196,6 +199,11 @@ class BipedVelocityEnv:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
         if m.nu != ACT_DIM:
             raise ValueError(f"model must have {ACT_DIM} actuators, has {m.nu}")
+        if self.torque_limit is not None:
+            if self.torque_limit <= 0:
+                raise ValueError("torque_limit must be > 0")
+            m.actuator_forcerange[:] = [-self.torque_limit, self.torque_limit]
+            m.actuator_forcelimited[:] = 1
         self.model = m
         self._ids(m)
         self.datas = [mujoco.MjData(m) for _ in range(n)]
