@@ -1588,7 +1588,7 @@ verdict: G3.4: A (trained with DR) degrades less under DR. Its speed barely move
 ---
 
 ## MAC-35 — biped_v1: size the actuators from our own gait (WP4-25, input to G4.1 / WP4-05)
-Status: `awaiting-mac` · Deps: MAC-25 done (its `runs/mac25/policy.onnx`)
+Status: `done (mac-m5, 2026-11-20): 4 of 5 joints above 0.52 N.m` · Deps: MAC-25 done (its `runs/mac25/policy.onnx`)
 
 WP4-01 sized our joints from Microduck's walking dynamic factors. Now `eval_biped.py`
 reports, per joint type (both legs pooled), |torque| RMS / p95 / max, |speed| p95 / max
@@ -1609,14 +1609,29 @@ speed (rad/s) per joint, and RMS torque. Name the joints whose 2× requirement i
 the XL330-class placeholder (0.52 N·m). Also say whether any robustness case
 (pushes, friction) has a max torque above the walking max.
 
-Result:
+Result (env: mac-m5, 2026-11-20): sizing block present for all five joints; four of five need more than 0.52 N.m
 ```
-revision:
-policy.onnx sha256:
-table (joint: required torque / speed, RMS; WP4-01 required):
-joints above 0.52 N*m:
-robustness cases above walking max:
-verdict:
+revision: c94e0d4 (main), git_dirty false; eval only (eval_biped --dr --robustness, 8 envs x
+  20 s; sizing from the 6 nominal walking cases with DR off and on); size_biped.py for WP4-01
+policy.onnx sha256: 3789a53b243f32d81492c42d0e8c793c31c10a35ddf26a3f9d15a4872745a52b (MAC-25)
+table (joint: required torque / speed = 2x walking max torque / 2x p95 speed; RMS; WP4-01 required):
+  hip_yaw      0.37 N.m /  2.8 rad/s; RMS 0.054   (WP4-01 0.21 / 2.2)
+  hip_roll   >=1.04 N.m /  5.5 rad/s; RMS 0.183   (WP4-01 0.35 / 2.5)  max at the 0.52 clip
+  hip_pitch  >=1.04 N.m / 13.7 rad/s; RMS 0.217   (WP4-01 0.37 / 7.4)  max at the clip, p95 = 0.52 at 0.25 m/s
+  knee       >=1.04 N.m / 12.2 rad/s; RMS 0.120   (WP4-01 0.68 / 10.0) max at the clip
+  ankle_pitch  0.81 N.m /  7.7 rad/s; RMS 0.120   (WP4-01 0.44 / 5.3)
+joints above 0.52 N*m: hip_roll, hip_pitch, knee (each >= 1.04, a lower bound because the
+  walking max is the 0.52 clip) and ankle_pitch (0.81); only hip_yaw (0.37) fits. Speed:
+  hip_pitch (13.7) and knee (12.2) also need more than the placeholder's 10 rad/s.
+robustness cases above walking max: none. But for hip_roll / hip_pitch / knee the walking max
+  is already the clip, so no case can exceed it: pushes (push_sideways knee and hip_roll at
+  0.52) and friction_1.5 (hip_pitch p95 0.41) reach the clip too. Latency cases stay below.
+verdict: WP4-25 acceptance met (sizing for all five types, table vs WP4-01). Our own gait
+  needs much more than WP4-01 estimated: hip roll / hip pitch about 3x, knee 1.5x and up,
+  ankle 1.8x, and hip pitch spends more than 5 % of the 0.25 m/s walk at the clip. The XL330-class
+  placeholder (0.52 N.m, 10 rad/s) fails G4.1 at four of five joints in torque and at
+  hip pitch / knee in speed. Because three joints are torque-limited in sim, the true
+  demand is higher than shown; a re-run with a raised torque limit would measure it.
 ```
 
 ---
