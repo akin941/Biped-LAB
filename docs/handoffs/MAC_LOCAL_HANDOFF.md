@@ -453,5 +453,45 @@ notes:
 
 ---
 
+## MAC-15 — Microduck: fine-tune the MAC-06 gait on BAM (WP3-11, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-06 and MAC-12 done
+
+MAC-12 (BAM from scratch, 3000 it, mac-m5) only learned to stand: vx −0.0001 at the
+0.2 command, reward 0.043 → 0.084 almost all from upright/pose/head terms. MAC-06
+(MJCF actuators) did learn a gait with the same budget. This run starts from the
+MAC-06 weights and keeps training on BAM with DR, so PPO adapts an existing gait
+instead of finding one under the weaker, back-EMF-damped servo model. `--resume`
+across actuators works (cloud check: an MJCF checkpoint resumes on BAM; the iteration
+count and curricula continue from 3000).
+```bash
+ls runs/mac06-seed0/model_3000.pt        # the MAC-06 final checkpoint
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 3000 \
+    --workers <best> --seed 0 --run-dir runs/mac15-seed0 --save-every 100 \
+    --resume runs/mac06-seed0/model_3000.pt --out runs/mac15-seed0/report.json
+uv run python scripts/eval_velocity_env.py runs/mac15-seed0/policy.onnx --actuators bam \
+    --envs 8 --out runs/mac15-seed0/eval.json
+uv run bipedlab eval-policy runs/mac15-seed0/policy.onnx --model microduck-walk --actuator bam \
+    --repeats 4 --out runs/mac15-seed0/g1-3.json
+```
+If the MAC-06 checkpoint is gone, write that down and skip the task. Watch the vx
+tracking term in the log: if it falls to the MAC-12 level within ~300 iterations,
+the gait was lost; record the iteration. Commit the JSONs under `docs/experiments/mac15/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: stands ≥ 20 s, vx = 0.2 m/s within
+±30 % over 10 s, no falls).
+
+Result:
+```
+revision:
+wall time:
+reward/step first -> last quarter, tracking term trend:
+eval.json (vx at 0.4 cmd, falls):
+g1-3.json (stand 20 s, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
