@@ -37,3 +37,9 @@ def test_push_moves_the_trunk():
     assert pushed["falls"] == 0
     # The stance springs back (vx_mean stays ~0), but the kick loads the knees.
     assert pushed["knee_torque"]["mean"] > still["knee_torque"]["mean"]
+
+
+def test_cases_report_lateral_and_yaw_rates():
+    # WP4-21: the zero-action stance neither turns nor slides.
+    still = eval_biped.run_case(None, (0.0, 0.0, 0.0), 1, 3.0, 0, False)
+    assert abs(still["wz_mean"]) < 0.02 and abs(still["vy_mean"]) < 0.02

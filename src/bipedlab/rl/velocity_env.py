@@ -189,6 +189,10 @@ class MicroduckVelocityEnv:
     noise: bool = True  # actor observation noise and delays
     common_step: int = 0
     dr: bool = False  # domain randomization (spec rows marked DR)
+    # WP3-12: linear tracking kernel width (std^2, (m/s)^2). Upstream 0.1 leaves a
+    # standing policy 67 % of the tracking reward at a 0.2 m/s command, and on BAM the
+    # trained gaits only start above ~0.2-0.3 m/s (MAC-15, alpha_walking alike).
+    track_lin_std2: float = TRACK_LIN_STD2
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -537,7 +541,7 @@ class MicroduckVelocityEnv:
         alpha = min(1.0, STEP_DT / HEAD_BIAS_TAU_S)
         self.head_bias_ema = (1 - alpha) * self.head_bias_ema + alpha * head_err
         values = {
-            "track_linear_velocity": np.exp(-lin_err / TRACK_LIN_STD2),
+            "track_linear_velocity": np.exp(-lin_err / self.track_lin_std2),
             "track_angular_velocity": np.exp(-ang_err / TRACK_ANG_STD2),
             "upright": np.exp(-np.sum(np.square(s["gravity"][:, :2]), axis=1) / UPRIGHT_STD2),
             "pose": np.exp(-np.mean(np.square(legs) / np.square(std), axis=1)),

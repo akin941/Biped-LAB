@@ -221,6 +221,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     biped_v1 = args.robot == "biped_v1"
     if biped_v1 and args.actuator != "mjcf":
         raise SystemExit("biped_v1 has MJCF position actuators only")
+    if biped_v1 and args.track_lin_std2 is not None:
+        raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
     resume: dict[str, Any] | None = None
     if args.resume:
         resume = torch.load(args.resume, map_location="cpu", weights_only=False)
@@ -239,6 +241,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     elif args.dr_delay_max is not None or args.dr_friction is not None:
         raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
+        if args.track_lin_std2 is not None:
+            kwargs["track_lin_std2"] = args.track_lin_std2
         scene = upstream.microduck_scene("scene_walk.xml")
         env_cls, act_dim = MicroduckVelocityEnv, mp.ACT_DIM
         kwargs["actuator"] = args.actuator
@@ -283,6 +287,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "init_std": args.init_std,
         "dr_delay_max": args.dr_delay_max,
         "dr_friction": args.dr_friction,
+        "track_lin_std2": args.track_lin_std2,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -310,6 +315,10 @@ def main() -> None:
     parser.add_argument(
         "--dr-friction", type=float, nargs=2, default=None, metavar=("LO", "HI"),
         help="biped_v1 DR foot friction range (default 0.7 1.3)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--track-lin-std2", type=float, default=None,
+        help="Microduck linear tracking kernel std^2 (default 0.1, upstream; WP3-12)",
     )  # fmt: skip
     parser.add_argument(
         "--init-std",

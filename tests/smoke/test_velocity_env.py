@@ -115,8 +115,10 @@ def test_curricula_follow_env_steps(scene):
     np.testing.assert_allclose(out.terms["action_rate_l2"], -1.0 * rate * 0.02, rtol=1e-5)
 
 
-def test_tracking_and_upright_terms_match_definitions(scene):
-    env = MicroduckVelocityEnv(scene, num_envs=3, noise=False)
+@pytest.mark.parametrize("std2", [0.1, 0.03])
+def test_tracking_and_upright_terms_match_definitions(scene, std2):
+    # 0.1 is upstream's kernel; WP3-12 makes it a knob (``track_lin_std2``).
+    env = MicroduckVelocityEnv(scene, num_envs=3, noise=False, track_lin_std2=std2)
     env.freeze_commands(np.array([0.3, -0.1, 0.5]))
     for a in small_actions(15, 3, seed=6, scale=0.1):
         out = env.step(a)
@@ -125,7 +127,7 @@ def test_tracking_and_upright_terms_match_definitions(scene):
         lin = c[:, 61:64]
         lin_err = (0.3 - lin[:, 0]) ** 2 + (-0.1 - lin[:, 1]) ** 2 + lin[:, 2] ** 2
         np.testing.assert_allclose(
-            out.terms["track_linear_velocity"][ok], 2.0 * 0.02 * np.exp(-lin_err / 0.1), rtol=1e-4
+            out.terms["track_linear_velocity"][ok], 2.0 * 0.02 * np.exp(-lin_err / std2), rtol=1e-4
         )
         g = c[:, S["projected_gravity"]]
         upright = 2.0 * 0.02 * np.exp(-(g[:, 0] ** 2 + g[:, 1] ** 2) / 0.05)

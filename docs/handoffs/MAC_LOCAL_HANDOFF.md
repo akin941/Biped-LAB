@@ -577,5 +577,73 @@ notes: faster than MAC-14 in the Python env with DR on (0.150 / 0.228). The runt
 
 ---
 
+## MAC-17 — Microduck: tighter velocity tracking on BAM (WP3-12, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-15 done (its final checkpoint), WP3-12 merged
+
+MAC-15 (mac-m5) keeps the MAC-06 gait on BAM (0.4 → 0.203 m/s, 0 falls) but only
+walks above a command threshold: 0.1 → 0.000, 0.2 → 0.000, 0.3 → 0.120. Upstream's
+linear tracking kernel (std² 0.1) still pays a standing policy 67 % of the tracking
+reward at 0.2 m/s; our biped uses 0.05 and tracks 0.15 fully. This run continues
+MAC-15 with `--track-lin-std2 0.05` (standing at 0.2 then earns 45 %).
+```bash
+ls runs/mac15-seed0/model_6000.pt        # MAC-15 final checkpoint (absolute path if needed)
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 2000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --run-dir runs/mac17-seed0 \
+    --save-every 100 --resume runs/mac15-seed0/model_6000.pt --out runs/mac17-seed0/report.json
+uv run python scripts/eval_velocity_env.py runs/mac17-seed0/policy.onnx --actuators bam \
+    --envs 8 --out runs/mac17-seed0/eval.json
+uv run bipedlab eval-policy runs/mac17-seed0/policy.onnx --model microduck-walk --actuator bam \
+    --repeats 4 --out runs/mac17-seed0/g1-3.json
+```
+Also repeat MAC-15's forward sweep (0.1 / 0.2 / 0.3 / 0.4) on the new policy. Commit
+the JSONs under `docs/experiments/mac17/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM). If the threshold only moves, record
+the new sweep.
+
+Result:
+```
+revision:
+wall time:
+reward first -> last quarter, tracking term trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4 (BAM):
+g1-3.json (stand 20 s, vx at 0.2 command, falls):
+policy.onnx sha256:
+notes:
+```
+
+---
+
+## MAC-18 — Why does the runtime run faster and turn right? (WP4-21)
+Status: `awaiting-mac` · Deps: MAC-16 done, WP4-21 merged
+
+MAC-16 (mac-m5): through the runtime the MAC-14 policy goes 0.194 / 0.285 m/s at
+0.15 / 0.25 (129 / 114 %) and yaws −0.15…−0.19 rad/s at a zero yaw command; in the
+Python env with DR it went 0.150 / 0.228. The runtime run has no DR and no
+observation noise. `eval_biped.py` now also reports `vy_mean` and `wz_mean`. Run the
+same policy in the Python env with and without DR (no runtime) to see whether the
+drift is the policy's or the runtime path's:
+```bash
+P=runs/mac14   # absolute path if needed
+# --dr runs every command twice: DR off, then DR on (0.15 and 0.25 m/s, zero yaw)
+uv run python scripts/eval_biped.py $P/policy.onnx --dr --envs 8 --seconds 20 \
+    --out runs/mac18/eval.json
+```
+If the no-DR Python numbers match MAC-16 (fast, yawing right), the runtime path is
+faithful and the policy itself drifts; otherwise compare observations (the
+`runtime_policy` parity test covers the layout). Commit `eval.json` under
+`docs/experiments/mac18/`.
+
+Result:
+```
+revision:
+no DR: vx / wz at 0.15, at 0.25:
+DR:    vx / wz at 0.15, at 0.25:
+conclusion (policy or runtime path):
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
