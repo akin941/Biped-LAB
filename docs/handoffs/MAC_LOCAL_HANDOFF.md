@@ -737,5 +737,39 @@ notes:
 
 ---
 
+## MAC-21 — biped_v1: a milder yaw kernel (WP4-22)
+Status: `awaiting-mac` · Deps: MAC-19 done
+
+MAC-19 (mac-m5, std² 0.1): the walking drift at 0.25 is gone, but the policy now spins
+in place at a zero command (wz −0.35 / −0.27) and turns only 0.14 at a 0.8 command
+(MAC-14: 0.62). A 0.1 kernel gives almost no gradient at large yaw errors
+(exp(−0.66²/0.1) ≈ 0.01), so turning stopped paying. MAC-21 repeats MAC-19 from
+MAC-14 with std² 0.25. The same drift still costs 13 %, and a 0.4 rad/s turn error
+still pays 53 %. MAC-14 stays the reference policy until a run beats it on every
+row below.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 \
+    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac21 --save-every 100 \
+    --out runs/mac21/report.json
+uv run python scripts/eval_biped.py runs/mac21/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac21/eval.json
+```
+Then run the MAC-16-style runtime check at 0.15 and 0.25. Run it after MAC-20 if the Mac is busy.
+
+**Acceptance:** at 0.15 and 0.25, |wz| ≤ 0.08 with DR off and on; |wz| ≤ 0.05 at the
+zero command; turn 0.8 gives wz ≥ 0.5; 40 ms latency keeps ≥ 80 % of vx; 0 falls.
+
+Result:
+```
+revision:
+vx / wz at 0.15, 0.25 (DR off / on):
+zero command wz, turn 0.8 wz (DR off / on):
+latency 20/40/60 ms vx; runtime vx / wz at 0.15, 0.25:
+verdict vs MAC-14:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
