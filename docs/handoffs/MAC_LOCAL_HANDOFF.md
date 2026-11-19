@@ -519,7 +519,7 @@ notes:
 ---
 
 ## MAC-16 — The trained biped_v1 policy walks through the Rust runtime (WP4-20, G4.3 + G4.4)
-Status: `awaiting-mac` · Deps: MAC-14 done (its `runs/mac14/policy.onnx`), WP4-20 merged
+Status: `done (mac-m5, 2026-11-19)` · Deps: MAC-14 done (its `runs/mac14/policy.onnx`), WP4-20 merged
 
 G4.3 was measured in the Python env and G4.4 with the stand controller. This runs
 the MAC-14 policy inside the runtime (safety supervisor, 50 Hz wall clock) against
@@ -541,13 +541,26 @@ done
 bar); note how far it is from MAC-14's Python-env vx (0.150 / 0.228). Commit the two
 JSONs and `mac16-mlp.json` under `docs/experiments/mac16/` (not the `.bplog`/`.npz`).
 
-Result:
+Result (env: mac-m5, 2026-11-19): met for both commands
 ```
-revision:
-mlp parity (max abs diff):
-v0.15: vx_body_mean, distance, fell, latched, deadline_misses, period_max_us:
-v0.25: vx_body_mean, distance, fell, latched, deadline_misses, period_max_us:
-notes:
+revision: e9efa90 (main); policy = MAC-14 policy.onnx (sha256 83766219...e8be6f78f),
+  policy.bpml sha256 7a917195ce120ed5965d725ac2195250583da210b6348c9cdef018c7c7ecbba7
+  load avg ~9 (no training running; a VM was using several cores)
+mlp parity (max abs diff): rust vs onnxruntime 1.43e-6, numpy vs onnxruntime 1.91e-6
+v0.15: vx_body_mean 0.194 (129 %), distance 1.714 m, fell false, latched 0,
+  deadline_misses 0, period_max_us 29735; 1000 periods, wall 19.98 s, tilt max 2.7 deg,
+  wz_mean -0.190 rad/s, slew_limit events 23
+v0.25: vx_body_mean 0.285 (114 %), distance 3.286 m, fell false, latched 0,
+  deadline_misses 0, period_max_us 29807; 1000 periods, wall 19.99 s, tilt max 2.4 deg,
+  wz_mean -0.148 rad/s, slew_limit events 71
+notes: faster than MAC-14 in the Python env with DR on (0.150 / 0.228). The runtime
+  sim has no DR, and it is closest to MAC-14 with DR off (0.179 / 0.264). The robot
+  yaws right by about 0.15-0.19 rad/s at a zero yaw command, so it walks a curve:
+  distance_xy (displacement) is less than vx * 18 s. Timing: the runtime counts 0 misses,
+  but the bridge-side wall_dt (telemetry recorder) jitters: mean 20.0 ms, p1 / p50 /
+  p99 12 / 20 / 29 ms, and ~430 of 1000 steps > 20.5 ms. Long and short steps
+  alternate, so the schedule holds (wall 19.98 s). Worth a cloud look at where the
+  jitter comes from (bridge vs. runtime) before hardware.
 ```
 
 ---
