@@ -425,5 +425,33 @@ notes:
 
 ---
 
+## MAC-14 — biped_v1 with the DR delay ramped in (WP4-19, gate G4.3)
+Status: `awaiting-mac` · Deps: MAC-13 done, WP4-19 merged
+
+MAC-13 (mac-m5): run A (no DR delay) walks, run B (delay 0–40 ms from the start,
+friction ≥ 1) only stands, so the delay is what stopped the gait. Since WP4-19 the DR
+delay follows `DR_DELAY_STAGES`: 0 until iteration 1000, 0–20 ms until 1500, then
+0–40 ms. One run with the default DR (no ablation flags):
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 3000 \
+    --workers <best> --seed 0 --run-dir runs/mac14 --save-every 100 \
+    --out runs/mac14/report.json
+uv run python scripts/eval_biped.py runs/mac14/policy.onnx --dr --robustness --envs 8 \
+    --seconds 10 --out runs/mac14/eval.json
+```
+Watch `air_time` around iterations 1000 and 1500: if it drops to 0 after a stage
+widens the delay, record the iteration. Commit `report.json`, `run.json`, `eval.json`
+under `docs/experiments/mac14/`.
+
+Result:
+```
+revision:
+walks? vx 0.15/0.25 (DR on), falls, latency 20/40/60 ms (vx / command), friction_0.5,
+push, knee torque p95/max, air_time at 1000/1500/3000 it:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
