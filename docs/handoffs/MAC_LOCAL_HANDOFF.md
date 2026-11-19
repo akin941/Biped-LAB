@@ -1709,7 +1709,7 @@ verdict: no joint reaches the 1.5 limit in either step, so the requirements are 
 ---
 
 ## MAC-37 — biped_v1: walk with a real servo's torque-speed curve (WP4-28, input to WP4-05)
-Status: `awaiting-mac` · Deps: MAC-36 done, MAC-25 done (its `runs/mac25/model_4000.pt`)
+Status: `done (mac-m5, 2026-11-20): B walks (rows met), 2x speed fails; A fails rows` · Deps: MAC-36 done, MAC-25 done (its `runs/mac25/model_4000.pt`)
 
 MAC-36 (mac-m5) measured the gait's demand. WP4-27 (cloud) then found that no surveyed
 servo passes hip pitch or knee: they move at p95 ≈ 7 rad/s, and the policy was trained
@@ -1742,14 +1742,44 @@ of vx, 0 falls. Report the sizing table and the 2× check. A joint passes when i
 torque_max ≤ stall / 2 and its speed_p95 ≤ no-load / 2. MAC-25 stays the reference
 unless one of these walks and passes more joints.
 
-Result:
+Result (env: mac-m5, 2026-11-20): B (STS3215) fine-tune walks and meets every MAC-25 row but passes
+the 2x check at 1 of 5 joints (speed); A (XC330) fails the rows; MAC-25 stays the reference
 ```
-revision:
-baselines (MAC-25 under A / B curve; walks? falls?):
+revision: dee26b3 (main), git_dirty false; eval_biped --dr --robustness, 8 envs x 20 s, with each curve
+2x check: torque_max <= stall/2 and speed_p95 <= no-load/2; A: <= 0.55 N.m and <= 5.10 rad/s,
+  B: <= 0.955 N.m and <= 2.725 rad/s (T = torque fails, S = speed fails)
+baselines (MAC-25 under A / B curve; walks? falls?): both walk, 0 falls in all 15 cases.
+  A: 0.15 / 0.25 DR off vx 0.167 / 0.247, |wz| 0.044 / 0.016; DR on 0.143 / 0.217, |wz| 0.055 / 0.025;
+     40 ms 0.126 (84 %) -> meets the MAC-25 rows. 2x: hip_yaw pass, hip_roll T, hip_pitch T+S,
+     knee T+S, ankle pass (2 of 5)
+  B: DR off 0.158 / 0.238, |wz| 0.061 / 0.077; DR on 0.131 / 0.206, |wz| 0.063 / 0.080; 40 ms 0.114
+     (76 %, fails). 2x: hip_yaw pass, hip_roll / hip_pitch / knee / ankle S (1 of 5)
 A: wall time; falls rule fired?; MAC-25 rows; sizing table; 2x pass per joint:
+  839 s, all 1000 it; falls/it 0.21 -> 0.04 (100-it mean <= 0.09 after it 100) -> no; reward 0.103 -> 0.124
+  rows: DR off vx 0.156 / 0.242, |wz| 0.069 / 0.113 (0.25 FAILS); DR on 0.133 / 0.211, |wz| 0.041 /
+  0.088 (0.25 FAILS); 40 ms 0.114 (76 %, FAILS); 0 falls; turn 0.8 0.892 / 0.769 -> does NOT meet
+  sizing (torque_max / RMS / speed_p95; required 2x): hip_yaw 0.249 / 0.057 / 2.03 (0.50 / 4.1);
+  hip_roll 0.655 / 0.190 / 2.88 (1.31 / 5.8); hip_pitch 0.612 / 0.199 / 6.57 (1.22 / 13.1);
+  knee 0.456 / 0.114 / 6.19 (0.91 / 12.4); ankle 0.408 / 0.113 / 3.85 (0.82 / 7.7); no at_torque_limit
+  2x: hip_yaw pass, hip_roll T, hip_pitch T+S, knee S, ankle pass (2 of 5)
 B: wall time; falls rule fired?; MAC-25 rows; sizing table; 2x pass per joint:
-policy.onnx sha256 A / B:
-verdict:
+  1258 s, all 1000 it; falls/it 0.27 -> 0.03-0.04 -> no; reward 0.106 -> 0.123
+  rows: DR off vx 0.163 / 0.244, |wz| 0.017 / 0.005; DR on 0.142 / 0.216, |wz| 0.009 / 0.001;
+  40 ms 0.121 (81 %); 0 falls in every case; turn 0.8 0.873 / 0.771; zero |wz| 0.008 / 0.026 -> MEETS
+  sizing: hip_yaw 0.259 / 0.061 / 2.24 (0.52 / 4.5); hip_roll 0.700 / 0.189 / 2.84 (1.40 / 5.7);
+  hip_pitch 0.642 / 0.193 / 4.76 (1.28 / 9.5); knee 0.464 / 0.122 / 4.79 (0.93 / 9.6); ankle 0.391 /
+  0.104 / 3.67 (0.78 / 7.3); no at_torque_limit
+  2x: hip_yaw pass; hip_roll, hip_pitch, knee, ankle fail on speed only (1 of 5); torque passes
+  at all five
+policy.onnx sha256 A / B: d273bd75a02e6d91a709dfd7a3188d0f23d4c43e965397dfd1c747c733888c4b /
+  13070c6af571cccaa7363e73ced8a2c0225d0e0e6082e658622af0e85d763bfb
+verdict: with its real curve, B (STS3215 @ 7.4 V) can be learned: the fine-tune walks at 0.15 / 0.25
+  with DR on and off, yaw <= 0.017, 81 % at 40 ms, 0 falls, and it turns 0.87. The policy also
+  slowed hip pitch and knee from ~6.5 to ~4.8 rad/s p95 under B's curve. But B has the torque and
+  not the speed for the 2x margin (speed_p95 2.8-4.8 vs 2.7). A (XC330 @ 6 V) is short on torque at
+  the hips and on speed at hip pitch / knee, and its fine-tune drifts at 0.25 and misses 40 ms.
+  Neither passes more joints than MAC-25 does under curve A (2 of 5), so MAC-25 stays the reference.
+  For WP4-05, the gap is speed at about 5 rad/s with about 1 N.m, at hip roll, hip pitch, knee and ankle.
 ```
 
 ---
