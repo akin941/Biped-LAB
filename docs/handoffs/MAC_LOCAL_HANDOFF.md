@@ -936,5 +936,40 @@ verdict vs MAC-14 and MAC-21:
 
 ---
 
+## MAC-24 — Microduck: continue the posture-gate run on BAM (WP3-14, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-22 done (its `model_10000.pt`); run after MAC-23
+
+MAC-22 (mac-m5) broke the standing optimum: with the posture gate the policy steps at
+0.2 (0.061–0.070 m/s) and 0.3 (0.219) and walks backward (−0.150). It was still
+improving when it stopped: tracking and air time were rising, and training falls were
+falling (1.97 → 1.18 per iteration). MAC-24 continues the same run with the same
+flags for 3000 more iterations, so the only change is training time. Use a clean
+worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 3000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --resume <mac22>/runs/mac22-seed0/model_10000.pt --run-dir runs/mac24-seed0 \
+    --save-every 100 --out runs/mac24-seed0/report.json
+```
+Then run the MAC-22 evals: eval_velocity_env at 0.4, G1.3 (BAM), and the forward sweep
+at 0.1 / 0.2 / 0.3 / 0.4 plus backward 0.3, with `displacement_y_m` and the yaw rate.
+If training falls rise above MAC-22's last 400 iterations (1.18), stop at that
+checkpoint and evaluate it. Commit the JSONs under `docs/experiments/mac24/`.
+
+**Acceptance (G3.3):** as MAC-12 (G1.3 with BAM: 0.2 m/s within ±30 %). If it misses,
+record whether vx at 0.2 and the drift moved, since that decides between more training
+and adding drift pressure (yaw / lateral tracking).
+
+Result:
+```
+revision:
+wall time:
+reward, air_time, tracking, training falls trend:
+sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4:
+G1.3 (BAM) verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
