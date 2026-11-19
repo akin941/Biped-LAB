@@ -1,0 +1,220 @@
+{
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "policy": "runs/mac24-seed0/policy.onnx",
+  "cases": [
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.4,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.3161294758319855,
+      "vx_per_env": [
+        0.3172413110733032,
+        0.31534212827682495,
+        0.31610366702079773,
+        0.31797099113464355,
+        0.3148898780345917,
+        0.3148581087589264,
+        0.3189038336277008,
+        0.31372612714767456
+      ],
+      "reward_per_step": 0.13817087344825268,
+      "terms_per_step": {
+        "track_linear_velocity": 0.028120591705664992,
+        "track_angular_velocity": 0.02541039193700999,
+        "upright": 0.03780886475741863,
+        "pose": 0.0027134012813330626,
+        "body_ang_vel": -9.377715861410252e-05,
+        "angular_momentum": -6.031377594384799e-09,
+        "dof_pos_limits": -7.448653004757944e-07,
+        "action_rate_l2": -0.004754736280534417,
+        "air_time": 0.02876999897137284,
+        "foot_clearance": -0.00010376365865158732,
+        "foot_swing_height": -2.8010292235143952e-05,
+        "foot_slip": -9.229759042284514e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.029209274291992188,
+        "head_pose_bias": -0.00887138218385371
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.4,
+        0.0,
+        0.0
+      ],
+      "noise": false,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": 0.3131706714630127,
+      "vx_per_env": [
+        0.3133220374584198,
+        0.3131393492221832,
+        0.3132983148097992,
+        0.3133203387260437,
+        0.31321001052856445,
+        0.31273922324180603,
+        0.31305360794067383,
+        0.31328287720680237
+      ],
+      "reward_per_step": 0.14017438235878946,
+      "terms_per_step": {
+        "track_linear_velocity": 0.02923373921588063,
+        "track_angular_velocity": 0.029201588789001108,
+        "upright": 0.037994145959615706,
+        "pose": 0.0028033850854844787,
+        "body_ang_vel": -6.55018660636415e-05,
+        "angular_momentum": -5.0852408853428695e-09,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.004788002545479685,
+        "air_time": 0.025784999183379113,
+        "foot_clearance": -8.629351457057056e-05,
+        "foot_swing_height": -1.6785257184721347e-05,
+        "foot_slip": -7.603184507502192e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.029344645116478205,
+        "head_pose_bias": -0.009223930084855964
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": -0.00019908610556740314,
+      "vx_per_env": [
+        -0.00018905216711573303,
+        -0.00021366422879509628,
+        -0.00019835981947835535,
+        -0.0002078231773339212,
+        -0.00020818848861381412,
+        -0.00018620665650814772,
+        -0.00019199406960979104,
+        -0.00019740054267458618
+      ],
+      "reward_per_step": 0.1652182488143444,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03993614518642426,
+        "track_angular_velocity": 0.03985282534360886,
+        "upright": 0.039842558339238165,
+        "pose": 0.016730488523840903,
+        "body_ang_vel": -1.2812618162669764e-06,
+        "angular_momentum": -8.811109391240743e-11,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0001313844739124761,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_swing_height": 0.0,
+        "foot_slip": 0.0,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.035739119969308376,
+        "head_pose_bias": -0.006750223613783419
+      }
+    },
+    {
+      "policy": "onnx",
+      "actuator": "bam",
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "noise": false,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 0,
+      "vx_mean": -9.862048318609595e-05,
+      "vx_per_env": [
+        -9.052127279574051e-05,
+        -9.802324348129332e-05,
+        -9.532006515655667e-05,
+        -0.00010366734932176769,
+        -0.00010282849689247087,
+        -0.00010227712482446805,
+        -0.00010058090992970392,
+        -9.574531577527523e-05
+      ],
+      "reward_per_step": 0.16574621680378915,
+      "terms_per_step": {
+        "track_linear_velocity": 0.039939043667167426,
+        "track_angular_velocity": 0.039908857114613054,
+        "upright": 0.03987380956858397,
+        "pose": 0.017247967708855866,
+        "body_ang_vel": -8.487147391889605e-07,
+        "angular_momentum": -8.271865283440492e-11,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -2.157876500872241e-05,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_swing_height": 0.0,
+        "foot_slip": 0.0,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.03568651008605957,
+        "head_pose_bias": -0.006887545959159979
+      }
+    },
+    {
+      "policy": "zero-action",
+      "actuator": "bam",
+      "twist": [
+        0.4,
+        0.0,
+        0.0
+      ],
+      "noise": true,
+      "dr": false,
+      "num_envs": 8,
+      "seconds": 10.0,
+      "falls": 8,
+      "vx_mean": null,
+      "vx_per_env": [],
+      "reward_per_step": 0.10850359777372981,
+      "terms_per_step": {
+        "track_linear_velocity": 0.012840011208835576,
+        "track_angular_velocity": 0.02116665298608736,
+        "upright": 0.01906691820070918,
+        "pose": 0.019187647228439648,
+        "body_ang_vel": -0.0032163687081929455,
+        "angular_momentum": -2.910968829982437e-08,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": 0.0,
+        "air_time": 0.0,
+        "foot_clearance": -5.177432908134333e-06,
+        "foot_swing_height": -8.629360384056492e-05,
+        "foot_slip": -3.937996301474014e-06,
+        "self_collisions": 0.0,
+        "head_pose_tracking": 0.039870508310813756,
+        "head_pose_bias": -0.00031633472325582923
+      }
+    }
+  ]
+}

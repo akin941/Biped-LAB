@@ -20,7 +20,7 @@ Diagnostic runs (1 repeat each, `mac15/diag/`):
 
 | harness setting | command → vx (m/s) |
 |---|---|
-| BAM sweep | fwd 0.1 → 0.0001, fwd 0.3 → 0.120, fwd 0.4 → 0.149; back 0.3, lateral 0.3, turn 1.0 → ≈ 0 |
+| BAM sweep | fwd 0.1 → 0.0001, fwd 0.3 → 0.120, fwd 0.4 → 0.149; back 0.3, lateral 0.3 → ≈ 0; turn 1.0 → wz 0.941* |
 | BAM walking, `--init settle` | fwd 0.2 → −0.0002 |
 | BAM walking, `--init straight` | fwd 0.2 → 0.011 |
 | MJCF walking, `--init upstream` | fwd 0.2 → 0.117 |
@@ -28,7 +28,7 @@ Diagnostic runs (1 repeat each, `mac15/diag/`):
 ## Conclusion
 - Fine-tuning works better than training from scratch (MAC-12): the forward gait
   survives on BAM. But it only starts above a command threshold between 0.2 and 0.3 m/s,
-  and only forwards. The same weights on MJCF walk at 0.2, so BAM's weaker,
+  and only forwards (plus turning at 1.0 rad/s, see the correction below). The same weights on MJCF walk at 0.2, so BAM's weaker,
   back-EMF-damped response raises the threshold. G1.3 tests exactly 0.2, so it reads 0.
 - Not a harness artefact: the init mode doesn't change the 0.2 result, and the sweep
   shows a clean threshold.
@@ -40,3 +40,7 @@ Files: `mac15/` holds `run.json` (resume path shortened to `<main checkout>/…`
 `eval.json`, `g1-3.json`, `report.json` (history every 10th iteration,
 `history_stride: 10`) and `diag/*.json`.
 policy.onnx sha256 `ddda1a28ae7a344b19d67ca49be86e251e33f37dbd7d23c05548e60b6a18c518` (not committed).
+
+\* Correction (MAC-24): turn 1.0 was first recorded as ≈ 0 because the vx column was read. Its yaw rate
+(`mean_gyro_z_second_half`) is 0.941 rad/s, so the policy does turn at the large command; G1.3's turn 0.5
+stays ≈ 0.
