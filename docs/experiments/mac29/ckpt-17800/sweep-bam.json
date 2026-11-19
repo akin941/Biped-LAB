@@ -1,0 +1,164 @@
+{
+  "policy": "policy.onnx",
+  "scene": "scene_walk.xml",
+  "actuator": "bam-xl330-m6 (CPU port of Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967 (Apache-2.0); drop gain 0.1)",
+  "init": "upstream",
+  "postprocess": {
+    "action_scale": 1.0,
+    "effective_scale": 1.0,
+    "head_lowpass": null,
+    "legs_lowpass": null,
+    "supply_voltage": null
+  },
+  "training_match": {
+    "bam_delay_steps": 0,
+    "vin": 7.4,
+    "joint_vel_lag": 0,
+    "bam_kp": 200.0
+  },
+  "physics_dt": 0.005,
+  "control_hz": 50.0,
+  "mujoco": "3.10.0",
+  "repeats": 1,
+  "scenario_set": "sweep",
+  "scenarios": {
+    "forward_0.1": {
+      "command": [
+        0.1,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.11351160439151214,
+      "final_trunk_height_m": 0.12079863085347739,
+      "max_tilt_deg": 5.762803418908097,
+      "finite": true,
+      "state_digest": "15c95ee30d6349ec",
+      "displacement_x_m": 0.5323959028920001,
+      "displacement_y_m": -0.4423046956558809,
+      "mean_speed_x_mps": 0.053239590289200014,
+      "max_abs_action": 0.8291481137275696,
+      "mean_gyro_z_second_half": -0.15263444185256958,
+      "trunk_roll_deg_second_half": 0.3719898967020669,
+      "trunk_pitch_deg_second_half": -3.591172588525787
+    },
+    "forward_0.3": {
+      "command": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.1113435439020151,
+      "final_trunk_height_m": 0.12053535089676749,
+      "max_tilt_deg": 6.906662952475151,
+      "finite": true,
+      "state_digest": "8da0e03f922f2f99",
+      "displacement_x_m": 1.6814950403523203,
+      "displacement_y_m": -1.1776155810979472,
+      "mean_speed_x_mps": 0.16814950403523204,
+      "max_abs_action": 1.0180572271347046,
+      "mean_gyro_z_second_half": -0.1445624828338623,
+      "trunk_roll_deg_second_half": 0.21645135742606245,
+      "trunk_pitch_deg_second_half": -5.556269629105751
+    },
+    "forward_0.4": {
+      "command": [
+        0.4,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.10962460661410958,
+      "final_trunk_height_m": 0.12213344488240807,
+      "max_tilt_deg": 7.045243218361601,
+      "finite": true,
+      "state_digest": "57b12c18c96ca192",
+      "displacement_x_m": 2.2047361800159684,
+      "displacement_y_m": -1.3358481367683541,
+      "mean_speed_x_mps": 0.22047361800159684,
+      "max_abs_action": 1.1449899673461914,
+      "mean_gyro_z_second_half": -0.11595277488231659,
+      "trunk_roll_deg_second_half": 0.26887752006049825,
+      "trunk_pitch_deg_second_half": -5.998860008346258
+    },
+    "backward_0.3": {
+      "command": [
+        -0.3,
+        0.0,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.11417563815313378,
+      "final_trunk_height_m": 0.11932641265010388,
+      "max_tilt_deg": 1.8261029657850603,
+      "finite": true,
+      "state_digest": "740fea5cc0455cea",
+      "displacement_x_m": -1.555062149783265,
+      "displacement_y_m": 1.2525864749238544,
+      "mean_speed_x_mps": -0.1555062149783265,
+      "max_abs_action": 1.246029019355774,
+      "mean_gyro_z_second_half": -0.16559958457946777,
+      "trunk_roll_deg_second_half": 0.48257383155925937,
+      "trunk_pitch_deg_second_half": -0.3904981981707571
+    },
+    "lateral_0.3": {
+      "command": [
+        0.0,
+        0.3,
+        0.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.1128516851535529,
+      "final_trunk_height_m": 0.12130102678894084,
+      "max_tilt_deg": 5.938059693037358,
+      "finite": true,
+      "state_digest": "7c2c9829023cd50d",
+      "displacement_x_m": -0.3755740232148566,
+      "displacement_y_m": 0.7294440627033187,
+      "mean_speed_x_mps": -0.03755740232148566,
+      "max_abs_action": 1.2249234914779663,
+      "mean_gyro_z_second_half": 0.18337729573249817,
+      "trunk_roll_deg_second_half": 1.2052047834602209,
+      "trunk_pitch_deg_second_half": -4.760544767806642
+    },
+    "turn_1.0": {
+      "command": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "duration_s": 10.0,
+      "control_hz": 50.0,
+      "fell": false,
+      "fall_time_s": null,
+      "min_trunk_height_m": 0.11497603582372459,
+      "final_trunk_height_m": 0.1176712152958377,
+      "max_tilt_deg": 3.1589134438655315,
+      "finite": true,
+      "state_digest": "6531d41a2ff717b4",
+      "displacement_x_m": 0.0008179563089992907,
+      "displacement_y_m": -0.003465019795425519,
+      "mean_speed_x_mps": 8.179563089992907e-05,
+      "max_abs_action": 0.4581657350063324,
+      "mean_gyro_z_second_half": 0.0015627453103661537,
+      "trunk_roll_deg_second_half": -0.152761510579723,
+      "trunk_pitch_deg_second_half": -2.589526179035267
+    }
+  }
+}

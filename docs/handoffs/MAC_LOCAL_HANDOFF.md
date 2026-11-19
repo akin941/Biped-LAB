@@ -1205,7 +1205,7 @@ notes: this checkpoint is the first Microduck BAM policy to pass G3.3 on the M5,
 ---
 
 ## MAC-29 — Microduck: confirm the G3.3 pass holds (WP3-17, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-28 done (its `model_17300.pt`)
+Status: `done (mac-m5, 2026-11-19): not confirmed (falls rule fired, no checkpoint passes)` · Deps: MAC-28 done (its `model_17300.pt`)
 
 MAC-28 (mac-m5): `--track-ang-ref-speed 1.0` raised training falls to 1.93/it, and the
 rule stopped the run at 17300. model_17300 meets G1.3 on BAM: 0.2 gives 0.160–0.161 (80 %)
@@ -1232,19 +1232,34 @@ and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under `docs/experiments/m
 with BAM (0.2 m/s within ±30 %, 0 falls, |wz| at 0.2 below 0.05). The training falls
 rule must not fire. Turning is out of scope here (WP3-18).
 
-Result:
+Result (env: mac-m5, 2026-11-19): NOT confirmed; the falls rule fired and no checkpoint meets G1.3
 ```
-revision:
-wall time; training falls trend; rule fired?:
+revision: 3e276f0 (main), git_dirty false; resumed from mac28-seed0/model_17300.pt with the
+  MAC-27 flags, 8 workers; a VM used ~4-7 cores
+wall time; training falls trend; rule fired?: 15 min until stopped. falls/it (100-it means)
+  2.15 / 1.57 / 1.28 / 1.53 / 1.47 / 1.64; the watchdog's 200-it mean read 1.43, 1.41,
+  1.50, then 1.55 at it 600 -> YES, the rule fired; training stopped at it 17900 (600
+  of 1000). loss_symmetry 0.0148 -> 0.0111; air_time ~0.019; tracking ~0.017.
+  Evaluated the last four saved checkpoints: 17600, 17700, 17800, 17900.
 per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 wz:
-best checkpoint: eval_velocity_env 0.4, long stands:
-verdict:
+  17600: 0.132-0.133 (66 %) / -0.050; -0.154; 0.179 (wz -0.12) / 0.198 (wz -0.18); 0.002
+  17700: 0.081-0.092 / -0.132;          -0.084; 0.216 (wz -0.05) / 0.221 (wz +0.12); 0.002
+  17800: 0.128-0.135 / -0.097;          -0.119; 0.168 (wz -0.15) / 0.220 (wz -0.12); 0.002
+  17900: 0.125-0.129 (63 %) / +0.025;   -0.120; 0.141 (wz +0.14) / 0.239 (wz +0.08); 0.001
+  0 falls in every G1.3 case; stand_still fine; turn_left_0.5 wz <= 0.006 everywhere
+best checkpoint: 17600. eval_velocity_env 0.4: vx 0.295 / 0.303 (noise on / off), 0 falls;
+  stand 4 x 20 s and 4 x 30 s: 0 falls, tilt 1.6 deg; 0.2 for 4 x 20 s: 0.113-0.116, 0 falls
+verdict: not confirmed. No checkpoint reaches 0.14 at 0.2 with |wz| < 0.05 (best 0.133 at
+  |wz| 0.050), and the training falls rule fired. MAC-28's model_17300 (0.160) was a
+  snapshot, not a stable state: from it the gait drifts again (|wz| up to 0.18 at 0.4)
+  and 0.2 settles at 63-66 %, the MAC-27 level.
+policy.onnx sha256: 17600 e6401b86666adc6eb77afcb260fe8a0ff935f9123f0f2d241583a34a53b347e4
 ```
 
 ---
 
 ## MAC-30 — Microduck: why turning was lost, a reward check (WP3-18, diagnostic)
-Status: `awaiting-mac` · Deps: MAC-29 done; the MAC-24 `policy.onnx` (run it after MAC-29)
+Status: `done (mac-m5, 2026-11-19): verdict (b)` · Deps: MAC-29 done; the MAC-24 `policy.onnx` (run it after MAC-29)
 
 MAC-24 turned at 1.0 rad/s (wz 0.965) on BAM. Every policy since MAC-26 stands still at
 turn-only commands (0.5 and 1.0 give ≈ 0). There are two possible causes. (a) The current
@@ -1271,11 +1286,33 @@ and the `track_angular_velocity`, `track_linear_velocity`, `upright` and `pose` 
 (noise off). The verdict is (a) if MAC-24's turning earns less `reward_per_step` at
 turn 1.0 than the standing policies, and (b) otherwise.
 
-Result:
+Result (env: mac-m5, 2026-11-19): verdict (b), turning still pays; the policies forgot it
 ```
-revision:
-turn 1.0 / turn 0.5 / fwd 0.2 / zero, per policy:
-verdict (a) or (b):
+revision: 70b875d (main), git_dirty false; eval only, BAM, 8 envs x 10 s, reward flags
+  --track-lin-std2 0.05 --posture-gate --track-lin-ref-speed 0.4; noise off below
+turn 1.0 / turn 0.5 / fwd 0.2 / zero, per policy (wz, vx, falls, reward/step |
+  track_ang, track_lin, upright, pose):
+  MAC-24 policy.onnx:
+    turn 1.0  wz 0.880 vx 0.011 0  0.1064 | 0.0267 0.0316 0.0214 0.0066
+    turn 0.5  wz 0.002 vx 0.000 0  0.1159 | 0.0250 0.0399 0.0247 0.0114
+    fwd 0.2   wz -0.001 vx 0.000 0 0.0317 | 0.0398 0.0017 0.0017 0.0008
+    zero      wz 0.001 vx 0.000 0  0.1657 | 0.0399 0.0399 0.0399 0.0172
+  MAC-28 model_17300:
+    turn 1.0  wz 0.003 vx 0.000 0  0.0520 | 0.0070 0.0399 0.0069 0.0022
+    turn 0.5  wz 0.004 vx 0.000 0  0.1120 | 0.0249 0.0399 0.0248 0.0089
+    fwd 0.2   wz -0.007 vx 0.165 0 0.0651 | 0.0261 0.0116 0.0081 0.0005
+    zero      wz -0.001 vx 0.000 0 0.1565 | 0.0398 0.0399 0.0398 0.0106
+  MAC-29 model_17600:
+    turn 1.0  wz 0.005 vx 0.000 0  0.0475 | 0.0074 0.0399 0.0067 0.0023
+    turn 0.5  wz 0.002 vx 0.000 0  0.1142 | 0.0249 0.0399 0.0246 0.0114
+    fwd 0.2   wz -0.050 vx 0.140 0 0.0677 | 0.0304 0.0106 0.0075 0.0002
+    zero      wz -0.001 vx 0.000 0 0.1626 | 0.0399 0.0399 0.0400 0.0158
+verdict (a) or (b): (b). At turn 1.0 MAC-24's turning (wz 0.88) earns 0.106 reward/step under
+  the current reward, about 2x the standing policies (0.052 / 0.048); its yaw term is 4x
+  theirs and the gated upright term 3x. Turning pays more, so this is an optimisation
+  problem (forgotten), not reward design. Caveat: at turn 0.5 all three, MAC-24 too,
+  stand, and standing still keeps 62 % of the yaw term (0.025 of 0.040) and about 0.11-0.12
+  reward/step, so 0.5 has little pressure under the current yaw kernel.
 ```
 
 ---
