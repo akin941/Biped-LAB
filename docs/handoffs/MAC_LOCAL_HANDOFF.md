@@ -615,7 +615,7 @@ notes:
 ---
 
 ## MAC-18 — Why does the runtime run faster and turn right? (WP4-21)
-Status: `awaiting-mac` · Deps: MAC-16 done, WP4-21 merged
+Status: `done (mac-m5, 2026-11-19)` · Deps: MAC-16 done, WP4-21 merged
 
 MAC-16 (mac-m5): through the runtime the MAC-14 policy goes 0.194 / 0.285 m/s at
 0.15 / 0.25 (129 / 114 %) and yaws −0.15…−0.19 rad/s at a zero yaw command; in the
@@ -634,13 +634,22 @@ faithful and the policy itself drifts; otherwise compare observations (the
 `runtime_policy` parity test covers the layout). Commit `eval.json` under
 `docs/experiments/mac18/`.
 
-Result:
+Result (env: mac-m5, 2026-11-19): the policy drifts; the runtime path is faithful
 ```
-revision:
-no DR: vx / wz at 0.15, at 0.25:
-DR:    vx / wz at 0.15, at 0.25:
-conclusion (policy or runtime path):
-notes:
+revision: 441e731 (main); policy = MAC-14 policy.onnx (sha256 83766219...e8be6f78f);
+  8 envs x 20 s, 0 falls in every case; MAC-17 training was running in parallel
+no DR: vx / wz at 0.15: 0.178 / -0.186 rad/s; at 0.25: 0.264 / -0.239 rad/s
+DR:    vx / wz at 0.15: 0.150 / -0.128 rad/s; at 0.25: 0.228 / -0.159 rad/s
+  (vy <= 0.012 m/s everywhere; zero command: vx 0.017 / 0.004, wz -0.021 / 0.001;
+  turn 0.8 command: wz 0.622 / 0.558)
+MAC-16 runtime (no DR): vx 0.194 / 0.285, wz -0.190 / -0.148
+conclusion (policy or runtime path): policy. Python env without DR already yaws right
+  (-0.19 / -0.24 rad/s) and goes fast (119 / 106 %), as in the runtime; DR lowers both
+  speed and yaw. The runtime adds ~8-9 % vx (0.194 vs 0.178, 0.285 vs 0.264), and at
+  0.25 its yaw is lower than the Python env's (-0.148 vs -0.239).
+notes: the drift appears only when walking forward (zero command wz ~0), and grows with
+  speed without DR, so it is a gait asymmetry, not a heading bias at rest. The policy
+  never trained without DR, which matches both effects being largest with DR off.
 ```
 
 ---
