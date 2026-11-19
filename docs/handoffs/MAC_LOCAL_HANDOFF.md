@@ -1318,7 +1318,7 @@ verdict (a) or (b): (b). At turn 1.0 MAC-24's turning (wz 0.88) earns 0.106 rewa
 ---
 
 ## MAC-31 — Microduck: steadier PPO and more turn commands (WP3-19, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-28 `model_17300.pt`, MAC-29 / MAC-30 done
+Status: `done (mac-m5, 2026-11-19): not confirmed (1 of 5 checkpoints passes)` · Deps: MAC-28 `model_17300.pt`, MAC-29 / MAC-30 done
 
 MAC-29 (mac-m5) did not confirm G3.3. The falls rule fired at 17900. The best
 checkpoints reached 0.125–0.135 at 0.2 (≥ 0.14 needed), and the yaw drift changes sign
@@ -1351,13 +1351,34 @@ and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under `docs/experiments/m
 BAM, |wz| at 0.2 below 0.05, falls rule not fired). WP3-18 also passes if turn 1.0 gives
 wz ≥ 0.7 on those checkpoints.
 
-Result:
+Result (env: mac-m5, 2026-11-19): NOT confirmed (one passing checkpoint, not two); steadier training, turning partly back
 ```
-revision:
-wall time; training falls trend; rule fired?:
-per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 / 0.5 wz:
-best checkpoint: eval_velocity_env 0.4, long stands:
-verdict:
+revision: e4ebe56 (main), git_dirty false; resumed from mac28-seed0/model_17300.pt with the
+  MAC-27 flags + --desired-kl 0.005 --turn-fraction 0.3, 8 workers; a VM used ~4-6 cores
+wall time; training falls trend; rule fired?: 1756 s (29 min), all 1500 it. falls/it
+  (100-it means) 1.98 (first 100) -> 1.10-1.22 -> 0.82-1.01 -> 0.74-0.88 at the end; the
+  watchdog's 200-it mean stayed 0.81-1.19 -> NO, the rule did not fire. reward 0.026 ->
+  0.034; track_angular_velocity 0.011 -> 0.013; tracking 0.020 -> 0.021; loss_symmetry
+  0.013 -> 0.010
+per checkpoint: G1.3 0.2 vx / wz, backward 0.15, sweep 0.3 / 0.4, turn 1.0 / 0.5 wz
+  (turn wz from the MAC-30 env eval, noise off; sweep turn_1.0 in brackets):
+  17600: 0.134-0.136 / -0.064; -0.140; 0.239 / 0.315; 0.004 (0.003) / 0.004
+  17900: 0.132-0.134 / -0.061; -0.001; 0.234 / 0.276; 0.003 (0.001) / 0.003
+  18200: 0.118-0.120 / -0.052; -0.001; 0.182 / 0.204; 0.575 (-0.183) / 0.003
+  18500: 0.151-0.154 / +0.016; -0.132; 0.218 / 0.246; 0.240 (0.021) / 0.006  <- passes G1.3
+  18800: 0.144-0.145 / +0.088; -0.147; 0.206 / 0.262; 0.005 (0.004) / 0.005
+  0 falls in every G1.3 case; stand_still fine; G1.3 turn_left_0.5 wz <= 0.004 everywhere
+  extra (not in the protocol list): 18400 0.131-0.135 / -0.093, 18600 0.147-0.148 / -0.107
+best checkpoint: 18500. eval_velocity_env 0.4: vx 0.271 / 0.273 (noise on / off), 0 falls;
+  stand 4 x 20 s and 4 x 30 s: 0 falls, tilt <= 1.8 deg; 0.2 for 4 x 20 s: 0.149-0.155,
+  0 falls
+verdict: G3.3 not confirmed. Only 18500 meets G1.3 (0.2 within +-30 % and |wz| < 0.05);
+  its neighbours 18200 / 18800 (and 18400 / 18600) fail on speed or |wz|. The falls rule
+  did not fire, and training was steadier than MAC-29 (falls ~0.8-1.0, reward rising).
+  The yaw at 0.2 still changes sign between checkpoints (-0.06 ... +0.09).
+  WP3-18 not met: turn 1.0 reached 0.575 (18200) and 0.240 (18500), not >= 0.7, and
+  turn 0.5 stays ~0.
+policy.onnx sha256: 18500 70053902f4fa400e83d523cb2d0d09ff3df8ba73585bd92c1fc4ab7ac429cc76
 ```
 
 ---
