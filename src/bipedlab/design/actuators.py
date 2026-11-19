@@ -81,6 +81,19 @@ WP4_01 = [
     Requirement("ankle", 0.218, 2.630, 0.103),
 ]
 
+# From our own learned gait (WP4-27; mac-m5, MAC-36, docs/experiments/mac36/): the
+# MAC-25 policy and its 1.5 N*m fine-tune, scored with the force limit at 1.5 N*m so
+# no joint is clipped. Peak torque = worst walking max, peak speed = worst walking p95
+# |joint speed| and RMS = worst walking RMS, over both policies and DR off / on.
+GAIT_MAC36 = [
+    Requirement("hip_yaw", 0.200, 1.65, 0.055),
+    Requirement("hip_roll", 0.680, 2.75, 0.187),
+    Requirement("hip_pitch", 0.585, 7.10, 0.172),
+    Requirement("knee", 0.475, 6.85, 0.113),
+    Requirement("ankle", 0.410, 4.00, 0.124),
+]
+REQUIREMENTS = {"wp4-01": WP4_01, "mac36": GAIT_MAC36}
+
 
 def fit(c: Candidate, r: Requirement) -> dict[str, float | bool]:
     loaded = c.no_load_speed * max(0.0, 1 - r.peak_torque / c.stall_torque)
