@@ -645,5 +645,42 @@ notes:
 
 ---
 
+## MAC-19 — biped_v1: fine-tune MAC-14 against the yaw drift (WP4-22)
+Status: `awaiting-mac` · Deps: MAC-18 done, WP4-22 merged
+
+MAC-18 (mac-m5): the MAC-14 policy itself yaws −0.13…−0.24 rad/s while walking at a
+zero yaw command (worse with DR off), the runtime path is faithful. biped_v1 is
+mirror-symmetric (cloud check of body/joint/geom data), so this is a learned gait
+asymmetry that the 0.5 angular kernel barely penalizes (exp(−0.19²/0.5) = 0.93).
+`--track-yaw-std2 0.1` makes the same drift cost 30 % of that term. Continue MAC-14
+(its curricula, DR delay at full 0–40 ms) for 1000 iterations from a clean worktree of
+origin/main; use absolute paths to the MAC-14 checkpoint. Run it after MAC-17 if the
+Mac is busy.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-yaw-std2 0.1 \
+    --resume <mac14>/runs/mac14/model_3000.pt --run-dir runs/mac19 --save-every 100 \
+    --out runs/mac19/report.json
+uv run python scripts/eval_biped.py runs/mac19/policy.onnx --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac19/eval.json
+```
+Then MAC-16's runtime check with `runs/mac19/policy.onnx` (export to BPML as in MAC-16),
+for 0.15 and 0.25. Commit `report.json`, `run.json`, `eval.json` and the runtime JSON
+under `docs/experiments/mac19/`.
+
+Result:
+```
+revision:
+Python env vx / wz at 0.15, 0.25 (DR off):
+Python env vx / wz at 0.15, 0.25 (DR on):
+turn 0.8 wz (DR off / on):
+latency 20/40/60 ms vx:
+runtime vx / wz at 0.15, 0.25:
+falls / knee p95:
+notes:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

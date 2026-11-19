@@ -115,6 +115,27 @@ def test_tracking_reward_prefers_matching_velocity():
     assert terms["track_linear_velocity"][0] > terms["track_linear_velocity"][1]
 
 
+def test_yaw_kernel_knob_only_tightens_the_yaw_part():
+    # WP4-22: MAC-18 showed a -0.13..-0.24 rad/s yaw drift that the 0.5 kernel barely
+    # pays for; ``track_yaw_std2`` tightens the yaw term, roll/pitch rates keep 0.5.
+    envs = [BipedVelocityEnv(num_envs=1, seed=0, noise=False, track_yaw_std2=v) for v in (0.5, 0.1)]
+    out = []
+    for env in envs:
+        env.freeze_commands(np.array([0.2, 0.0, 0.0]))
+        env.datas[0].qvel[3:6] = [0.1, 0.0, -0.2]
+        s = env._state()
+        ang = s["ang_vel_b"][0]
+        tilt = (ang[0] ** 2 + ang[1] ** 2) / bve.TRACK_ANG_STD2
+        term = env._rewards(s, np.zeros((1, bve.ACT_DIM), dtype=np.float32))
+        value = term["track_angular_velocity"][0] / (2.0 * bve.STEP_DT)
+        out.append(value)
+        yaw = ang[2] ** 2 / env.track_yaw_std2
+        assert value == pytest.approx(math.exp(-yaw - tilt), rel=1e-5)
+    assert out[1] < out[0]
+    with pytest.raises(ValueError, match="track_yaw_std2"):
+        BipedVelocityEnv(num_envs=1, track_yaw_std2=0.0)
+
+
 def test_domain_randomization_changes_physics_but_not_commands():
     plain = BipedVelocityEnv(num_envs=3, seed=4)
     dr = BipedVelocityEnv(num_envs=3, seed=4, dr=True)

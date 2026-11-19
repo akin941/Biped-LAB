@@ -177,6 +177,9 @@ class BipedVelocityEnv:
     # DR ablation knobs (WP4-18): extra DR delay range and foot friction range.
     dr_delay_max: int = DR_ACTION_DELAY_MAX
     dr_foot_friction: tuple[float, float] = FOOT_FRICTION
+    # Yaw-rate part of the angular tracking kernel (WP4-22). Roll/pitch rates keep
+    # TRACK_ANG_STD2; the default reproduces the MAC-14 reward exactly.
+    track_yaw_std2: float = TRACK_ANG_STD2
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -186,6 +189,8 @@ class BipedVelocityEnv:
             raise ValueError("num_envs must be at least 1")
         if self.action_delay < 0 or self.dr_delay_max < 0:
             raise ValueError("action_delay and dr_delay_max must be >= 0")
+        if self.track_yaw_std2 <= 0:
+            raise ValueError("track_yaw_std2 must be > 0")
         m = mujoco.MjModel.from_xml_path(str(self.scene))
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
@@ -464,7 +469,8 @@ class BipedVelocityEnv:
         active = np.linalg.norm(twist[:, :2], axis=1) + np.abs(twist[:, 2]) > COMMAND_THRESHOLD
         lin, ang = s["lin_vel_b"], s["ang_vel_b"]
         lin_err = np.sum(np.square(twist[:, :2] - lin[:, :2]), axis=1) + np.square(lin[:, 2])
-        ang_err = np.square(twist[:, 2] - ang[:, 2]) + np.sum(np.square(ang[:, :2]), axis=1)
+        yaw_err = np.square(twist[:, 2] - ang[:, 2])
+        tilt_rate = np.sum(np.square(ang[:, :2]), axis=1)
         q = s["joint_pos"]
         std = np.where(active[:, None], POSE_STD_WALKING, POSE_STD_STANDING)
         out = np.clip(self.soft_lo - q, 0, None) + np.clip(q - self.soft_hi, 0, None)
@@ -473,7 +479,9 @@ class BipedVelocityEnv:
         clearance = s["foot_height"] - s["foot_height"].min(axis=1, keepdims=True)
         values = {
             "track_linear_velocity": np.exp(-lin_err / TRACK_LIN_STD2),
-            "track_angular_velocity": np.exp(-ang_err / TRACK_ANG_STD2),
+            "track_angular_velocity": np.exp(
+                -yaw_err / self.track_yaw_std2 - tilt_rate / TRACK_ANG_STD2
+            ),
             "upright": np.exp(-np.sum(np.square(s["gravity"][:, :2]), axis=1) / UPRIGHT_STD2),
             "pose": np.exp(-np.mean(np.square(q - self.default_pose) / np.square(std), axis=1)),
             "body_ang_vel": np.sum(np.square(s["ang_vel_w"][:, :2]), axis=1),

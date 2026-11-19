@@ -223,6 +223,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("biped_v1 has MJCF position actuators only")
     if biped_v1 and args.track_lin_std2 is not None:
         raise SystemExit("--track-lin-std2 is a Microduck option (biped_v1 uses 0.05)")
+    if not biped_v1 and args.track_yaw_std2 is not None:
+        raise SystemExit("--track-yaw-std2 is a biped_v1 option")
     resume: dict[str, Any] | None = None
     if args.resume:
         resume = torch.load(args.resume, map_location="cpu", weights_only=False)
@@ -238,6 +240,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["dr_delay_max"] = args.dr_delay_max
         if args.dr_friction is not None:
             kwargs["dr_foot_friction"] = tuple(args.dr_friction)
+        if args.track_yaw_std2 is not None:
+            kwargs["track_yaw_std2"] = args.track_yaw_std2
     elif args.dr_delay_max is not None or args.dr_friction is not None:
         raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
@@ -288,6 +292,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "dr_delay_max": args.dr_delay_max,
         "dr_friction": args.dr_friction,
         "track_lin_std2": args.track_lin_std2,
+        "track_yaw_std2": args.track_yaw_std2,
         "iterations": len(rec.rows),
         "samples": len(rec.rows) * STEPS_PER_ENV * args.envs,
         "wall_s": wall,
@@ -319,6 +324,10 @@ def main() -> None:
     parser.add_argument(
         "--track-lin-std2", type=float, default=None,
         help="Microduck linear tracking kernel std^2 (default 0.1, upstream; WP3-12)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--track-yaw-std2", type=float, default=None,
+        help="biped_v1 yaw-rate tracking kernel std^2 (default 0.5; WP4-22)",
     )  # fmt: skip
     parser.add_argument(
         "--init-std",
