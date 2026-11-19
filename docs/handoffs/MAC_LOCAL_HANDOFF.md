@@ -1529,7 +1529,7 @@ policy.onnx sha256: 20000 e87b7134d0a8d823f65eff3b92e5e23be45830012097e060a46195
 ---
 
 ## MAC-34 — Microduck: DR ablation and ONNX check on the G3.3 policy (WP3-05, gates G3.4, G3.5)
-Status: `awaiting-mac` · Deps: MAC-32 done (its `model_19700.pt`)
+Status: `done (mac-m5, 2026-11-20): G3.4 report done, G3.5 mac-m5 part met` · Deps: MAC-32 done (its `model_19700.pt`)
 
 G3.4 asks for a domain-randomization ablation (with vs without DR), and G3.5 for the
 exported ONNX policy to run in the same runner as the official one on the M5. Both use
@@ -1558,15 +1558,31 @@ with each policy.onnx sha256.
 DR. G3.5 (mac-m5 part) passes when A's ONNX meets G1.3 through `eval-policy` on the M5.
 model_19700 stays the reference whatever B does.
 
-Result:
+Result (env: mac-m5, 2026-11-20): G3.4 report done (A degrades less under DR); G3.5 mac-m5 part met
 ```
-revision:
-wall time; falls rule fired?:
-B checkpoint chosen:
-table (A / B; DR off -> DR on; vx 0.2, vx 0.3, |wz| at 0, falls):
-G1.3 A / B:
-policy.onnx sha256 A / B:
-verdict:
+revision: dd646be (main), git_dirty false; B = model_19700 continued WITHOUT --dr, MAC-32
+  flags otherwise, 8 workers; A = model_19700 (its MAC-32 export)
+wall time; falls rule fired?: 861 s (14 min), all 1000 it; training falls/it 0.04-0.12
+  (200-it mean <= 0.12) -> no; reward 0.050 -> 0.060 (no DR, easier)
+B checkpoint chosen: 20400, the newest no-DR checkpoint meeting G1.3 (passes: 19800, 20300,
+  20400; 19900 fell once in turn_left_0.5; the others fail on |wz| 0.05-0.10 or speed)
+table (A / B; DR off -> DR on; vx 0.2, vx 0.3, |wz| at 0, falls; eval_velocity_env, 8 envs,
+  noise on / off):
+  A vx 0.2  0.179 / 0.177 -> 0.174 / 0.171   B vx 0.2  0.191 / 0.182 -> 0.206 / 0.195
+  A vx 0.3  0.268 / 0.271 -> 0.268 / 0.269   B vx 0.3  0.282 / 0.279 -> 0.299 / 0.295
+  A |wz| 0  0.000 / 0.001 -> 0.002 / 0.008   B |wz| 0  0.000 / 0.000 -> 0.016 / 0.010
+  A |wz| 0.2 / 0.3 (noise off) 0.027 / 0.009 -> 0.029 / 0.048
+  B |wz| 0.2 / 0.3 (noise off) 0.035 / 0.029 -> 0.048 / 0.018 (noise on: 0.087 / 0.097)
+  A falls   0 / 0 / 0 -> 0 / 0 / 0 (0.2 / 0.3 / 0)
+  B falls   0 / 0 / 0 -> 1 / 2 / 1 (noise on at 0.2 and 0.3, noise off at 0; of 8 envs)
+G1.3 A / B: A 0.168-0.170, wz -0.023, 0 falls (meets) / B 0.171-0.173, wz -0.032, 0 falls (meets)
+policy.onnx sha256 A / B: 398f399aab64332d13083a81a8b31ff96c06c40b2622b76a79eb30e424bb2846 /
+  f7cac8af4a7151aec4c2d195b33ee72e5f1bfbb467590ba59bb6c0f39835e996
+verdict: G3.4: A (trained with DR) degrades less under DR. Its speed barely moves (-3 % at
+  0.2, 0 % at 0.3) and it never falls, while B (no DR) falls 4 times in 8-env DR runs and
+  its yaw with noise doubles (0.087 / 0.097). Without DR, B is a few % faster. G3.5 (mac-m5
+  part): met. A's ONNX meets G1.3 through `bipedlab eval-policy`, the official policies'
+  runner, on the M5. model_19700 stays the reference.
 ```
 
 ---
