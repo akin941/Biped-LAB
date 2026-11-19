@@ -1528,5 +1528,48 @@ policy.onnx sha256: 20000 e87b7134d0a8d823f65eff3b92e5e23be45830012097e060a46195
 
 ---
 
+## MAC-34 — Microduck: DR ablation and ONNX check on the G3.3 policy (WP3-05, gates G3.4, G3.5)
+Status: `awaiting-mac` · Deps: MAC-32 done (its `model_19700.pt`)
+
+G3.4 asks for a domain-randomization ablation (with vs without DR), and G3.5 for the
+exported ONNX policy to run in the same runner as the official one on the M5. Both use
+the reference model_19700 (trained with `--dr`). For the "without" arm, continue
+model_19700 with the MAC-32 flags but **without `--dr`**, for 1000 iterations. Use a
+clean worktree of origin/main, the absolute checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --envs 256 --iters 1000 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 1.0 \
+    --desired-kl 0.005 --turn-fraction 0.4 \
+    --resume <mac32>/runs/mac32-seed0/model_19700.pt --run-dir runs/mac34-nodr \
+    --save-every 100 --out runs/mac34-nodr/report.json
+```
+Keep the falls rule. Then score two policies, A = model_19700 (DR) and B = the newest
+no-DR checkpoint that meets G1.3 (if none does, the last one), each exported to ONNX:
+1. `scripts/eval_velocity_env.py <policy.onnx> --actuators bam --envs 8 --twist 0.2 0 0
+   --twist 0.3 0 0 --twist 0 0 0`, once without and once with `--dr` (4 runs).
+2. `bipedlab eval-policy <policy.onnx> --model microduck-walk --actuator bam --repeats 4`
+   (G1.3, the official policies' runner = G3.5 on mac-m5), for A and B.
+Commit the JSONs and both `run.json`/`report.json` under `docs/experiments/mac34/`,
+with each policy.onnx sha256.
+
+**Acceptance:** G3.4 is a report, so it passes when the table exists: for A and B, vx at
+0.2 / 0.3, |wz|, falls, DR off and DR on, plus G1.3. Say which policy degrades less under
+DR. G3.5 (mac-m5 part) passes when A's ONNX meets G1.3 through `eval-policy` on the M5.
+model_19700 stays the reference whatever B does.
+
+Result:
+```
+revision:
+wall time; falls rule fired?:
+B checkpoint chosen:
+table (A / B; DR off -> DR on; vx 0.2, vx 0.3, |wz| at 0, falls):
+G1.3 A / B:
+policy.onnx sha256 A / B:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
