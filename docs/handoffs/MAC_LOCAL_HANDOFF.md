@@ -1143,7 +1143,7 @@ policy.onnx sha256: f62cbb0b26a603ae3e5f2f2a512d23761a628b75cdc1d8b55f5aaa88c6dd
 ---
 
 ## MAC-28 — Microduck: speed-relative yaw kernel to bring turning back (WP3-17, gate G3.3)
-Status: `awaiting-mac` · Deps: MAC-27 done (its `model_17000.pt`)
+Status: `done (mac-m5, 2026-11-19): stopped at it 17300 (falls rule); model_17300 meets G3.3, turning still lost` · Deps: MAC-27 done (its `model_17000.pt`)
 
 MAC-27 (mac-m5): the mirror loss removed the curve. 0.2 reached 0.124–0.127 (63 %, and 70 %
 is needed), and 0.3 / 0.4 gave 0.200 / 0.274. Turning is still lost: 0.5 and 1.0 give
@@ -1170,12 +1170,36 @@ stop and evaluate the last good checkpoint. Commit the JSONs under `docs/experim
 turn_left_0.5 and turn_1.0 yaw rates, and check that 0.3 / 0.4 and |wz| at 0.2–0.4 stay
 at the MAC-27 level.
 
-Result:
+Result (env: mac-m5, 2026-11-19): stopped at it 17300 by the falls rule; that checkpoint
+MEETS G3.3 (G1.3 with BAM), turning is still lost
 ```
-revision:
-wall time; loss_symmetry; training falls trend:
+revision: d357331 (main), git_dirty false; resumed from mac27-seed0/model_17000.pt,
+  MAC-27 flags + --track-ang-ref-speed 1.0, 8 workers; a VM used ~6-7 cores
+wall time; loss_symmetry; training falls trend: started 17:33Z; falls/it (50-it means)
+  1.72 / 1.88 / 2.30 / 2.06 / 1.86 / 1.50 -> mean 1.93 over it 100-300 (> 1.5 for 200 it
+  after the first 100), so training was stopped by hand at it 17300 (~9 min).
+  track_angular_velocity ~0.007 (flat), tracking ~0.017, air_time 0.017 -> 0.019.
+  Checkpoints model_17100 and model_17300 were exported (train_ppo --resume <ckpt>
+  --iters 0 with the same flags) and both evaluated.
 sweep vx at 0.1 / 0.2 / 0.3 / 0.4, backward 0.3; dy and wz at 0.2 / 0.3 / 0.4; turn 1.0 wz:
-G1.3 (BAM) verdict (incl. turn_left_0.5 wz):
+  model_17300: vx 0.0000 / 0.160 / 0.255 / 0.342, backward_0.3 -0.235;
+  dy -0.15 / -0.35 / +0.05 m, wz -0.011 / -0.031 / +0.010; lateral_0.3 dy +0.65;
+  turn_1.0 wz 0.001; eval_velocity_env 0.4: vx 0.355 / 0.351, 0 falls
+  model_17100: vx 0.0005 / 0.068 / 0.145 / 0.117, back -0.215; wz -0.25 / -0.23 / -0.27
+  (the curve came back in the first 100 it, then went away again); turn_1.0 wz 0.002
+  (MAC-27: 0.0005 / 0.127 / 0.200 / 0.274, |wz| 0.002 / 0.020 / 0.018, turn 0.003)
+G1.3 (BAM) verdict (incl. turn_left_0.5 wz): model_17300 MEETS G3.3:
+  walk_forward_0.2 vx 0.160-0.161 over 4 repeats x 10 s (80 %, inside +-30 %), wz -0.011,
+  0 falls; stand_still 10 s fine; extra 4 x 20 s and 4 x 30 s stand_still runs (same
+  run() as eval-policy, long-g13.json): 0 falls, tilt <= 1.6 deg; 4 x 20 s at 0.2:
+  vx 0.159-0.161, 0 falls. walk_backward_0.15 -0.124 to -0.128 (83-85 %).
+  turn_left_0.5 wz 0.002 and turn_1.0 wz 0.001: turning is still lost.
+  model_17100: 0.2 -> 0.067-0.068 (fails).
+policy.onnx sha256: model_17300 2a55c12e82be6f16e4b1b9bc09f41d74a919fc632b9ad8dc17b8de5489b26904
+  (model_17300.pt 26986b6cf963a32bb90e6658a9d39b0dce1b4f6bfad3afd8e07a644a5a3eb090)
+notes: this checkpoint is the first Microduck BAM policy to pass G3.3 on the M5, taken
+  from a run that was stopped for high training falls; the speed-relative yaw kernel
+  did not bring turning back within 300 iterations.
 ```
 
 ---
