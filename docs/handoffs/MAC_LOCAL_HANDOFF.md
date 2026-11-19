@@ -1383,5 +1383,47 @@ policy.onnx sha256: 18500 70053902f4fa400e83d523cb2d0d09ff3df8ba73585bd92c1fc4ab
 
 ---
 
+## MAC-32 — Microduck: stronger mirror loss against the yaw drift (WP3-19, gate G3.3)
+Status: `awaiting-mac` · Deps: MAC-31 done (its `model_18500.pt`)
+
+MAC-31 (mac-m5) trained steadily. The falls rule did not fire, falls ended at ~0.8/it,
+and the reward rose from 0.026 to 0.034. G3.3 is still not confirmed. model_18500 passes
+G1.3 (0.2 → 0.151–0.154, wz +0.016, stands 30 s), but every checkpoint around it fails on
+yaw: |wz| is 0.05–0.11 at 0.2, and the sign changes from one checkpoint to the next.
+Turning came partly back, with turn 1.0 reaching 0.575 at 18200. Speed is no longer the
+problem; the yaw drift is. The mirror loss is what removed the curve in MAC-27, so double
+it to 1.0, and raise the turn share to 0.4. Continue model_18500 with the MAC-31 flags
+changed that way, for 1500 iterations. Use a clean worktree of origin/main, the absolute
+checkpoint path, and `caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --actuator bam --dr --envs 256 --iters 1500 \
+    --workers <best> --seed 0 --track-lin-std2 0.05 --forward-min-vx 0.1 --posture-gate \
+    --track-lin-ref-speed 0.4 --symmetry loss --mirror-loss-coeff 1.0 \
+    --desired-kl 0.005 --turn-fraction 0.4 \
+    --resume <mac31>/runs/mac31-seed0/model_18500.pt --run-dir runs/mac32-seed0 \
+    --save-every 100 --out runs/mac32-seed0/report.json
+```
+Keep the falls rule. Evaluate every checkpoint from 18800 to 20000 (13 checkpoints, 300 it
+apart is too coarse to show two in a row) with G1.3 (BAM) only, then run the sweep and
+the MAC-30 turn eval on the passing ones and on the last one. For the best one, run
+eval_velocity_env at 0.4 and the 4 × 20 s / 4 × 30 s stands. Commit the JSONs under
+`docs/experiments/mac32/`, and record `loss_symmetry` from first to last.
+
+**Acceptance:** as MAC-31. G3.3 is confirmed when two consecutive checkpoints meet G1.3
+with BAM (0.2 within ±30 %, |wz| at 0.2 below 0.05, 0 falls) and the falls rule does
+not fire. WP3-18 passes if turn 1.0 gives wz ≥ 0.7 on those checkpoints.
+
+Result:
+```
+revision:
+wall time; loss_symmetry first -> last; training falls trend; rule fired?:
+per checkpoint (G1.3 0.2 vx / wz, backward 0.15):
+passing ones: sweep 0.3 / 0.4, turn 1.0 / 0.5 wz:
+best checkpoint: eval_velocity_env 0.4, long stands:
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
