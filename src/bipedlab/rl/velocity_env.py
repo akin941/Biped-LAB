@@ -70,7 +70,7 @@ POSE_RESAMPLE_S = (2.0, 5.0)
 TWIST_RANGE = np.array([0.4, 0.3, 1.0])
 FORWARD_FRACTION = 0.20
 FORWARD_MIN_VX = 0.3
-TRACK_LIN_REF_MIN_FRAC = 0.25  # WP3-15: the width stops shrinking below 1/4 of ref
+TRACK_LIN_REF_MIN_FRAC = 0.25  # WP3-15/17: the width stops shrinking below 1/4 of ref
 TURN_FRACTION = 0.15
 TURN_WZ = (0.4, 1.0)
 BODY_POSE_RANGE = np.array([0.005, 0.005, 0.005, 0.05, 0.05, 0.05])
@@ -209,6 +209,11 @@ class MicroduckVelocityEnv:
     # 0.2 m/s keeps 45 % but at 0.4 only 4 %, and MAC-24 (BAM) walks at 0.3-0.4 yet
     # stands at 0.2. None = fixed width (upstream). Turn-only commands keep the width.
     track_lin_ref_speed: float | None = None
+    # WP3-17: the same for the yaw kernel, std^2 * clip(|wz_cmd| / ref, 0.25, 1)^2.
+    # With the fixed 0.5, standing keeps 61 % of the yaw reward at a 0.5 rad/s turn
+    # but 14 % at 1.0; MAC-26 / MAC-27 (BAM) stand still at both turn commands.
+    # None = fixed width (upstream). Commands with no yaw part keep the width.
+    track_ang_ref_speed: float | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -218,6 +223,8 @@ class MicroduckVelocityEnv:
             raise ValueError("num_envs must be at least 1")
         if self.track_lin_ref_speed is not None and self.track_lin_ref_speed <= 0:
             raise ValueError("track_lin_ref_speed must be > 0")
+        if self.track_ang_ref_speed is not None and self.track_ang_ref_speed <= 0:
+            raise ValueError("track_ang_ref_speed must be > 0")
         self.model, _ = mp.load_model_for_policy(self.scene, self.actuator)
         m = self.model
         m.opt.iterations = SOLVER_ITERATIONS
@@ -563,9 +570,14 @@ class MicroduckVelocityEnv:
             speed = np.linalg.norm(twist[:, :2], axis=1)
             frac = np.clip(speed / self.track_lin_ref_speed, TRACK_LIN_REF_MIN_FRAC, 1.0)
             lin_std2 = np.where(speed > 0, lin_std2 * frac**2, lin_std2)
+        ang_std2 = np.full(len(twist), TRACK_ANG_STD2)
+        if self.track_ang_ref_speed is not None:
+            wz = np.abs(twist[:, 2])
+            frac = np.clip(wz / self.track_ang_ref_speed, TRACK_LIN_REF_MIN_FRAC, 1.0)
+            ang_std2 = np.where(wz > 0, ang_std2 * frac**2, ang_std2)
         values = {
             "track_linear_velocity": np.exp(-lin_err / lin_std2),
-            "track_angular_velocity": np.exp(-ang_err / TRACK_ANG_STD2),
+            "track_angular_velocity": np.exp(-ang_err / ang_std2),
             "upright": np.exp(-np.sum(np.square(s["gravity"][:, :2]), axis=1) / UPRIGHT_STD2),
             "pose": np.exp(-np.mean(np.square(legs) / np.square(std), axis=1)),
             "body_ang_vel": np.sum(np.square(s["ang_vel_w"][:, :2]), axis=1),
