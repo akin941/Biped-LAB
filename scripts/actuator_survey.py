@@ -1,4 +1,7 @@
-"""WP4-03: fit of candidate servos to the WP4-01 joint requirements.
+"""WP4-03: fit of candidate servos to the joint requirements (WP4-01 or our gait).
+
+``--requirements mac36`` uses the requirements measured from our own learned gait
+(WP4-27, MAC-36) instead of the WP4-01 estimates.
 
 Prints, for every joint type, which candidates pass the 2x torque and speed margins
 and the loaded-speed check (see ``bipedlab.design.actuators``). ``--out`` stores
@@ -19,22 +22,24 @@ from typing import Any
 from bipedlab.design import actuators as act
 
 
-def table() -> dict[str, Any]:
+def table(reqs: list[act.Requirement] = act.WP4_01) -> dict[str, Any]:
     return {
         r.joint: {
             "requirement": asdict(r),
             "candidates": {f"{c.name} @ {c.volts:g} V": act.fit(c, r) for c in act.CANDIDATES},
         }
-        for r in act.WP4_01
+        for r in reqs
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--requirements", choices=sorted(act.REQUIREMENTS), default="wp4-01")
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
-    report = {"margin": act.MARGIN, "candidates": [asdict(c) for c in act.CANDIDATES],
-              "joints": table()}  # fmt: skip
+    report = {"margin": act.MARGIN, "requirements": args.requirements,
+              "candidates": [asdict(c) for c in act.CANDIDATES],
+              "joints": table(act.REQUIREMENTS[args.requirements])}  # fmt: skip
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(report, indent=2) + "\n")

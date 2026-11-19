@@ -34,3 +34,14 @@ def test_xl330_fails_the_knee_as_in_wp4_01() -> None:
 def test_some_candidate_covers_every_joint() -> None:
     for r in act.WP4_01:
         assert any(act.fit(c, r)["passes"] for c in act.CANDIDATES), r.joint
+
+
+def test_gait_requirements_cover_the_same_joints():
+    # WP4-27: the MAC-36 gait requirements replace WP4-01's joint by joint.
+    from bipedlab.design import actuators as act
+
+    assert [r.joint for r in act.GAIT_MAC36] == [r.joint for r in act.WP4_01]
+    assert set(act.REQUIREMENTS) == {"wp4-01", "mac36"}
+    # Our gait needs more than the WP4-01 estimate at every joint.
+    for new, old in zip(act.GAIT_MAC36, act.WP4_01, strict=True):
+        assert new.peak_torque > old.peak_torque

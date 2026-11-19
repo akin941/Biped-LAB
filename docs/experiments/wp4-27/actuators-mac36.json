@@ -1,0 +1,490 @@
+{
+  "margin": 2.0,
+  "requirements": "mac36",
+  "candidates": [
+    {
+      "name": "XL330-M288-T",
+      "volts": 5.0,
+      "stall_torque": 0.52,
+      "no_load_speed": 10.786134777324955,
+      "stall_current": 1.47,
+      "mass": 0.018,
+      "supply_range": [
+        3.7,
+        6.0
+      ],
+      "price": "EUR 40.20 incl. VAT (generationrobots.com)",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xl330-m288/"
+    },
+    {
+      "name": "XL330-M288-T",
+      "volts": 6.0,
+      "stall_torque": 0.6,
+      "no_load_speed": 12.880529879718152,
+      "stall_current": 1.74,
+      "mass": 0.018,
+      "supply_range": [
+        3.7,
+        6.0
+      ],
+      "price": "EUR 40.20 incl. VAT (generationrobots.com)",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xl330-m288/"
+    },
+    {
+      "name": "XC330-M181-T",
+      "volts": 5.0,
+      "stall_torque": 0.6,
+      "no_load_speed": 13.50884841043611,
+      "stall_current": 1.8,
+      "mass": 0.023,
+      "supply_range": [
+        3.7,
+        6.0
+      ],
+      "price": "not checked",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xc330-m181/"
+    },
+    {
+      "name": "XC330-M288-T",
+      "volts": 5.0,
+      "stall_torque": 0.93,
+      "no_load_speed": 8.482300164692441,
+      "stall_current": 1.8,
+      "mass": 0.023,
+      "supply_range": [
+        3.7,
+        6.0
+      ],
+      "price": "USD 103.39 (robotshop.com, incl. US tariffs)",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xc330-m288/"
+    },
+    {
+      "name": "XC330-M288-T",
+      "volts": 6.0,
+      "stall_torque": 1.1,
+      "no_load_speed": 10.157816246606997,
+      "stall_current": 2.15,
+      "mass": 0.023,
+      "supply_range": [
+        3.7,
+        6.0
+      ],
+      "price": "USD 103.39 (robotshop.com, incl. US tariffs)",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xc330-m288/"
+    },
+    {
+      "name": "XC330-T288-T",
+      "volts": 11.1,
+      "stall_torque": 0.92,
+      "no_load_speed": 6.8067840827778845,
+      "stall_current": 0.8,
+      "mass": 0.023,
+      "supply_range": [
+        6.5,
+        12.0
+      ],
+      "price": "EUR 110.40 incl. VAT (generationrobots.com)",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xc330-t288/"
+    },
+    {
+      "name": "XL430-W250-T",
+      "volts": 11.1,
+      "stall_torque": 1.4,
+      "no_load_speed": 5.969026041820607,
+      "stall_current": 1.3,
+      "mass": 0.0572,
+      "supply_range": [
+        6.5,
+        12.0
+      ],
+      "price": "not checked in USD/EUR",
+      "source": "emanual.robotis.com/docs/en/dxl/x/xl430-w250/"
+    },
+    {
+      "name": "STS3215 (7.4 V)",
+      "volts": 7.4,
+      "stall_torque": 1.9129500000000002,
+      "no_load_speed": 5.454153912482279,
+      "stall_current": 2.5,
+      "mass": 0.055,
+      "supply_range": [
+        4.0,
+        7.4
+      ],
+      "price": "USD 33.97 (robotshop.com, incl. US tariffs)",
+      "source": "Feetech STS3215 datasheet (translated, core-electronics.com.au)"
+    }
+  ],
+  "joints": {
+    "hip_yaw": {
+      "requirement": {
+        "joint": "hip_yaw",
+        "peak_torque": 0.2,
+        "peak_speed": 1.65,
+        "rms_torque": 0.055
+      },
+      "candidates": {
+        "XL330-M288-T @ 5 V": {
+          "torque_margin": 2.6,
+          "speed_margin": 6.537051380196943,
+          "loaded_speed_rad_s": 6.637621401430742,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.10576923076923077,
+          "passes": true
+        },
+        "XL330-M288-T @ 6 V": {
+          "torque_margin": 2.9999999999999996,
+          "speed_margin": 7.806381745283729,
+          "loaded_speed_rad_s": 8.5870199198121,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.09166666666666667,
+          "passes": true
+        },
+        "XC330-M181-T @ 5 V": {
+          "torque_margin": 2.9999999999999996,
+          "speed_margin": 8.187180854809764,
+          "loaded_speed_rad_s": 9.00589894029074,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.09166666666666667,
+          "passes": true
+        },
+        "XC330-M288-T @ 5 V": {
+          "torque_margin": 4.65,
+          "speed_margin": 5.14078797860148,
+          "loaded_speed_rad_s": 6.658149591640303,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.059139784946236555,
+          "passes": true
+        },
+        "XC330-M288-T @ 6 V": {
+          "torque_margin": 5.5,
+          "speed_margin": 6.156252270670907,
+          "loaded_speed_rad_s": 8.310940565405724,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.049999999999999996,
+          "passes": true
+        },
+        "XC330-T288-T @ 11.1 V": {
+          "torque_margin": 4.6,
+          "speed_margin": 4.1253236865320515,
+          "loaded_speed_rad_s": 5.32704841260878,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.05978260869565217,
+          "passes": true
+        },
+        "XL430-W250-T @ 11.1 V": {
+          "torque_margin": 6.999999999999999,
+          "speed_margin": 3.6175915404973376,
+          "loaded_speed_rad_s": 5.1163080358462345,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.03928571428571429,
+          "passes": true
+        },
+        "STS3215 (7.4 V) @ 7.4 V": {
+          "torque_margin": 9.56475,
+          "speed_margin": 3.305547825746836,
+          "loaded_speed_rad_s": 4.883919048791928,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.02875140489819389,
+          "passes": true
+        }
+      }
+    },
+    "hip_roll": {
+      "requirement": {
+        "joint": "hip_roll",
+        "peak_torque": 0.68,
+        "peak_speed": 2.75,
+        "rms_torque": 0.187
+      },
+      "candidates": {
+        "XL330-M288-T @ 5 V": {
+          "torque_margin": 0.7647058823529411,
+          "speed_margin": 3.9222308281181655,
+          "loaded_speed_rad_s": 0.0,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.3596153846153846,
+          "passes": false
+        },
+        "XL330-M288-T @ 6 V": {
+          "torque_margin": 0.8823529411764705,
+          "speed_margin": 4.683829047170237,
+          "loaded_speed_rad_s": 0.0,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.3116666666666667,
+          "passes": false
+        },
+        "XC330-M181-T @ 5 V": {
+          "torque_margin": 0.8823529411764705,
+          "speed_margin": 4.912308512885859,
+          "loaded_speed_rad_s": 0.0,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.3116666666666667,
+          "passes": false
+        },
+        "XC330-M288-T @ 5 V": {
+          "torque_margin": 1.3676470588235294,
+          "speed_margin": 3.084472787160888,
+          "loaded_speed_rad_s": 2.2801882163151723,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.20107526881720428,
+          "passes": false
+        },
+        "XC330-M288-T @ 6 V": {
+          "torque_margin": 1.6176470588235294,
+          "speed_margin": 3.693751362402544,
+          "loaded_speed_rad_s": 3.8784389305226714,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.16999999999999998,
+          "passes": false
+        },
+        "XC330-T288-T @ 11.1 V": {
+          "torque_margin": 1.352941176470588,
+          "speed_margin": 2.4751942119192307,
+          "loaded_speed_rad_s": 1.775682804202926,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.20326086956521738,
+          "passes": false
+        },
+        "XL430-W250-T @ 11.1 V": {
+          "torque_margin": 2.0588235294117645,
+          "speed_margin": 2.1705549242984024,
+          "loaded_speed_rad_s": 3.0697848215077403,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.1335714285714286,
+          "passes": true
+        },
+        "STS3215 (7.4 V) @ 7.4 V": {
+          "torque_margin": 2.813161764705882,
+          "speed_margin": 1.9833286954481013,
+          "loaded_speed_rad_s": 3.515355375935088,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.09775477665385922,
+          "passes": false
+        }
+      }
+    },
+    "hip_pitch": {
+      "requirement": {
+        "joint": "hip_pitch",
+        "peak_torque": 0.585,
+        "peak_speed": 7.1,
+        "rms_torque": 0.172
+      },
+      "candidates": {
+        "XL330-M288-T @ 5 V": {
+          "torque_margin": 0.888888888888889,
+          "speed_margin": 1.5191739122992896,
+          "loaded_speed_rad_s": 0.0,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.3307692307692307,
+          "passes": false
+        },
+        "XL330-M288-T @ 6 V": {
+          "torque_margin": 1.0256410256410258,
+          "speed_margin": 1.8141591379884723,
+          "loaded_speed_rad_s": 0.3220132469929541,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.2866666666666667,
+          "passes": false
+        },
+        "XC330-M181-T @ 5 V": {
+          "torque_margin": 1.0256410256410258,
+          "speed_margin": 1.902654705695227,
+          "loaded_speed_rad_s": 0.33772121026090307,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.2866666666666667,
+          "passes": false
+        },
+        "XC330-M288-T @ 5 V": {
+          "torque_margin": 1.5897435897435899,
+          "speed_margin": 1.1946901640411889,
+          "loaded_speed_rad_s": 3.146659738514939,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.18494623655913975,
+          "passes": false
+        },
+        "XC330-M288-T @ 6 V": {
+          "torque_margin": 1.8803418803418805,
+          "speed_margin": 1.4306783445925348,
+          "loaded_speed_rad_s": 4.755704879093276,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.15636363636363634,
+          "passes": false
+        },
+        "XC330-T288-T @ 11.1 V": {
+          "torque_margin": 1.5726495726495728,
+          "speed_margin": 0.9587019834898429,
+          "loaded_speed_rad_s": 2.478557247533252,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.1869565217391304,
+          "passes": false
+        },
+        "XL430-W250-T @ 11.1 V": {
+          "torque_margin": 2.393162393162393,
+          "speed_margin": 0.84070789321417,
+          "loaded_speed_rad_s": 3.474825874345567,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.12285714285714286,
+          "passes": false
+        },
+        "STS3215 (7.4 V) @ 7.4 V": {
+          "torque_margin": 3.2700000000000005,
+          "speed_margin": 0.7681906918989125,
+          "loaded_speed_rad_s": 3.786216936188004,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.08991348440889724,
+          "passes": false
+        }
+      }
+    },
+    "knee": {
+      "requirement": {
+        "joint": "knee",
+        "peak_torque": 0.475,
+        "peak_speed": 6.85,
+        "rms_torque": 0.113
+      },
+      "candidates": {
+        "XL330-M288-T @ 5 V": {
+          "torque_margin": 1.0947368421052632,
+          "speed_margin": 1.5746182156678767,
+          "loaded_speed_rad_s": 0.9334155095761983,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.2173076923076923,
+          "passes": false
+        },
+        "XL330-M288-T @ 6 V": {
+          "torque_margin": 1.263157894736842,
+          "speed_margin": 1.8803693255062996,
+          "loaded_speed_rad_s": 2.683443724941282,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.18833333333333335,
+          "passes": false
+        },
+        "XC330-M181-T @ 5 V": {
+          "torque_margin": 1.263157894736842,
+          "speed_margin": 1.9720946584578265,
+          "loaded_speed_rad_s": 2.8143434188408567,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.18833333333333335,
+          "passes": false
+        },
+        "XC330-M288-T @ 5 V": {
+          "torque_margin": 1.9578947368421054,
+          "speed_margin": 1.238291994845612,
+          "loaded_speed_rad_s": 4.149942553693614,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.12150537634408602,
+          "passes": false
+        },
+        "XC330-M288-T @ 6 V": {
+          "torque_margin": 2.3157894736842106,
+          "speed_margin": 1.48289288271635,
+          "loaded_speed_rad_s": 5.771486503753976,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.10272727272727272,
+          "passes": false
+        },
+        "XC330-T288-T @ 11.1 V": {
+          "torque_margin": 1.9368421052631581,
+          "speed_margin": 0.9936911069748737,
+          "loaded_speed_rad_s": 3.2924118661262596,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.12282608695652174,
+          "passes": false
+        },
+        "XL430-W250-T @ 11.1 V": {
+          "torque_margin": 2.9473684210526314,
+          "speed_margin": 0.8713906630395047,
+          "loaded_speed_rad_s": 3.943820777631472,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.08071428571428572,
+          "passes": false
+        },
+        "STS3215 (7.4 V) @ 7.4 V": {
+          "torque_margin": 4.027263157894738,
+          "speed_margin": 0.796226848537559,
+          "loaded_speed_rad_s": 4.099846111217697,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.05907106824538017,
+          "passes": false
+        }
+      }
+    },
+    "ankle": {
+      "requirement": {
+        "joint": "ankle",
+        "peak_torque": 0.41,
+        "peak_speed": 4.0,
+        "rms_torque": 0.124
+      },
+      "candidates": {
+        "XL330-M288-T @ 5 V": {
+          "torque_margin": 1.2682926829268293,
+          "speed_margin": 2.696533694331239,
+          "loaded_speed_rad_s": 2.281682356741818,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.23846153846153845,
+          "passes": false
+        },
+        "XL330-M288-T @ 6 V": {
+          "torque_margin": 1.4634146341463414,
+          "speed_margin": 3.220132469929538,
+          "loaded_speed_rad_s": 4.0788344619107475,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.20666666666666667,
+          "passes": false
+        },
+        "XC330-M181-T @ 5 V": {
+          "torque_margin": 1.4634146341463414,
+          "speed_margin": 3.3772121026090276,
+          "loaded_speed_rad_s": 4.277801996638101,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.20666666666666667,
+          "passes": false
+        },
+        "XC330-M288-T @ 5 V": {
+          "torque_margin": 2.2682926829268295,
+          "speed_margin": 2.1205750411731104,
+          "loaded_speed_rad_s": 4.742791489935559,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.13333333333333333,
+          "passes": true
+        },
+        "XC330-M288-T @ 6 V": {
+          "torque_margin": 2.682926829268293,
+          "speed_margin": 2.539454061651749,
+          "loaded_speed_rad_s": 6.371721100144389,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.11272727272727272,
+          "passes": true
+        },
+        "XC330-T288-T @ 11.1 V": {
+          "torque_margin": 2.2439024390243905,
+          "speed_margin": 1.7016960206944711,
+          "loaded_speed_rad_s": 3.7733259589312187,
+          "loaded_speed_ok": false,
+          "rms_over_stall": 0.13478260869565217,
+          "passes": false
+        },
+        "XL430-W250-T @ 11.1 V": {
+          "torque_margin": 3.4146341463414633,
+          "speed_margin": 1.4922565104551517,
+          "loaded_speed_rad_s": 4.220954129573143,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.08857142857142858,
+          "passes": false
+        },
+        "STS3215 (7.4 V) @ 7.4 V": {
+          "torque_margin": 4.665731707317073,
+          "speed_margin": 1.3635384781205697,
+          "loaded_speed_rad_s": 4.2851724419170605,
+          "loaded_speed_ok": true,
+          "rms_over_stall": 0.06482134922501895,
+          "passes": false
+        }
+      }
+    }
+  }
+}

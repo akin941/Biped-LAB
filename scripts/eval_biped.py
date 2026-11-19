@@ -98,6 +98,7 @@ def run_case(
     foot_friction: float | None = None,
     push_dv: tuple[float, float] | None = None,
     torque_limit: float | None = None,
+    motor_no_load_speed: float | None = None,
 ) -> dict[str, Any]:
     env = bve.BipedVelocityEnv(
         num_envs=num_envs,
@@ -107,6 +108,7 @@ def run_case(
         dr=dr,
         action_delay=action_delay,
         torque_limit=torque_limit,
+        motor_no_load_speed=motor_no_load_speed,
     )
     if foot_friction is not None:
         if dr:
@@ -168,7 +170,8 @@ def run_case(
         "push_dv": None if push_dv is None else list(push_dv),
         "twist": list(twist),
         "dr": dr,
-        "torque_limit": float(env.model.actuator_forcerange[0, 1]),
+        "torque_limit": float(env.stall_torque[0]),
+        "motor_no_load_speed": motor_no_load_speed,
         "num_envs": num_envs,
         "seconds": seconds,
         "falls": int((~alive).sum()),
@@ -251,11 +254,13 @@ def robustness_cases(
     seconds: float,
     seed: int,
     torque_limit: float | None = None,
+    motor_no_load_speed: float | None = None,
 ) -> list[dict[str, Any]]:
     """G4.3 robustness: friction, pushes and latency, one factor per case, DR off."""
     run = partial(
-        run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False, torque_limit=torque_limit
-    )
+        run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False,
+        torque_limit=torque_limit, motor_no_load_speed=motor_no_load_speed,
+    )  # fmt: skip
     cases = [run(case=f"friction_{mu}", foot_friction=mu) for mu in ROBUST_FRICTION]
     cases += [run(case=name, push_dv=dv) for name, dv in ROBUST_PUSHES.items()]
     cases += [
@@ -279,21 +284,22 @@ def main() -> None:
         "--torque-limit", type=float, default=None,
         help="actuator force limit in N*m (default: the model's 0.52; WP4-26)",
     )  # fmt: skip
+    parser.add_argument(
+        "--motor-no-load-speed", type=float, default=None,
+        help="DC-motor no-load speed in rad/s: torque-speed curve on (WP4-28)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     tl = args.torque_limit
+    lim = {"torque_limit": tl, "motor_no_load_speed": args.motor_no_load_speed}
     policy = BatchOnnxPolicy(args.policy)
     cases = []
     for dr in [False, True] if args.dr else [False]:
         for twist in TWISTS:
-            cases.append(
-                run_case(policy, twist, args.envs, args.seconds, args.seed, dr, torque_limit=tl)
-            )
-        cases.append(
-            run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr, torque_limit=tl)
-        )
+            cases.append(run_case(policy, twist, args.envs, args.seconds, args.seed, dr, **lim))
+        cases.append(run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr, **lim))
     if args.robustness:
-        cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed, tl))
+        cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed, **lim))
     report = {
         "environment": bench.environment(),
         "policy": str(args.policy),
