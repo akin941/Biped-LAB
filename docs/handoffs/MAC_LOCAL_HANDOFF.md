@@ -1785,7 +1785,7 @@ verdict: with its real curve, B (STS3215 @ 7.4 V) can be learned: the fine-tune 
 ---
 
 ## MAC-38 — biped_v1: the STS3215 policy through the Rust runtime (WP4-30, gate G4.4)
-Status: `awaiting-mac` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`)
+Status: `done (mac-m5, 2026-11-20): met` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`)
 
 MAC-37 (mac-m5) trained a policy that walks under the STS3215 @ 7.4 V torque-speed
 curve. `runtime_sim.py --torque-limit / --motor-no-load-speed` (and `BridgeConfig`) now
@@ -1813,13 +1813,25 @@ periods, `deadline_misses` ≤ 10, `vx_body_mean` ≥ 50 % of the command, and
 |`wz`| ≤ 0.08 if the bridge reports it. If the supervisor latches a fault, name it.
 Nothing touches `safety.rs`.
 
-Result:
+Result (env: mac-m5, 2026-11-20): met for both commands
 ```
-revision:
-mlp.json max error:
-v0.15: fell / fault / periods / misses / vx_body_mean / wz:
-v0.25: fell / fault / periods / misses / vx_body_mean / wz:
-verdict:
+revision: 397076e (main); policy = MAC-37 B policy.onnx (sha256 13070c6a...63bfb), policy.bpml
+  sha256 a7e090fbf4ac2f391fe9386df9f050f7b435ff101a760fa39f541fb0f1912b70; servo model
+  --torque-limit 1.91 --motor-no-load-speed 5.45 (STS3215 @ 7.4 V)
+  quiet Mac: the run waited for 2 min of VM < 2 cores, started 00:32Z; VM 0.1-3 % (< 0.03 cores)
+  during both runs, load avg 2.3 -> 1.7
+mlp.json max error: rust vs onnxruntime 1.19e-6, numpy vs onnxruntime 1.91e-6
+v0.15: fell false / no fault (latched 0) / 1000 periods / 0 misses / vx_body_mean 0.163 (109 %) /
+  wz +0.022; distance 2.91 m, tilt max 3.0 deg, max torque demand 0.78 N.m, no torque or slew
+  clamps; period_max 29.9 ms, compute mean / max 105 / 326 us
+v0.25: fell false / no fault / 1000 periods / 0 misses / vx_body_mean 0.248 (99 %) / wz +0.043;
+  distance 4.38 m, tilt max 3.4 deg, max torque demand 1.02 N.m, slew_limit events 37, no torque
+  clamp; period_max 30.0 ms, compute mean / max 103 / 180 us
+  bridge wall_dt (both): mean 20.0 ms, p1 / p50 / p99 13 / 20 / 29 ms
+verdict: WP4-30 acceptance met. The STS3215 policy walks through the supervised Rust runtime
+  with the servo model at 50 Hz real time: vx >= 99 % of the command, |wz| <= 0.043, no
+  falls, no faults, 0 deadline misses. Closer to the command and straighter than MAC-16
+  (MAC-14 policy, ideal actuator: 0.194 / 0.285, wz -0.19 / -0.15). safety.rs untouched.
 ```
 
 ---
