@@ -1963,6 +1963,42 @@ verdict: not met. rough_10mm is 13/16 falls (MAC-37 B 15/16), and the fine-tune 
   contacts) are void and kept only as notes above.
 ```
 
+### MAC-40b — slower, lower ramp (note under MAC-40)
+Result (env: mac-m5, 2026-11-20, revision 696d466, box tiles): WP4-32 met by model_6400 (one checkpoint)
+```
+run: from mac37-b/model_5000.pt, MAC-40 flags with --rough-floor 0.012 --rough-floor-ramp-it 1500
+  --iters 2500 (--desired-kl 0.005, STS3215 curve, symmetry loss 0.5, yaw std2 0.25, --dr, 256 envs,
+  8 workers); stop rule: > 3/it (100-it mean) anytime, falls rule (> 1.0) from it 1600
+wall time; rule fired?: 32 min; falls/it (100-it means; ramp height) 0.60, 0.03, 0.06, 0.09 (2.8 mm),
+  0.16, 0.25, 0.40, 0.50 (6.0), 0.64, 0.92, 1.16 (8.4), 1.25, 1.30 (10.0), 1.74, 1.70, 2.01 (12 mm);
+  the falls rule fired at it 1600, as soon as it switched on (2.01 > 1.0) -> stopped at model_6600;
+  last good = model_6500. Scored 6000 and 6500 as asked, plus 6100-6400 and 6600 as extras
+  (same eval; extras marked)
+per checkpoint (tiles, 16 envs x 20 s; flat |wz| max over 0.15 / 0.25 DR off / on; 40 ms of 0.15;
+  rough 5 / 10 / 20 mm falls, vx at 10 mm; 0 falls on the flat floor everywhere):
+  6000         flat |wz| 0.187  40 ms 78 %   0 / 4 / 16   0.133
+  6100 extra   flat |wz| 0.133  40 ms 82 %   0 / 5 / 14   0.149
+  6200 extra   flat |wz| 0.211  40 ms 84 %   0 / 1 / 14   0.137
+  6300 extra   flat |wz| 0.256  40 ms 84 %   0 / 0 / 14   0.129
+  6400 extra   flat |wz| 0.028  40 ms 84 %   0 / 0 / 7    0.149   <- meets everything
+  6500         flat |wz| 0.325  40 ms 95 %   0 / 0 / 10   0.161
+  6600 extra   flat |wz| 0.224  40 ms 101 %  0 / 0 / 5    0.173
+best checkpoint: model_6400 (ONNX sha256 2a57e5d925b4e1535093aea9f560dbdfe734b9bfbf998dee53e353acf1cc72ec)
+  flat: 0.15 DR off / on vx 0.152 / 0.136, wz -0.028 / +0.016; 0.25 vx 0.235 / 0.214, wz -0.026 /
+  +0.028; zero command |wz| 0.016 / 0.049; turn 0.8 0.757 / 0.676; 40 ms 0.126 (84 %); friction,
+  pushes, latency 20 / 60 ms all 0 falls
+  tiles: 5 mm 0/16 vx 0.156 wz +0.005; 10 mm 0/16 vx 0.149 wz +0.014; 20 mm 7/16 vx 0.052 wz -0.054
+  (MAC-37 B on the same tiles: 0 / 15 / 16; model_5200 of MAC-40: 0 / 13 / 16)
+verdict: WP4-32 met by model_6400: rough_10mm 0/16 falls at 99 % of 0.15, and every flat MAC-25 row
+  holds (|wz| <= 0.028, 40 ms 84 %, 0 falls). The slow ramp works for terrain: from 6300 on, 10 mm
+  stays at 0/16, and 20 mm improves to 5-10/16. But the flat yaw swings between checkpoints
+  (0.13-0.33 around 6400), so 6400 is one good checkpoint, not a stable region, and the falls rule
+  fired when the ramp reached 12 mm. The reference stays MAC-25 / MAC-37 B for the flat floor until
+  a run holds both; model_6400 is the terrain candidate. Next: hold the ramp at ~10 mm with the
+  falls rule on, or add a flat-floor share and mirror loss 1.0 (as on Microduck MAC-32) to steady
+  the yaw.
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
