@@ -1837,7 +1837,7 @@ verdict: WP4-30 acceptance met. The STS3215 policy walks through the supervised 
 ---
 
 ## MAC-39 — biped_v1: walking on an uneven floor (WP4-31)
-Status: `awaiting-mac` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`), MAC-25 done (its `runs/mac25/policy.onnx`)
+Status: `done (mac-m5, 2026-11-20): not met (10 mm: 14/16 falls)` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`), MAC-25 done (its `runs/mac25/policy.onnx`)
 
 Every biped_v1 policy so far trained and was scored on a flat plane. A real floor is not
 flat. `eval_biped.py --terrain` (WP4-31) swaps the floor for a random height field
@@ -1860,13 +1860,26 @@ Commit both JSONs under `docs/experiments/mac39/` and a short report.
 both policies; 20 mm is about 8 % of the leg length and is expected to be hard. If
 10 mm fails, say whether the policy falls or only slows down.
 
-Result:
+Result (env: mac-m5, 2026-11-20): WP4-31 NOT met; both policies fall on a 10 mm rough floor
 ```
-revision:
+revision: b7bc8d6 (main), git_dirty false; eval only, 16 envs x 20 s, DR off, default seed
 sts3215 rough_5/10/20mm: falls / vx_mean / wz_mean:
+  5 mm   3/16  0.153  -0.018
+  10 mm 14/16  0.114  -0.038   (FAILS: needs 0 falls and vx >= 0.075)
+  20 mm 16/16 -0.053  -0.117
 mac25 rough_5/10/20mm: falls / vx_mean / wz_mean:
-sts3215 robustness rows (falls, vx):
-verdict:
+  5 mm   4/16  0.156  -0.041
+  10 mm 12/16  0.117  -0.061
+  20 mm 16/16 -0.050  -0.184
+sts3215 robustness rows (falls, vx; flat floor, 16 envs): nominal 0.15 / 0.25 0 / 0.163, 0 / 0.244;
+  friction_0.5 0 / 0.162, friction_1.5 0 / 0.171, push_forward 0 / 0.164, push_sideways 0 / 0.163,
+  latency 20 / 40 / 60 ms 0 / 0.141, 0 / 0.121, 0 / 0.106; turn 0.8 wz 0.873; all 0 falls
+verdict: not met. On the flat floor the STS3215 policy is clean (0 falls in all 11 cases), but
+  it falls on uneven ground: 3/16 at 5 mm, 14/16 at 10 mm, 16/16 at 20 mm. It falls, it does not
+  only slow down (the vx_mean of 0.114 at 10 mm comes from the 2 survivors and the walking before
+  the falls). MAC-25 behaves the same (4 / 12 / 16 falls), so this is not from the STS3215
+  fine-tune: neither policy has seen anything but a flat plane. Next step (cloud): train with the
+  height field (terrain curriculum from 0 to 10-20 mm), then re-run this check.
 ```
 
 ---
