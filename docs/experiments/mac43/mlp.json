@@ -1,0 +1,27 @@
+{
+  "onnx": "<mac42 worktree>/runs/mac42/k3_6900/policy.onnx",
+  "onnx_sha256": "2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3",
+  "mlp": "<mac42 worktree>/runs/mac42/k3_6900/policy.bpml",
+  "mlp_sha256": "f91559700e24878b6cc0937adf46a64398e6bc1defef3b186f1042abae0466f0",
+  "in_dim": 39,
+  "out_dim": 10,
+  "ops": [
+    "shift",
+    "scale",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense"
+  ],
+  "numpy_vs_onnxruntime": {
+    "max_abs_err": 1.6689300537109375e-06,
+    "ok": true
+  },
+  "rust_vs_onnxruntime": {
+    "max_abs_err": 1.2218952178955078e-06,
+    "ok": true
+  }
+}
