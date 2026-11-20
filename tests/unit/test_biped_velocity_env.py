@@ -328,3 +328,24 @@ def test_rough_floor_height_field():
     assert bve.BipedVelocityEnv(num_envs=1).model.nhfield == 0
     with pytest.raises(ValueError):
         bve.BipedVelocityEnv(num_envs=1, rough_floor=-0.01)
+
+
+def test_rough_floor_ramp_and_seed():
+    # WP4-32: the field rises linearly from flat over rough_floor_ramp env steps.
+    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10, common_step=10**6)
+    m = env.model
+    assert env.floor_height == 0.0 and m.hfield_size[0, 2] < 1e-5
+    for _ in range(5):
+        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert np.isclose(env.floor_height, 0.01) and np.isclose(m.hfield_size[0, 2], 0.01)
+    assert np.isclose(m.geom_pos[env.floor_geom, 2], -0.01)
+    for _ in range(10):
+        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert np.isclose(env.floor_height, 0.02) and np.isclose(m.hfield_size[0, 2], 0.02)
+    # rough_floor_seed picks the field independently of the env seed.
+    a = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_seed=7).model.hfield_data
+    b = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, seed=3, rough_floor_seed=7)
+    assert np.array_equal(a, b.model.hfield_data)
+    assert not np.array_equal(
+        a, bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.hfield_data
+    )

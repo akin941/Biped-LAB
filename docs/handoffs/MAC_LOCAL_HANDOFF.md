@@ -1884,5 +1884,46 @@ verdict: not met. On the flat floor the STS3215 policy is clean (0 falls in all 
 
 ---
 
+## MAC-40 — biped_v1: learn to walk on an uneven floor (WP4-32)
+Status: `awaiting-mac` · Deps: MAC-39 done, MAC-37 done (its `runs/mac37-b/model_*.pt`, last good checkpoint)
+
+MAC-39 (mac-m5): the STS3215 policy falls on a 10 mm floor in 14 of 16 envs, and MAC-25
+in 12 of 16. Both only ever trained on a flat plane. `train_ppo.py --rough-floor H
+--rough-floor-ramp-it N` (WP4-32) trains on a height field whose height ramps from flat to
+H over the first N iterations of this run. The training field is another seed than the
+evaluation's, so the MAC-39 score is on a floor the policy never saw. Fine-tune the
+MAC-37 B checkpoint under the same STS3215 curve and settings, with H = 20 mm and the ramp
+over 600 of 1500 iterations. Use a clean worktree of origin/main, absolute paths, and
+`caffeinate -i nohup`.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1500 \
+    --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 --rough-floor 0.02 --rough-floor-ramp-it 600 \
+    --resume <mac37>/runs/mac37-b/<last model_*.pt> --run-dir runs/mac40 \
+    --save-every 100 --out runs/mac40/report.json
+uv run python scripts/eval_biped.py runs/mac40/policy.onnx --terrain --robustness --dr \
+    --envs 16 --seconds 20 --torque-limit 1.91 --motor-no-load-speed 5.45 \
+    --out runs/mac40/eval.json
+```
+Keep the falls rule (stop when the falls pass 1.0 per iteration for 100 iterations, then
+score the last good checkpoint). If the final checkpoint fails the flat rows, also score
+model_1000 and model_1200 and use the best one that meets them. Commit report/eval JSONs
+under `docs/experiments/mac40/`, with the policy.onnx sha256.
+
+**Acceptance (WP4-32 = WP4-31's bar):** `rough_10mm` 0 falls of 16 and vx ≥ 50 % of 0.15,
+and the flat MAC-25 rows still hold: 0.15 / 0.25 walking with DR off and on, |wz| ≤ 0.08,
+40 ms ≥ 80 % of vx, 0 falls. Also report `rough_5mm` and `rough_20mm`.
+
+Result:
+```
+revision:
+wall time; falls rule fired?; checkpoint used:
+rough_5/10/20mm: falls / vx_mean / wz_mean:
+flat rows (DR off/on 0.15/0.25 vx, |wz|, 40 ms, falls):
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

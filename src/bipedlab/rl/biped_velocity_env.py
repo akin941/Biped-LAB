@@ -219,6 +219,13 @@ class BipedVelocityEnv:
     # replaces the flat plane (0 = the committed flat floor). Every point of the field
     # lies at or below z = 0, so the reset pose never starts inside the ground.
     rough_floor: float = 0.0
+    # Terrain curriculum (WP4-32): env steps over which the field's height ramps
+    # linearly from 0 to ``rough_floor``, counted from this env's construction (so a
+    # fine-tune that resumes a late ``common_step`` still starts flat). 0 = no ramp.
+    rough_floor_ramp: int = 0
+    # Seed of the height field (None = ``seed``). Training uses another field than the
+    # evaluation's, so a score is not on the floor the policy learned.
+    rough_floor_seed: int | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -230,10 +237,11 @@ class BipedVelocityEnv:
             raise ValueError("action_delay and dr_delay_max must be >= 0")
         if self.track_yaw_std2 <= 0:
             raise ValueError("track_yaw_std2 must be > 0")
-        if self.rough_floor < 0:
-            raise ValueError("rough_floor must be >= 0")
+        if self.rough_floor < 0 or self.rough_floor_ramp < 0:
+            raise ValueError("rough_floor and rough_floor_ramp must be >= 0")
+        field_seed = self.seed if self.rough_floor_seed is None else self.rough_floor_seed
         m = (
-            rough_floor_model(self.scene, self.rough_floor, self.seed)
+            rough_floor_model(self.scene, self.rough_floor, field_seed)
             if self.rough_floor > 0
             else mujoco.MjModel.from_xml_path(str(self.scene))
         )
@@ -252,6 +260,8 @@ class BipedVelocityEnv:
         self.stall_torque = m.actuator_forcerange[:, 1].copy()
         self.actuator_dof = m.jnt_dofadr[m.actuator_trnid[:, 0]].astype(int)
         self._ids(m)
+        self._steps_taken = 0
+        self._set_floor_height()
         self.datas = [mujoco.MjData(m) for _ in range(n)]
         self.max_episode_steps = round(self.episode_s / STEP_DT)
         self._rngs = [np.random.default_rng([self.seed, self.first_env + i]) for i in range(n)]
@@ -283,6 +293,23 @@ class BipedVelocityEnv:
         for i in range(n):
             self._reset_env(i)
         self._observe_into(np.arange(n))
+
+    @property
+    def floor_height(self) -> float:
+        """Peak-to-peak height of the height field now (m); 0 on the flat floor."""
+        if self.rough_floor <= 0:
+            return 0.0
+        if self.rough_floor_ramp <= 0:
+            return self.rough_floor
+        return self.rough_floor * min(1.0, self._steps_taken / self.rough_floor_ramp)
+
+    def _set_floor_height(self) -> None:
+        if self.rough_floor <= 0:
+            return
+        # MuJoCo needs a positive elevation scale; 1 um is flat for a 25 cm robot.
+        h = max(self.floor_height, 1e-6)
+        self.model.hfield_size[0, 2] = h
+        self.model.geom_pos[self.floor_geom, 2] = -h
 
     def _ids(self, m: mujoco.MjModel) -> None:
         def get(kind: mujoco.mjtObj, name: str) -> int:
@@ -592,6 +619,9 @@ class BipedVelocityEnv:
                     mujoco.mj_step(self.model, d)
         self.episode_steps += 1
         self.common_step += 1
+        self._steps_taken += 1
+        if self.rough_floor_ramp > 0 and self._steps_taken <= self.rough_floor_ramp:
+            self._set_floor_height()
         s = self._state()
         finite = s["finite"]
         for value in s.values():
