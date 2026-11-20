@@ -349,3 +349,16 @@ def test_rough_floor_ramp_and_seed():
     assert not np.array_equal(
         a, bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.hfield_data
     )
+
+
+def test_rough_floor_holds_a_whole_episode():
+    # MAC-40: a 4 m field let walking envs leave the floor and fall within one episode.
+    reach = bve.RESET_XY + float(np.hypot(*bve.TWIST_RANGE[:2])) * bve.EPISODE_S
+    assert reach + 2.0 <= bve.ROUGH_HALF_SIZE
+    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10**6)
+    d = env.datas[0]
+    d.qpos[0] = reach
+    mujoco.mj_forward(env.model, d)
+    for _ in range(50):
+        out = env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert not out.terminated.any()
