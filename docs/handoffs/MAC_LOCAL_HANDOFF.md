@@ -1885,7 +1885,7 @@ verdict: not met. On the flat floor the STS3215 policy is clean (0 falls in all 
 ---
 
 ## MAC-40 — biped_v1: learn to walk on an uneven floor (WP4-32)
-Status: `awaiting-mac` · Deps: MAC-39 done, MAC-37 done (its `runs/mac37-b/model_*.pt`, last good checkpoint)
+Status: `done (mac-m5, 2026-11-20, 696d466): not met (10 mm 13/16 falls); MAC-40b next` · Deps: MAC-39 done, MAC-37 done (its `runs/mac37-b/model_*.pt`, last good checkpoint)
 
 MAC-39 (mac-m5): the STS3215 policy falls on a 10 mm floor in 14 of 16 envs, and MAC-25
 in 12 of 16. Both only ever trained on a flat plane. `train_ppo.py --rough-floor H
@@ -1939,13 +1939,28 @@ under `docs/experiments/mac40/`, with the policy.onnx sha256.
 and the flat MAC-25 rows still hold: 0.15 / 0.25 walking with DR off and on, |wz| ≤ 0.08,
 40 ms ≥ 80 % of vx, 0 falls. Also report `rough_5mm` and `rough_20mm`.
 
-Result:
+Result (env: mac-m5, 2026-11-20, revision 696d466, box tiles): WP4-32 NOT met; the ramp is steeper than the policy adapts
 ```
-revision:
-wall time; falls rule fired?; checkpoint used:
-rough_5/10/20mm: falls / vx_mean / wz_mean:
-flat rows (DR off/on 0.15/0.25 vx, |wz|, 40 ms, falls):
-verdict:
+revision: 696d466 (main), git_dirty false; from mac37-b/model_5000.pt, the handoff command
+  (--rough-floor 0.02 --rough-floor-ramp-it 600 --desired-kl 0.005, STS3215 curve), 8 workers
+tile check first (MAC-37 B, 0.15 m/s, 16 envs x 20 s): plane / 1e-5 / 2 mm -> 0 / 0 / 0 falls
+  with DR off and on, vx 0.163 / 0.163 / 0.167 (DR on 0.145 / 0.145 / 0.145): tiles = plane
+wall time; falls rule fired?; checkpoint used: stopped at it 5300 (12 min) by the "> 3/it after
+  it 300" rule: falls/it (25-it means; ramp height) 1.28 (0.4 mm), 0.28, 0.24, 0.16, 0.20 (3.7),
+  0.44, 0.56 (5.4), 1.24 (6.2), 2.00 (7.1), 3.48 (7.9), 3.64 (8.7), 4.04 (9.6 mm); mean over it
+  200-300 3.29. Scored the last good checkpoint, model_5200 (ONNX sha256
+  6777dead84c611a79d101b4ba2c6850c04da7e6f2145d45bd952d8db2d9792c2).
+rough_5/10/20mm (tiles; falls / vx_mean / wz_mean; vx over envs still standing):
+  model_5200:      0/16 0.198 +0.048 | 13/16 0.158 +0.019 | 16/16 -0.038 -0.310
+  MAC-37 B (same tiles): 0/16 0.165 -0.009 | 15/16 0.105 -0.080 | 16/16 -0.065 +0.216
+flat rows (model_5200; DR off / on; 16 envs): 0.15 vx 0.196 / 0.170, |wz| 0.048 / 0.016;
+  0.25 vx 0.272 / 0.247, |wz| 0.130 / 0.116 (FAIL > 0.08); zero |wz| 0.103 / 0.069; 40 ms 0.146
+  (97 %); 0 falls in every case. MAC-37 B on the same eval: 0.25 |wz| 0.006 / 0.006, 40 ms 81 %.
+verdict: not met. rough_10mm is 13/16 falls (MAC-37 B 15/16), and the fine-tune breaks the flat
+  0.25 yaw row. Falls stay low up to ~5 mm and climb from ~6 mm. The ramp (20 mm over 600 it,
+  ~3.3 mm per 100 it) is steeper than the policy adapts. Next: MAC-40b, a slower and lower
+  ramp (12 mm over 1500 of 2500 it). The two earlier runs (8 m height field, then height-field
+  contacts) are void and kept only as notes above.
 ```
 
 ---
