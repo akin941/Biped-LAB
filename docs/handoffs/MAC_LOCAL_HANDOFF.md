@@ -2027,6 +2027,35 @@ verdict: not met. Only 6650 and 6700 pass (two in a row; three needed), and the 
   (or measured against the 10 mm training baseline), so the run can show three or more checkpoints in a row.
 ```
 
+### MAC-40d — continue at 10 mm with a falls rule fitted to the floor (note under MAC-40)
+Status: `running on mac-m5 (started 2026-11-20 07:21Z)`
+
+MAC-40c held the floor at 10 mm and passed at 6650 and 6700 (two in a row), but its 1.0/it falls
+rule fired at it 300: on the held 10 mm training floor the policy falls ~0.9-1.1 per iteration,
+while the 10 mm eval floor gives 0/16. Continue from the last saved checkpoint with the same
+flags and a rule at 1.5/it, so three or more consecutive checkpoints can show.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 800 --workers 8 \
+    --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 --rough-floor 0.010 --rough-floor-ramp-it 0 \
+    --desired-kl 0.005 --resume <mac40>/runs/mac40c/model_6700.pt --run-dir runs/mac40d \
+    --save-every 50 --out runs/mac40d/report.json
+```
+Falls rule: stop if the 100-it mean is above 1.5/it, active after 100 it. Score every saved checkpoint
+with the MAC-40b eval (`eval_biped --terrain --robustness --dr --envs 16 --seconds 20`, STS3215 curve).
+
+**Acceptance (WP4-32, unchanged):** at least 3 consecutive saved checkpoints (50 apart), each with flat
+|wz| <= 0.08, 40 ms >= 80 % of vx, 0 flat falls, and 10 mm 0/16 falls. Name the middle one as the
+terrain policy.
+
+Result:
+```
+revision:
+wall time; rule fired?:
+per checkpoint (flat |wz| max, 40 ms, flat falls, 5 / 10 / 20 mm falls):
+verdict (consecutive run, terrain policy):
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
