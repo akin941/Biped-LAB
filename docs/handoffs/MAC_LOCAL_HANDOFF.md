@@ -2027,6 +2027,55 @@ verdict: not met. Only 6650 and 6700 pass (two in a row; three needed), and the 
   (or measured against the 10 mm training baseline), so the run can show three or more checkpoints in a row.
 ```
 
+### MAC-40d — continue at 10 mm with a falls rule fitted to the floor (note under MAC-40)
+Status: `done (mac-m5, 2026-11-20): not met (2 consecutive passes); flat yaw drifts with 10 mm training`
+
+MAC-40c held the floor at 10 mm and passed at 6650 and 6700 (two in a row), but its 1.0/it falls
+rule fired at it 300: on the held 10 mm training floor the policy falls ~0.9-1.1 per iteration,
+while the 10 mm eval floor gives 0/16. Continue from the last saved checkpoint with the same
+flags and a rule at 1.5/it, so three or more consecutive checkpoints can show.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 800 --workers 8 \
+    --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 --rough-floor 0.010 --rough-floor-ramp-it 0 \
+    --desired-kl 0.005 --resume <mac40>/runs/mac40c/model_6700.pt --run-dir runs/mac40d \
+    --save-every 50 --out runs/mac40d/report.json
+```
+Falls rule: stop if the 100-it mean is above 1.5/it, active after 100 it. Score every saved checkpoint
+with the MAC-40b eval (`eval_biped --terrain --robustness --dr --envs 16 --seconds 20`, STS3215 curve).
+
+**Acceptance (WP4-32, unchanged):** at least 3 consecutive saved checkpoints (50 apart), each with flat
+|wz| <= 0.08, 40 ms >= 80 % of vx, 0 flat falls, and 10 mm 0/16 falls. Name the middle one as the
+terrain policy.
+
+Result (env: mac-m5, 2026-11-20, code = 696d466, box tiles): NOT met; 2 consecutive passes, and flat yaw drifts with training
+```
+revision: code 696d466 (worktree HEAD 7f998c9); from mac40c/model_6700.pt, flags as above, 8 workers
+wall time; rule fired?: 653 s (11 min), all 800 it; falls/it (100-it means) 1.29, 0.92, 0.70, 0.87,
+  0.88, 0.83, 0.78, 0.90 -> the 1.5/it rule did not fire
+per checkpoint (flat |wz| max over 0.15 / 0.25 DR off / on; 40 ms of 0.15; flat falls; 5 / 10 / 20 mm
+  falls; vx at 10 mm):
+  6750  0.085  86 %  0  0/0/5   0.143      7150  0.225  98 %  0  0/0/2   0.131
+  6800  0.013  95 %  0  0/0/7   0.120 P    7200  0.268  91 %  0  0/0/3   0.111
+  6850  0.072  92 %  0  0/0/9   0.125 P    7250  0.464  95 %  0  0/0/7   0.149
+  6900  0.116  93 %  0  0/0/4   0.148      7300  0.475  96 %  0  0/0/6   0.150
+  6950  0.240 103 %  0  0/0/5   0.156      7350  0.336  94 %  0  0/0/7   0.161
+  7000  0.383 100 %  0  0/0/10  0.158      7400  0.299  94 %  0  0/0/4   0.159
+  7050  0.396 105 %  0  0/0/5   0.173      7450  0.293 104 %  0  0/0/3   0.170
+  7100  0.211 104 %  0  0/0/6   0.151      7500  0.096  93 %  0  0/0/4   0.153
+  (P = meets all four rows; the worst |wz| is almost always the 0.25 command, positive, DR off)
+  ONNX sha256: 6800 6e72d75c4c8335ae4c7e40f97ebc96a9d0cf079923f56d1e835cd87f6df5bf8a,
+  6850 abddf75d9a68c739eaa6decd7bc729b0364a41bb0c12983c280ffc9124afbb2a
+verdict: not met. Only 6800 and 6850 pass in a row (with MAC-40c: 6650 and 6700 pass, 6750 misses at
+  0.085, then 6800 and 6850), so there is no run of three. Terrain is fully steady: 10 mm 0/16 falls and 5 mm
+  0/16 on all 16 checkpoints, 20 mm 2-10/16, no flat falls, 40 ms 86-105 %. The flat yaw is what
+  fails. It grows steadily with 10 mm training to +0.3...+0.48 rad/s at the 0.25 command (DR off) by
+  7000-7450, then dips to 0.096 at 7500. Training only on the 10 mm floor pulls the flat 0.25 gait into a
+  turn. Mirror loss 1.0 does not stop it. Next (cloud): mix flat and rough episodes (e.g. 30-50 %
+  flat), or yaw-track on the flat floor during terrain training, then repeat with every-50 checkpoints.
+  No terrain policy is named; model_6400 / 6800 stay single-checkpoint candidates.
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
