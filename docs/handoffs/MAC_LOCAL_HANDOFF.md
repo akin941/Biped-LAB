@@ -2079,7 +2079,7 @@ verdict: not met. Only 6800 and 6850 pass in a row (with MAC-40c: 6650 and 6700 
 ---
 
 ## MAC-41 — biped_v1: terrain training with flat episodes mixed in (WP4-33)
-Status: `queued`
+Status: `done (mac-m5, 2026-11-20): not met (no 2 consecutive passes); flat yaw still swings`
 
 MAC-40c/d learned the 10 mm floor (0/16 falls on every checkpoint) but the flat 0.25 m/s gait drifts
 into a turn as 10 mm-only training goes on (|wz| up to 0.48). WP4-33 adds
@@ -2104,7 +2104,33 @@ eval (`eval_biped --terrain --robustness --dr --envs 16 --seconds 20`, STS3215 c
 |wz| <= 0.08, 40 ms >= 80 % of vx, 0 flat falls, and 10 mm 0/16 falls. Name the middle one as the
 terrain policy and record its ONNX sha256.
 
-Result: `(pending)`
+Result (env: mac-m5, 2026-11-20, revision 7a1fa16, box tiles): NOT met; isolated passes only
+```
+pre-flight: pytest -k flat_fraction -> 1 passed
+run: from mac40d/model_6800.pt, the command above, 8 workers; 799 s (13 min), all 800 it;
+  falls/it (100-it means) 0.63-0.84 (MAC-40d 0.70-1.29) -> the 1.5/it rule did not fire
+per checkpoint (flat |wz| max over 0.15 / 0.25 DR off / on; 40 ms of 0.15; flat falls; 5 / 10 / 20 mm
+  falls; vx at 10 mm):
+  6850  0.113  86 %  0  0/0/5   0.141      7250  0.466  88 %  0  0/0/4   0.151
+  6900  0.108 103 %  0  0/0/6   0.170      7300  0.201  98 %  0  0/0/8   0.182
+  6950  0.100  92 %  0  0/0/5   0.150      7350  0.092  89 %  0  0/0/4   0.162
+  7000  0.078  95 %  0  0/0/10  0.152 P    7400  0.078  94 %  0  0/0/5   0.186 P
+  7050  0.143  97 %  0  0/0/7   0.174      7450  0.169  94 %  0  0/0/9   0.179
+  7100  0.189  97 %  0  0/0/11  0.170      7500  0.110  98 %  0  0/0/12  0.155
+  7150  0.084  95 %  0  0/0/7   0.150      7550  0.202 111 %  1  0/0/8   0.191
+  7200  0.268  98 %  1  0/0/7   0.159      7600  0.527  93 %  0  0/0/8   0.145
+  (flat falls: 7200 and 7550 each fell once at 0.25 with DR on)
+  ONNX sha256: 7000 ec2fa1ee406ddbcf67293a2fdce9aa22b4a2f1a3611b78358393527dee528bc0,
+  7400 7dbbb54112872eebdd9290e7dca3a2dbdac7efdb297c5078de90a44863a0a43d
+verdict: not met; no terrain policy named. Only 7000 and 7400 pass (0.078 each, at the limit), and no two
+  in a row. The flat share lowered training falls and changed the drift from a steady positive turn (MAC-40d)
+  into swings of both signs (-0.20 ... +0.53 rad/s, worst at 0.25), but did not make it small.
+  Terrain stays steady: 10 mm 0/16 and 5 mm 0/16 on all 16 checkpoints. Four more checkpoints sit just
+  above the line (6950 0.100, 7150 0.084, 7350 0.092, 7500 0.110). The flat 0.25 yaw is the open
+  problem: its variance between checkpoints is the same size as the bar. Ideas (cloud): stronger
+  yaw tracking at 0.25 (e.g. --track-yaw-std2 0.15 for flat episodes), mirror loss 2.0, or averaging
+  checkpoints (e.g. the mean of 6950-7050 weights).
+```
 
 ---
 
