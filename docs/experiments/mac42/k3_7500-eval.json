@@ -1,0 +1,1866 @@
+{
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.12.13",
+    "mujoco": "3.10.0",
+    "numpy": "2.5.4"
+  },
+  "policy": "runs/mac42/k3_7500/policy.onnx",
+  "cases": [
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.1828080266714096,
+      "vy_mean": 0.007352922577410936,
+      "wz_mean": -0.11238238960504532,
+      "knee_torque": {
+        "mean": 0.11540481448173523,
+        "p95": 0.2537122368812561,
+        "max": 0.43696776032447815
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.046622101217508316,
+          "torque_p95": 0.09356041997671127,
+          "torque_max": 0.20195233821868896,
+          "speed_p95": 1.517476189367484,
+          "speed_max": 2.4658370186307024,
+          "power_mean_w": 0.025902073098359055,
+          "power_p95_w": 0.10235918085037671
+        },
+        "hip_roll": {
+          "torque_rms": 0.18253357708454132,
+          "torque_p95": 0.31919437646865845,
+          "torque_max": 0.6195269227027893,
+          "speed_p95": 2.636748735776524,
+          "speed_max": 3.8404721225593605,
+          "power_mean_w": 0.11556019259745129,
+          "power_p95_w": 0.4567268906275804
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1563195139169693,
+          "torque_p95": 0.2930237352848053,
+          "torque_max": 0.495903879404068,
+          "speed_p95": 4.714845001276136,
+          "speed_max": 4.808894887420328,
+          "power_mean_w": 0.38662019264755826,
+          "power_p95_w": 1.3154741170645163
+        },
+        "knee": {
+          "torque_rms": 0.14051060378551483,
+          "torque_p95": 0.25371241569519043,
+          "torque_max": 0.433527410030365,
+          "speed_p95": 4.763388046361613,
+          "speed_max": 5.07506557760834,
+          "power_mean_w": 0.3790440936741489,
+          "power_p95_w": 1.1904574058241275
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.08037566393613815,
+          "torque_p95": 0.1861836463212967,
+          "torque_max": 0.27094635367393494,
+          "speed_p95": 2.9943633287062865,
+          "speed_max": 3.898680572609644,
+          "power_mean_w": 0.07497672352853346,
+          "power_p95_w": 0.2574661803753721
+        }
+      },
+      "slew_limited_fraction": 0.000375,
+      "wanted_target_step_mean": 0.0339325216684211,
+      "terms_per_step": {
+        "track_linear_velocity": 0.031005806928500534,
+        "track_angular_velocity": 0.01936081263050437,
+        "upright": 0.038947815503925086,
+        "pose": 0.01489880805555731,
+        "body_ang_vel": -0.0002854852988530183,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0009275573897975846,
+        "air_time": 0.03578624805947766,
+        "foot_clearance": -0.00014661225572490367,
+        "foot_slip": -1.004457270592951e-05,
+        "feet_collision": 0.0,
+        "action_slew": -3.6822738280761767e-10
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.25,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.25758635997772217,
+      "vy_mean": 0.007537802681326866,
+      "wz_mean": -0.023654291406273842,
+      "knee_torque": {
+        "mean": 0.12964168190956116,
+        "p95": 0.27787700295448303,
+        "max": 0.4657663404941559
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04952389374375343,
+          "torque_p95": 0.09486139565706253,
+          "torque_max": 0.242584690451622,
+          "speed_p95": 1.8427576483848984,
+          "speed_max": 2.8992580569186988,
+          "power_mean_w": 0.03298892005457068,
+          "power_p95_w": 0.13938618528457947
+        },
+        "hip_roll": {
+          "torque_rms": 0.1925066113471985,
+          "torque_p95": 0.35022100806236267,
+          "torque_max": 0.6556490063667297,
+          "speed_p95": 2.9075220726696336,
+          "speed_max": 4.397053886856233,
+          "power_mean_w": 0.13977837187678555,
+          "power_p95_w": 0.5634006967330287
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1909007728099823,
+          "torque_p95": 0.3299284875392914,
+          "torque_max": 0.5680810213088989,
+          "speed_p95": 4.761625454688797,
+          "speed_max": 4.852988199279004,
+          "power_mean_w": 0.5495659229121409,
+          "power_p95_w": 1.430452913747478
+        },
+        "knee": {
+          "torque_rms": 0.16044817864894867,
+          "torque_p95": 0.2778266668319702,
+          "torque_max": 0.4657663404941559,
+          "speed_p95": 4.767377902215549,
+          "speed_max": 5.041146874796509,
+          "power_mean_w": 0.4373773908734686,
+          "power_p95_w": 1.2420456800152746
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.11050277948379517,
+          "torque_p95": 0.23305471241474152,
+          "torque_max": 0.33196762204170227,
+          "speed_p95": 3.4400904073525282,
+          "speed_max": 4.482350834389642,
+          "power_mean_w": 0.1054371254521464,
+          "power_p95_w": 0.3137993549915997
+        }
+      },
+      "slew_limited_fraction": 0.026375,
+      "wanted_target_step_mean": 0.03810450531631708,
+      "terms_per_step": {
+        "track_linear_velocity": 0.029851030571386217,
+        "track_angular_velocity": 0.010654799981508404,
+        "upright": 0.03891238384321332,
+        "pose": 0.013855568220838905,
+        "body_ang_vel": -0.00035731472152474453,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.001185174807716976,
+        "air_time": 0.03628499806672335,
+        "foot_clearance": -0.00019407667816631147,
+        "foot_slip": -1.4544743620588107e-05,
+        "feet_collision": 0.0,
+        "action_slew": -5.107202102048498e-08
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.021923761814832687,
+      "vy_mean": -0.00012898140994366258,
+      "wz_mean": -0.07163174450397491,
+      "knee_torque": {
+        "mean": 0.08745831251144409,
+        "p95": 0.22293686866760254,
+        "max": 0.30599960684776306
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.03948725759983063,
+          "torque_p95": 0.07302167266607285,
+          "torque_max": 0.14686790108680725,
+          "speed_p95": 0.9068266731427415,
+          "speed_max": 1.5861020085053181,
+          "power_mean_w": 0.014589549426234368,
+          "power_p95_w": 0.04929459162058523
+        },
+        "hip_roll": {
+          "torque_rms": 0.1721317619085312,
+          "torque_p95": 0.3096230626106262,
+          "torque_max": 0.5623956322669983,
+          "speed_p95": 2.097155233698444,
+          "speed_max": 3.247681980741613,
+          "power_mean_w": 0.10082708904289137,
+          "power_p95_w": 0.4422734659589789
+        },
+        "hip_pitch": {
+          "torque_rms": 0.07772770524024963,
+          "torque_p95": 0.14387208223342896,
+          "torque_max": 0.26664748787879944,
+          "speed_p95": 3.339219777961052,
+          "speed_max": 4.274719188437497,
+          "power_mean_w": 0.11216821308092897,
+          "power_p95_w": 0.4259184083501841
+        },
+        "knee": {
+          "torque_rms": 0.10611213743686676,
+          "torque_p95": 0.22404752671718597,
+          "torque_max": 0.30599960684776306,
+          "speed_p95": 4.724630730203389,
+          "speed_max": 5.066535891189442,
+          "power_mean_w": 0.2666934797176261,
+          "power_p95_w": 1.059435672190067
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.04805360734462738,
+          "torque_p95": 0.0903836339712143,
+          "torque_max": 0.16721674799919128,
+          "speed_p95": 2.218215225765788,
+          "speed_max": 2.9374038204842896,
+          "power_mean_w": 0.04686907542785775,
+          "power_p95_w": 0.17036716193996954
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": 0.028347505555176757,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03225828469544649,
+        "track_angular_velocity": 0.025473660737276076,
+        "upright": 0.038739702302962545,
+        "pose": 0.0062086173575371505,
+        "body_ang_vel": -0.00041393353213061345,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0006493890313358861,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_slip": -4.5722440341311456e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.0,
+        0.0,
+        0.8
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.008673904463648796,
+      "vy_mean": 0.009198646992444992,
+      "wz_mean": 0.4470243453979492,
+      "knee_torque": {
+        "mean": 0.08652909100055695,
+        "p95": 0.21959394216537476,
+        "max": 0.28356611728668213
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.05193936824798584,
+          "torque_p95": 0.11689060926437378,
+          "torque_max": 0.18033167719841003,
+          "speed_p95": 1.8296224194454207,
+          "speed_max": 2.30666939418081,
+          "power_mean_w": 0.032398273762050504,
+          "power_p95_w": 0.15123411291134928
+        },
+        "hip_roll": {
+          "torque_rms": 0.17029936611652374,
+          "torque_p95": 0.31186312437057495,
+          "torque_max": 0.5187721848487854,
+          "speed_p95": 2.038679678002621,
+          "speed_max": 3.3379074783281397,
+          "power_mean_w": 0.10096711857207745,
+          "power_p95_w": 0.43732720613786663
+        },
+        "hip_pitch": {
+          "torque_rms": 0.07383351027965546,
+          "torque_p95": 0.13351310789585114,
+          "torque_max": 0.28385093808174133,
+          "speed_p95": 3.3499578340329217,
+          "speed_max": 4.3444221061852355,
+          "power_mean_w": 0.10682652897213571,
+          "power_p95_w": 0.3716736624641262
+        },
+        "knee": {
+          "torque_rms": 0.10572667419910431,
+          "torque_p95": 0.2201414704322815,
+          "torque_max": 0.26714250445365906,
+          "speed_p95": 4.70905654599528,
+          "speed_max": 4.924958918043406,
+          "power_mean_w": 0.2603546990841047,
+          "power_p95_w": 1.041466477664885
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.05103546753525734,
+          "torque_p95": 0.09834042936563492,
+          "torque_max": 0.1749049425125122,
+          "speed_p95": 2.2477459068220247,
+          "speed_max": 2.9955035031158674,
+          "power_mean_w": 0.04852572609542183,
+          "power_p95_w": 0.19398957378588602
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": 0.029333376294994377,
+      "terms_per_step": {
+        "track_linear_velocity": 0.032843432107940315,
+        "track_angular_velocity": 0.021864730965346097,
+        "upright": 0.03869035524502397,
+        "pose": 0.016248845962807536,
+        "body_ang_vel": -0.00043741196217888503,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0006672259418410249,
+        "air_time": 0.032729998259339484,
+        "foot_clearance": -8.211907384247752e-05,
+        "foot_slip": -4.30761833622384e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "zero-action",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 8.968235221118448e-08,
+      "vy_mean": -9.586866411837036e-09,
+      "wz_mean": 6.187294729897985e-07,
+      "knee_torque": {
+        "mean": 0.03478335216641426,
+        "p95": 0.034908637404441833,
+        "max": 0.12280745059251785
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.00010096430196426809,
+          "torque_p95": 0.00012352883641142398,
+          "torque_max": 0.0016476917080581188,
+          "speed_p95": 3.3622425224964104e-05,
+          "speed_max": 0.00044447448054716607,
+          "power_mean_w": 2.8849284404354857e-09,
+          "power_p95_w": 3.79884364759214e-09
+        },
+        "hip_roll": {
+          "torque_rms": 0.0002872177283279598,
+          "torque_p95": 0.00041278806747868657,
+          "torque_max": 0.0030920293647795916,
+          "speed_p95": 0.00011929116987140621,
+          "speed_max": 0.0008889084369656725,
+          "power_mean_w": 2.3802724911036523e-08,
+          "power_p95_w": 4.917959630708425e-08
+        },
+        "hip_pitch": {
+          "torque_rms": 0.0005164723843336105,
+          "torque_p95": 0.0005467599257826805,
+          "torque_max": 0.0024909006897360086,
+          "speed_p95": 4.998833189115539e-05,
+          "speed_max": 0.0005779974561828632,
+          "power_mean_w": 6.384763544030744e-09,
+          "power_p95_w": 1.697562921313005e-08
+        },
+        "knee": {
+          "torque_rms": 0.03467387333512306,
+          "torque_p95": 0.03467664122581482,
+          "torque_max": 0.03484230861067772,
+          "speed_p95": 3.7950031706279415e-06,
+          "speed_max": 7.691609737588847e-05,
+          "power_mean_w": 3.143769528574726e-08,
+          "power_p95_w": 1.3155115219607395e-07
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.005021507386118174,
+          "torque_p95": 0.005057835951447487,
+          "torque_max": 0.006776651833206415,
+          "speed_p95": 4.105384204065967e-05,
+          "speed_max": 0.000524728373506575,
+          "power_mean_w": 3.792042307432575e-08,
+          "power_p95_w": 2.0668536644097232e-07
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": 0.0,
+      "terms_per_step": {
+        "track_linear_velocity": 0.025477441887371242,
+        "track_angular_velocity": 0.03993212038837373,
+        "upright": 0.03996205401793122,
+        "pose": 0.019997914453968407,
+        "body_ang_vel": -6.00588363778371e-07,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": 0.0,
+        "air_time": 0.0,
+        "foot_clearance": -3.3801452906103583e-07,
+        "foot_slip": -2.4022842335764564e-08,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": true,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.16443702578544617,
+      "vy_mean": 0.006086650304496288,
+      "wz_mean": -0.07993509620428085,
+      "knee_torque": {
+        "mean": 0.10594088584184647,
+        "p95": 0.2487335503101349,
+        "max": 0.488581120967865
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04232566058635712,
+          "torque_p95": 0.07906091213226318,
+          "torque_max": 0.19666533172130585,
+          "speed_p95": 1.281817455290235,
+          "speed_max": 2.5265826626829817,
+          "power_mean_w": 0.01882969848501404,
+          "power_p95_w": 0.07441036654141511
+        },
+        "hip_roll": {
+          "torque_rms": 0.18664467334747314,
+          "torque_p95": 0.34332114458084106,
+          "torque_max": 0.7660854458808899,
+          "speed_p95": 2.72075947304242,
+          "speed_max": 4.689521380689936,
+          "power_mean_w": 0.12409330489169285,
+          "power_p95_w": 0.4915401591944866
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1344294548034668,
+          "torque_p95": 0.2772243320941925,
+          "torque_max": 0.48836106061935425,
+          "speed_p95": 4.681578838535209,
+          "speed_max": 4.832921913557002,
+          "power_mean_w": 0.2904215283622995,
+          "power_p95_w": 1.2625495077812914
+        },
+        "knee": {
+          "torque_rms": 0.13254322111606598,
+          "torque_p95": 0.24853934347629547,
+          "torque_max": 0.488581120967865,
+          "speed_p95": 4.7591924201041795,
+          "speed_max": 5.145575266599821,
+          "power_mean_w": 0.33770945001458624,
+          "power_p95_w": 1.161498281658827
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.08568146079778671,
+          "torque_p95": 0.1872791349887848,
+          "torque_max": 0.32116231322288513,
+          "speed_p95": 3.013517517117498,
+          "speed_max": 4.604998792963344,
+          "power_mean_w": 0.08090102954577476,
+          "power_p95_w": 0.27480843273768724
+        }
+      },
+      "slew_limited_fraction": 0.000375,
+      "wanted_target_step_mean": 0.05154810055845126,
+      "terms_per_step": {
+        "track_linear_velocity": 0.029072910689748824,
+        "track_angular_velocity": 0.020067861025221647,
+        "upright": 0.03839503259211779,
+        "pose": 0.01499918422009796,
+        "body_ang_vel": -0.00033044441348465623,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0008227062941878103,
+        "air_time": 0.03478499819803983,
+        "foot_clearance": -0.00015152799378847704,
+        "foot_slip": -6.6047220896621185e-06,
+        "feet_collision": 0.0,
+        "action_slew": -7.509010792570992e-10
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.25,
+        0.0,
+        0.0
+      ],
+      "dr": true,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 1,
+      "vx_mean": 0.23451228439807892,
+      "vy_mean": 0.007067854981869459,
+      "wz_mean": -0.0019555699545890093,
+      "knee_torque": {
+        "mean": 0.12778213620185852,
+        "p95": 0.30002361536026,
+        "max": 0.522538959980011
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04520861804485321,
+          "torque_p95": 0.0867772027850151,
+          "torque_max": 0.2226986587047577,
+          "speed_p95": 1.5095777511798245,
+          "speed_max": 2.84654764162052,
+          "power_mean_w": 0.024177332511731174,
+          "power_p95_w": 0.10034131138622818
+        },
+        "hip_roll": {
+          "torque_rms": 0.19385622441768646,
+          "torque_p95": 0.36236220598220825,
+          "torque_max": 0.7448293566703796,
+          "speed_p95": 3.0447900449056413,
+          "speed_max": 4.840520470158332,
+          "power_mean_w": 0.1438372584925484,
+          "power_p95_w": 0.5618580727584597
+        },
+        "hip_pitch": {
+          "torque_rms": 0.17455124855041504,
+          "torque_p95": 0.32038015127182007,
+          "torque_max": 0.6298115849494934,
+          "speed_p95": 4.7478841673845755,
+          "speed_max": 4.949654108407331,
+          "power_mean_w": 0.46557814036756795,
+          "power_p95_w": 1.3790620620970926
+        },
+        "knee": {
+          "torque_rms": 0.159125417470932,
+          "torque_p95": 0.2991974949836731,
+          "torque_max": 0.522538959980011,
+          "speed_p95": 4.770238589596227,
+          "speed_max": 5.25341616479293,
+          "power_mean_w": 0.42200325435838726,
+          "power_p95_w": 1.2742246453382464
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.11076217144727707,
+          "torque_p95": 0.23647692799568176,
+          "torque_max": 0.3810136616230011,
+          "speed_p95": 3.4414927774228086,
+          "speed_max": 5.0082750538919685,
+          "power_mean_w": 0.10934774248842892,
+          "power_p95_w": 0.3229953262245393
+        }
+      },
+      "slew_limited_fraction": 0.00861120103593396,
+      "wanted_target_step_mean": 0.060000814928615614,
+      "terms_per_step": {
+        "track_linear_velocity": 0.027769613746088,
+        "track_angular_velocity": 0.014572539761196822,
+        "upright": 0.03818750294297934,
+        "pose": 0.013949319399893283,
+        "body_ang_vel": -0.0003939715226442786,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.00105414566968102,
+        "air_time": 0.03514524817140773,
+        "foot_clearance": -0.00019307786100398517,
+        "foot_slip": -1.1023793761058443e-05,
+        "feet_collision": 0.0,
+        "action_slew": -1.4418474684095887e-08
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "dr": true,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.012258834205567837,
+      "vy_mean": 0.009151549078524113,
+      "wz_mean": -0.02127525769174099,
+      "knee_torque": {
+        "mean": 0.08102177083492279,
+        "p95": 0.2231253981590271,
+        "max": 0.4854064881801605
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.03689073026180267,
+          "torque_p95": 0.06951646506786346,
+          "torque_max": 0.1529887318611145,
+          "speed_p95": 0.8346632816311632,
+          "speed_max": 1.627590514542952,
+          "power_mean_w": 0.011618736121449251,
+          "power_p95_w": 0.042155110652733065
+        },
+        "hip_roll": {
+          "torque_rms": 0.17465567588806152,
+          "torque_p95": 0.32062041759490967,
+          "torque_max": 0.6249396204948425,
+          "speed_p95": 2.168934415204218,
+          "speed_max": 3.9903193165613113,
+          "power_mean_w": 0.10137183458292132,
+          "power_p95_w": 0.39570620950743235
+        },
+        "hip_pitch": {
+          "torque_rms": 0.07475526630878448,
+          "torque_p95": 0.13675548136234283,
+          "torque_max": 0.30434590578079224,
+          "speed_p95": 3.2260935759553506,
+          "speed_max": 4.5038267004727714,
+          "power_mean_w": 0.0996204697429768,
+          "power_p95_w": 0.34850158952073584
+        },
+        "knee": {
+          "torque_rms": 0.10227120667695999,
+          "torque_p95": 0.22437402606010437,
+          "torque_max": 0.4854064881801605,
+          "speed_p95": 4.710583437901141,
+          "speed_max": 5.212343717702428,
+          "power_mean_w": 0.2427861121803128,
+          "power_p95_w": 1.0391311352039636
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.058756861835718155,
+          "torque_p95": 0.11556161195039749,
+          "torque_max": 0.30758407711982727,
+          "speed_p95": 2.204283585282874,
+          "speed_max": 3.8145450775557768,
+          "power_mean_w": 0.05056525772014769,
+          "power_p95_w": 0.19493379030781413
+        }
+      },
+      "slew_limited_fraction": 6.25e-05,
+      "wanted_target_step_mean": 0.042200009774675126,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03047260159626603,
+        "track_angular_velocity": 0.02444689498562366,
+        "upright": 0.038359839253127574,
+        "pose": 0.006045805869624019,
+        "body_ang_vel": -0.0003657632506947266,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0005844384130614344,
+        "air_time": 0.0,
+        "foot_clearance": 0.0,
+        "foot_slip": -3.0784391151508216e-06,
+        "feet_collision": 0.0,
+        "action_slew": -2.3232212242874085e-09
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.0,
+        0.0,
+        0.8
+      ],
+      "dr": true,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.0036430852487683296,
+      "vy_mean": 0.013003780506551266,
+      "wz_mean": 0.43172475695610046,
+      "knee_torque": {
+        "mean": 0.08494364470243454,
+        "p95": 0.22955827414989471,
+        "max": 0.41889268159866333
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04767204076051712,
+          "torque_p95": 0.10137216746807098,
+          "torque_max": 0.22856855392456055,
+          "speed_p95": 1.5481733337709533,
+          "speed_max": 2.6199219351794745,
+          "power_mean_w": 0.02631923672794102,
+          "power_p95_w": 0.10938320199619814
+        },
+        "hip_roll": {
+          "torque_rms": 0.1761437952518463,
+          "torque_p95": 0.3222541809082031,
+          "torque_max": 0.7038016319274902,
+          "speed_p95": 2.1827564866755873,
+          "speed_max": 4.184861877380345,
+          "power_mean_w": 0.10732989443547951,
+          "power_p95_w": 0.42329070830935506
+        },
+        "hip_pitch": {
+          "torque_rms": 0.07473774254322052,
+          "torque_p95": 0.13688087463378906,
+          "torque_max": 0.3532322943210602,
+          "speed_p95": 3.277765541704498,
+          "speed_max": 4.651783102717543,
+          "power_mean_w": 0.10138689181862566,
+          "power_p95_w": 0.3359244203973271
+        },
+        "knee": {
+          "torque_rms": 0.1062808409333229,
+          "torque_p95": 0.2299955189228058,
+          "torque_max": 0.4081437587738037,
+          "speed_p95": 4.709800956931426,
+          "speed_max": 5.141167604708833,
+          "power_mean_w": 0.25650312205744835,
+          "power_p95_w": 1.0661169204137566
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.06228818744421005,
+          "torque_p95": 0.12425167858600616,
+          "torque_max": 0.36993607878685,
+          "speed_p95": 2.286000322659698,
+          "speed_max": 3.5487981814815384,
+          "power_mean_w": 0.05469286261596018,
+          "power_p95_w": 0.2202681426696504
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": 0.04480103572922526,
+      "terms_per_step": {
+        "track_linear_velocity": 0.030498587118461727,
+        "track_angular_velocity": 0.02007241786085069,
+        "upright": 0.03838618602231145,
+        "pose": 0.016150907473638655,
+        "body_ang_vel": -0.00038238062568416353,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0006210794338549022,
+        "air_time": 0.033119998252019285,
+        "foot_clearance": -9.508483788158628e-05,
+        "foot_slip": -2.9440871718655614e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "zero-action",
+      "case": "nominal",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": true,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": -1.1368108971510082e-05,
+      "vy_mean": 3.0446321943600196e-06,
+      "wz_mean": 5.571022120420821e-05,
+      "knee_torque": {
+        "mean": 0.035849831998348236,
+        "p95": 0.04750831425189972,
+        "max": 0.13488833606243134
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.0006079986342228949,
+          "torque_p95": 0.001175381476059556,
+          "torque_max": 0.0076013170182704926,
+          "speed_p95": 0.00038289746688046093,
+          "speed_max": 0.04035937782318087,
+          "power_mean_w": 3.012704100318965e-07,
+          "power_p95_w": 4.1992147494448606e-07
+        },
+        "hip_roll": {
+          "torque_rms": 0.005071714054793119,
+          "torque_p95": 0.004662595689296722,
+          "torque_max": 0.147243469953537,
+          "speed_p95": 0.00239253174118299,
+          "speed_max": 0.512253030834989,
+          "power_mean_w": 4.671260088716685e-05,
+          "power_p95_w": 1.1371138709424452e-05
+        },
+        "hip_pitch": {
+          "torque_rms": 0.008133742026984692,
+          "torque_p95": 0.011854559183120728,
+          "torque_max": 0.04563762620091438,
+          "speed_p95": 0.0012017192012717481,
+          "speed_max": 0.12122355110182108,
+          "power_mean_w": 6.643422792504213e-06,
+          "power_p95_w": 8.288977751612404e-06
+        },
+        "knee": {
+          "torque_rms": 0.03693370893597603,
+          "torque_p95": 0.04687780886888504,
+          "torque_max": 0.1159079372882843,
+          "speed_p95": 0.0018992458335809152,
+          "speed_max": 0.26602656577550443,
+          "power_mean_w": 7.377936234498336e-05,
+          "power_p95_w": 6.491697701577346e-05
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.011583689600229263,
+          "torque_p95": 0.018219036981463432,
+          "torque_max": 0.13097333908081055,
+          "speed_p95": 0.0029699451789637283,
+          "speed_max": 0.4942921264343727,
+          "power_mean_w": 0.00010624606794572042,
+          "power_p95_w": 3.1228079763212325e-05
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": 0.0,
+      "terms_per_step": {
+        "track_linear_velocity": 0.025457127178087832,
+        "track_angular_velocity": 0.039805915277451275,
+        "upright": 0.03992666595056653,
+        "pose": 0.019997179064899683,
+        "body_ang_vel": -2.5790404679026908e-06,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": 0.0,
+        "air_time": 0.0,
+        "foot_clearance": -6.979006234297813e-07,
+        "foot_slip": -3.9181100347163306e-08,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "friction_0.5",
+      "action_delay_ms": 0.0,
+      "foot_friction": 0.5,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.1766064167022705,
+      "vy_mean": 0.004251164849847555,
+      "wz_mean": -0.10783600062131882,
+      "knee_torque": {
+        "mean": 0.11722059547901154,
+        "p95": 0.25789615511894226,
+        "max": 0.4765962064266205
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04576905444264412,
+          "torque_p95": 0.09015026688575745,
+          "torque_max": 0.2049795240163803,
+          "speed_p95": 1.582310752848974,
+          "speed_max": 2.5655044661756516,
+          "power_mean_w": 0.026363552959410702,
+          "power_p95_w": 0.10624940196142248
+        },
+        "hip_roll": {
+          "torque_rms": 0.1789090931415558,
+          "torque_p95": 0.32970887422561646,
+          "torque_max": 0.5835761427879333,
+          "speed_p95": 2.545579238472552,
+          "speed_max": 4.018380438934358,
+          "power_mean_w": 0.1078580671352698,
+          "power_p95_w": 0.43295905287479375
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1486946940422058,
+          "torque_p95": 0.2867181897163391,
+          "torque_max": 0.4829786717891693,
+          "speed_p95": 4.738906934628787,
+          "speed_max": 4.810175357209237,
+          "power_mean_w": 0.36380870915803,
+          "power_p95_w": 1.3081991350195228
+        },
+        "knee": {
+          "torque_rms": 0.14350777864456177,
+          "torque_p95": 0.2578800618648529,
+          "torque_max": 0.4765962064266205,
+          "speed_p95": 4.739300631784761,
+          "speed_max": 5.113412512205757,
+          "power_mean_w": 0.3743285688580282,
+          "power_p95_w": 1.2085331850590098
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.08268529176712036,
+          "torque_p95": 0.19419027864933014,
+          "torque_max": 0.28732529282569885,
+          "speed_p95": 2.8831768191816933,
+          "speed_max": 3.940131487997254,
+          "power_mean_w": 0.07395698900163532,
+          "power_p95_w": 0.2513757022111905
+        }
+      },
+      "slew_limited_fraction": 6.25e-05,
+      "wanted_target_step_mean": 0.03336615648134437,
+      "terms_per_step": {
+        "track_linear_velocity": 0.03179008292779326,
+        "track_angular_velocity": 0.01676789725245908,
+        "upright": 0.03879498416557908,
+        "pose": 0.014968615961261094,
+        "body_ang_vel": -0.00031975362016964934,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0008901294919487554,
+        "air_time": 0.03636374826938845,
+        "foot_clearance": -0.00015330009850731584,
+        "foot_slip": -1.185301848927267e-05,
+        "feet_collision": 0.0,
+        "action_slew": -4.684146048816729e-11
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "friction_1.5",
+      "action_delay_ms": 0.0,
+      "foot_friction": 1.5,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.19637876749038696,
+      "vy_mean": 0.007409423124045134,
+      "wz_mean": -0.07039069384336472,
+      "knee_torque": {
+        "mean": 0.11561364680528641,
+        "p95": 0.2568536400794983,
+        "max": 0.380843847990036
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04614867642521858,
+          "torque_p95": 0.08517065644264221,
+          "torque_max": 0.19323448836803436,
+          "speed_p95": 1.4044571481003192,
+          "speed_max": 2.0865109826453723,
+          "power_mean_w": 0.02467552994196946,
+          "power_p95_w": 0.09528190979066192
+        },
+        "hip_roll": {
+          "torque_rms": 0.20101462304592133,
+          "torque_p95": 0.35724881291389465,
+          "torque_max": 0.7225377559661865,
+          "speed_p95": 2.795344768024155,
+          "speed_max": 3.9678567634850928,
+          "power_mean_w": 0.1426882335560959,
+          "power_p95_w": 0.7307648142515563
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1732327789068222,
+          "torque_p95": 0.3359850347042084,
+          "torque_max": 0.5745438933372498,
+          "speed_p95": 4.721323704893457,
+          "speed_max": 4.82642832550804,
+          "power_mean_w": 0.431727681782022,
+          "power_p95_w": 1.402655224545516
+        },
+        "knee": {
+          "torque_rms": 0.140472412109375,
+          "torque_p95": 0.25721079111099243,
+          "torque_max": 0.380843847990036,
+          "speed_p95": 4.797892325054886,
+          "speed_max": 5.133086453495756,
+          "power_mean_w": 0.39208144431042646,
+          "power_p95_w": 1.1893207540327513
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.07865586876869202,
+          "torque_p95": 0.17783001065254211,
+          "torque_max": 0.2648405432701111,
+          "speed_p95": 3.2593029268184783,
+          "speed_max": 3.9565654976827354,
+          "power_mean_w": 0.08112352337945686,
+          "power_p95_w": 0.27870199268355983
+        }
+      },
+      "slew_limited_fraction": 0.0008125,
+      "wanted_target_step_mean": 0.035382483032916794,
+      "terms_per_step": {
+        "track_linear_velocity": 0.02946590879559517,
+        "track_angular_velocity": 0.022948362754657864,
+        "upright": 0.03925873789191246,
+        "pose": 0.014745599049143493,
+        "body_ang_vel": -0.0002764533441259118,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0010110675113537582,
+        "air_time": 0.03210749872587621,
+        "foot_clearance": -0.0001525106373064773,
+        "foot_slip": -5.943952573822742e-06,
+        "feet_collision": 0.0,
+        "action_slew": -2.661100524520288e-10
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "push_forward",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": [
+        0.3,
+        0.0
+      ],
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.18354669213294983,
+      "vy_mean": 0.007013228721916676,
+      "wz_mean": -0.10942375659942627,
+      "knee_torque": {
+        "mean": 0.11542628705501556,
+        "p95": 0.2534073293209076,
+        "max": 0.43696776032447815
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04666928946971893,
+          "torque_p95": 0.09434843808412552,
+          "torque_max": 0.20960591733455658,
+          "speed_p95": 1.5236875698883594,
+          "speed_max": 2.7897408571885127,
+          "power_mean_w": 0.02602802688792181,
+          "power_p95_w": 0.10295047912506042
+        },
+        "hip_roll": {
+          "torque_rms": 0.1825631707906723,
+          "torque_p95": 0.32226651906967163,
+          "torque_max": 0.6176673769950867,
+          "speed_p95": 2.6456284682027493,
+          "speed_max": 3.8872039134488534,
+          "power_mean_w": 0.11587182112149169,
+          "power_p95_w": 0.4529691271597652
+        },
+        "hip_pitch": {
+          "torque_rms": 0.15653617680072784,
+          "torque_p95": 0.2920737564563751,
+          "torque_max": 0.4972098171710968,
+          "speed_p95": 4.71615020993355,
+          "speed_max": 4.893220913010935,
+          "power_mean_w": 0.3873928705417668,
+          "power_p95_w": 1.3165901196872907
+        },
+        "knee": {
+          "torque_rms": 0.1405152827501297,
+          "torque_p95": 0.2533859610557556,
+          "torque_max": 0.43527597188949585,
+          "speed_p95": 4.763564980357902,
+          "speed_max": 5.07506557760834,
+          "power_mean_w": 0.37789523043785733,
+          "power_p95_w": 1.1891739602936644
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.08105096966028214,
+          "torque_p95": 0.18747788667678833,
+          "torque_max": 0.29212486743927,
+          "speed_p95": 3.000042337787065,
+          "speed_max": 4.175740526050906,
+          "power_mean_w": 0.0762473912933138,
+          "power_p95_w": 0.2629428716306448
+        }
+      },
+      "slew_limited_fraction": 0.0006875,
+      "wanted_target_step_mean": 0.03394401801244356,
+      "terms_per_step": {
+        "track_linear_velocity": 0.030914008707739412,
+        "track_angular_velocity": 0.0192910266884428,
+        "upright": 0.03893718388304114,
+        "pose": 0.01489179281424731,
+        "body_ang_vel": -0.0002901306512649171,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.000927717018254043,
+        "air_time": 0.03559499809378758,
+        "foot_clearance": -0.00014739741465746192,
+        "foot_slip": -1.0415558856884388e-05,
+        "feet_collision": 0.0,
+        "action_slew": -4.527362751447633e-10
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "push_sideways",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": [
+        0.0,
+        0.3
+      ],
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.18323785066604614,
+      "vy_mean": 0.00798320583999157,
+      "wz_mean": -0.10880989581346512,
+      "knee_torque": {
+        "mean": 0.11593956500291824,
+        "p95": 0.2538108229637146,
+        "max": 0.4769858717918396
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.0465073361992836,
+          "torque_p95": 0.09281651675701141,
+          "torque_max": 0.21170955896377563,
+          "speed_p95": 1.5026237442710941,
+          "speed_max": 2.740954435066812,
+          "power_mean_w": 0.02582685302918564,
+          "power_p95_w": 0.10106008994379521
+        },
+        "hip_roll": {
+          "torque_rms": 0.1837948113679886,
+          "torque_p95": 0.3261447548866272,
+          "torque_max": 0.7669101357460022,
+          "speed_p95": 2.684781423688525,
+          "speed_max": 4.850054105925898,
+          "power_mean_w": 0.11789845836090597,
+          "power_p95_w": 0.46629784912373556
+        },
+        "hip_pitch": {
+          "torque_rms": 0.15727585554122925,
+          "torque_p95": 0.2939986288547516,
+          "torque_max": 0.5279095768928528,
+          "speed_p95": 4.7146902891064455,
+          "speed_max": 4.8505337650564355,
+          "power_mean_w": 0.3892864389415879,
+          "power_p95_w": 1.3179796296031188
+        },
+        "knee": {
+          "torque_rms": 0.14107216894626617,
+          "torque_p95": 0.2538694739341736,
+          "torque_max": 0.4769858717918396,
+          "speed_p95": 4.766388307277261,
+          "speed_max": 5.07506557760834,
+          "power_mean_w": 0.381730105913883,
+          "power_p95_w": 1.1908437918575676
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.0808071419596672,
+          "torque_p95": 0.1880277544260025,
+          "torque_max": 0.2934523820877075,
+          "speed_p95": 3.0226658095990016,
+          "speed_max": 4.717932216288274,
+          "power_mean_w": 0.07619220513931639,
+          "power_p95_w": 0.26349573845160795
+        }
+      },
+      "slew_limited_fraction": 0.0006875,
+      "wanted_target_step_mean": 0.03407597948609735,
+      "terms_per_step": {
+        "track_linear_velocity": 0.030772142802365125,
+        "track_angular_velocity": 0.019422300491482018,
+        "upright": 0.03894045099243522,
+        "pose": 0.014896547212265432,
+        "body_ang_vel": -0.00028770204328611724,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0009347215860543656,
+        "air_time": 0.035388748084660616,
+        "foot_clearance": -0.0001478706984926248,
+        "foot_slip": -1.0271168998567504e-05,
+        "feet_collision": 0.0,
+        "action_slew": -5.1720338822836e-10
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "latency_20ms",
+      "action_delay_ms": 20.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.1621987372636795,
+      "vy_mean": 0.005383865442126989,
+      "wz_mean": -0.16049309074878693,
+      "knee_torque": {
+        "mean": 0.09613332897424698,
+        "p95": 0.24160394072532654,
+        "max": 0.4103142321109772
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04051414132118225,
+          "torque_p95": 0.07680132240056992,
+          "torque_max": 0.14176854491233826,
+          "speed_p95": 1.144613110999208,
+          "speed_max": 1.836642180394942,
+          "power_mean_w": 0.015368117377287953,
+          "power_p95_w": 0.058587877700145403
+        },
+        "hip_roll": {
+          "torque_rms": 0.1807430237531662,
+          "torque_p95": 0.33131158351898193,
+          "torque_max": 0.5560398697853088,
+          "speed_p95": 2.702722857766304,
+          "speed_max": 3.622961012222283,
+          "power_mean_w": 0.10902702464901977,
+          "power_p95_w": 0.42206665422959805
+        },
+        "hip_pitch": {
+          "torque_rms": 0.10908202826976776,
+          "torque_p95": 0.23676910996437073,
+          "torque_max": 0.3608149290084839,
+          "speed_p95": 4.520140148089446,
+          "speed_max": 4.763632693681754,
+          "power_mean_w": 0.226953770493562,
+          "power_p95_w": 0.9571988608266065
+        },
+        "knee": {
+          "torque_rms": 0.11932577937841415,
+          "torque_p95": 0.24145463109016418,
+          "torque_max": 0.4103142321109772,
+          "speed_p95": 4.7288615962583815,
+          "speed_max": 4.990014404484543,
+          "power_mean_w": 0.2937006335929692,
+          "power_p95_w": 1.1217654270451833
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.0807127133011818,
+          "torque_p95": 0.19994451105594635,
+          "torque_max": 0.2837631404399872,
+          "speed_p95": 2.8464867817508743,
+          "speed_max": 3.831710435674223,
+          "power_mean_w": 0.06928757835368904,
+          "power_p95_w": 0.24629542975109378
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": null,
+      "terms_per_step": {
+        "track_linear_velocity": 0.029750580431893468,
+        "track_angular_velocity": 0.021796212796121837,
+        "upright": 0.038996364515274766,
+        "pose": 0.014954067248851061,
+        "body_ang_vel": -0.0002684365188033553,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0007271630144605296,
+        "air_time": 0.03580499817035161,
+        "foot_clearance": -0.0001368702786421636,
+        "foot_slip": -5.0317408605238255e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "latency_40ms",
+      "action_delay_ms": 40.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.15204444527626038,
+      "vy_mean": 0.005698063410818577,
+      "wz_mean": -0.1054629236459732,
+      "knee_torque": {
+        "mean": 0.08853171020746231,
+        "p95": 0.23111146688461304,
+        "max": 0.4933825731277466
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.0345115065574646,
+          "torque_p95": 0.0640820860862732,
+          "torque_max": 0.12446782737970352,
+          "speed_p95": 0.8051518176628127,
+          "speed_max": 1.378266987209382,
+          "power_mean_w": 0.00959276876144489,
+          "power_p95_w": 0.03673539457383827
+        },
+        "hip_roll": {
+          "torque_rms": 0.1821219027042389,
+          "torque_p95": 0.3363800346851349,
+          "torque_max": 0.5160568952560425,
+          "speed_p95": 2.788135594301273,
+          "speed_max": 3.6626123214107444,
+          "power_mean_w": 0.11596939576324897,
+          "power_p95_w": 0.4273776362942732
+        },
+        "hip_pitch": {
+          "torque_rms": 0.09173702448606491,
+          "torque_p95": 0.18645478785037994,
+          "torque_max": 0.318513959646225,
+          "speed_p95": 3.739036735825516,
+          "speed_max": 4.541611048919944,
+          "power_mean_w": 0.1536951537672991,
+          "power_p95_w": 0.6004280858355857
+        },
+        "knee": {
+          "torque_rms": 0.11266647279262543,
+          "torque_p95": 0.23011799156665802,
+          "torque_max": 0.4933825731277466,
+          "speed_p95": 4.649359262277459,
+          "speed_max": 4.985063555210328,
+          "power_mean_w": 0.24323382076193475,
+          "power_p95_w": 1.0214430161525263
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.09600716084241867,
+          "torque_p95": 0.2139909863471985,
+          "torque_max": 0.3218429386615753,
+          "speed_p95": 2.9521242956301035,
+          "speed_max": 4.014923578549067,
+          "power_mean_w": 0.08529323198267778,
+          "power_p95_w": 0.3052041954356915
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": null,
+      "terms_per_step": {
+        "track_linear_velocity": 0.026807059929706157,
+        "track_angular_velocity": 0.018661923090927304,
+        "upright": 0.038813339579850434,
+        "pose": 0.015245945353060961,
+        "body_ang_vel": -0.00038566196915053297,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0006230195566313342,
+        "air_time": 0.03501749818772078,
+        "foot_clearance": -0.00015127298767038155,
+        "foot_slip": -2.2517179069545535e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "latency_60ms",
+      "action_delay_ms": 60.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.0,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.14337009191513062,
+      "vy_mean": 0.004788236692547798,
+      "wz_mean": -0.055004145950078964,
+      "knee_torque": {
+        "mean": 0.11227233707904816,
+        "p95": 0.2887369990348816,
+        "max": 0.5226885080337524
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04127609357237816,
+          "torque_p95": 0.08013862371444702,
+          "torque_max": 0.13711509108543396,
+          "speed_p95": 0.7137988635128334,
+          "speed_max": 1.5238537587017376,
+          "power_mean_w": 0.011391652848936368,
+          "power_p95_w": 0.047200038723642326
+        },
+        "hip_roll": {
+          "torque_rms": 0.1856989562511444,
+          "torque_p95": 0.33390164375305176,
+          "torque_max": 0.5002763867378235,
+          "speed_p95": 3.0781977722375746,
+          "speed_max": 4.292287996530753,
+          "power_mean_w": 0.14632761364643057,
+          "power_p95_w": 0.5345694882399757
+        },
+        "hip_pitch": {
+          "torque_rms": 0.09983561933040619,
+          "torque_p95": 0.1976775825023651,
+          "torque_max": 0.33713704347610474,
+          "speed_p95": 3.6459263449727914,
+          "speed_max": 4.627090484648548,
+          "power_mean_w": 0.1473681625223058,
+          "power_p95_w": 0.5900580505964339
+        },
+        "knee": {
+          "torque_rms": 0.14538343250751495,
+          "torque_p95": 0.29109078645706177,
+          "torque_max": 0.5226885080337524,
+          "speed_p95": 4.71128310216099,
+          "speed_max": 4.921725831164342,
+          "power_mean_w": 0.31576629950039103,
+          "power_p95_w": 1.2064256191176108
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.1176743358373642,
+          "torque_p95": 0.24314139783382416,
+          "torque_max": 0.33614352345466614,
+          "speed_p95": 3.243298265215435,
+          "speed_max": 4.40990098723719,
+          "power_mean_w": 0.11698797838987927,
+          "power_p95_w": 0.44901684856149304
+        }
+      },
+      "slew_limited_fraction": 0.0,
+      "wanted_target_step_mean": null,
+      "terms_per_step": {
+        "track_linear_velocity": 0.02247397747915238,
+        "track_angular_velocity": 0.014440669328905642,
+        "upright": 0.03839589119330049,
+        "pose": 0.015658748068846762,
+        "body_ang_vel": -0.0006619941927492618,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0006691336842050078,
+        "air_time": 0.0346424981735181,
+        "foot_clearance": -0.00018614158396849234,
+        "foot_slip": -7.861762525195104e-06,
+        "feet_collision": 0.0,
+        "action_slew": 0.0
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "rough_5mm",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.005,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.18859028816223145,
+      "vy_mean": 0.00701397517696023,
+      "wz_mean": -0.08462139219045639,
+      "knee_torque": {
+        "mean": 0.11980362981557846,
+        "p95": 0.25540727376937866,
+        "max": 0.5042737722396851
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04581890627741814,
+          "torque_p95": 0.08778656274080276,
+          "torque_max": 0.22229541838169098,
+          "speed_p95": 1.4781164828364146,
+          "speed_max": 2.4886333509901784,
+          "power_mean_w": 0.025416548324627954,
+          "power_p95_w": 0.09793323194730683
+        },
+        "hip_roll": {
+          "torque_rms": 0.19350279867649078,
+          "torque_p95": 0.35447755455970764,
+          "torque_max": 0.7491109371185303,
+          "speed_p95": 2.7606832276344067,
+          "speed_max": 4.660825268355848,
+          "power_mean_w": 0.1373744737931847,
+          "power_p95_w": 0.5922888434769478
+        },
+        "hip_pitch": {
+          "torque_rms": 0.1629970371723175,
+          "torque_p95": 0.308633416891098,
+          "torque_max": 0.5770888328552246,
+          "speed_p95": 4.72759788865668,
+          "speed_max": 4.8553818334390595,
+          "power_mean_w": 0.4057605705378882,
+          "power_p95_w": 1.3309750001852596
+        },
+        "knee": {
+          "torque_rms": 0.1455199122428894,
+          "torque_p95": 0.2555885910987854,
+          "torque_max": 0.4762223958969116,
+          "speed_p95": 4.784865962481358,
+          "speed_max": 5.101821284156954,
+          "power_mean_w": 0.4044797375139678,
+          "power_p95_w": 1.19654564569073
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.08191885054111481,
+          "torque_p95": 0.18171457946300507,
+          "torque_max": 0.2797098159790039,
+          "speed_p95": 3.1804771686440056,
+          "speed_max": 4.634335699098119,
+          "power_mean_w": 0.08360408096970226,
+          "power_p95_w": 0.2822120333627947
+        }
+      },
+      "slew_limited_fraction": 0.0015,
+      "wanted_target_step_mean": 0.03524897089266626,
+      "terms_per_step": {
+        "track_linear_velocity": 0.02883886118978262,
+        "track_angular_velocity": 0.019170771810226143,
+        "upright": 0.038935154352337124,
+        "pose": 0.014879168156534433,
+        "body_ang_vel": -0.00032383954100077974,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.000998214361112332,
+        "air_time": 0.034334998220205304,
+        "foot_clearance": -0.00015979072678965167,
+        "foot_slip": -8.05908848453285e-06,
+        "feet_collision": 0.0,
+        "action_slew": -1.1452623152885532e-09
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "rough_10mm",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.01,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 0,
+      "vx_mean": 0.1770135462284088,
+      "vy_mean": 0.004488390404731035,
+      "wz_mean": -0.0742073506116867,
+      "knee_torque": {
+        "mean": 0.12253569811582565,
+        "p95": 0.25796931982040405,
+        "max": 0.5367844104766846
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.04720688238739967,
+          "torque_p95": 0.090362049639225,
+          "torque_max": 0.22658602893352509,
+          "speed_p95": 1.4809017663951323,
+          "speed_max": 3.243015070550372,
+          "power_mean_w": 0.02597679775817361,
+          "power_p95_w": 0.10024377564310494
+        },
+        "hip_roll": {
+          "torque_rms": 0.19746674597263336,
+          "torque_p95": 0.36971810460090637,
+          "torque_max": 0.911808431148529,
+          "speed_p95": 2.759807860387023,
+          "speed_max": 4.79140479299486,
+          "power_mean_w": 0.14824238691934322,
+          "power_p95_w": 0.6624148939038974
+        },
+        "hip_pitch": {
+          "torque_rms": 0.16394367814064026,
+          "torque_p95": 0.31341853737831116,
+          "torque_max": 0.6460171341896057,
+          "speed_p95": 4.725095314624524,
+          "speed_max": 4.869056252609711,
+          "power_mean_w": 0.4027532059520408,
+          "power_p95_w": 1.3359407106036116
+        },
+        "knee": {
+          "torque_rms": 0.14950484037399292,
+          "torque_p95": 0.2579578161239624,
+          "torque_max": 0.5367844104766846,
+          "speed_p95": 4.792557120258085,
+          "speed_max": 5.381995271382847,
+          "power_mean_w": 0.4213220577330271,
+          "power_p95_w": 1.2034208662463777
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.0842488706111908,
+          "torque_p95": 0.1810712367296219,
+          "torque_max": 0.30477240681648254,
+          "speed_p95": 3.2405719243855082,
+          "speed_max": 4.93522031700215,
+          "power_mean_w": 0.09052905314596121,
+          "power_p95_w": 0.3054806762348292
+        }
+      },
+      "slew_limited_fraction": 0.0011875,
+      "wanted_target_step_mean": 0.0357469081082003,
+      "terms_per_step": {
+        "track_linear_velocity": 0.02706728615052998,
+        "track_angular_velocity": 0.017808495895937086,
+        "upright": 0.038429766811430455,
+        "pose": 0.014920980980619789,
+        "body_ang_vel": -0.0004185113158382592,
+        "dof_pos_limits": 0.0,
+        "action_rate_l2": -0.0010249011301784775,
+        "air_time": 0.03301874829502776,
+        "foot_clearance": -0.0001643715182581218,
+        "foot_slip": -9.30917095231365e-06,
+        "feet_collision": 0.0,
+        "action_slew": -1.062293226446187e-09
+      }
+    },
+    {
+      "policy": "onnx",
+      "case": "rough_20mm",
+      "action_delay_ms": 0.0,
+      "foot_friction": null,
+      "push_dv": null,
+      "rough_floor": 0.02,
+      "twist": [
+        0.15,
+        0.0,
+        0.0
+      ],
+      "dr": false,
+      "torque_limit": 1.91,
+      "motor_no_load_speed": 5.45,
+      "num_envs": 16,
+      "seconds": 20.0,
+      "falls": 7,
+      "vx_mean": 0.07294455170631409,
+      "vy_mean": 0.0008384042303077877,
+      "wz_mean": -0.026434367522597313,
+      "knee_torque": {
+        "mean": 0.13105805218219757,
+        "p95": 0.30656707286834717,
+        "max": 0.7703692317008972
+      },
+      "joints": {
+        "hip_yaw": {
+          "torque_rms": 0.048768870532512665,
+          "torque_p95": 0.0974743664264679,
+          "torque_max": 0.29745417833328247,
+          "speed_p95": 1.4160034268784054,
+          "speed_max": 3.537834107264276,
+          "power_mean_w": 0.02267347242050456,
+          "power_p95_w": 0.09292720089877736
+        },
+        "hip_roll": {
+          "torque_rms": 0.18583014607429504,
+          "torque_p95": 0.363247811794281,
+          "torque_max": 1.7036395072937012,
+          "speed_p95": 2.5086967448471897,
+          "speed_max": 4.835140575881579,
+          "power_mean_w": 0.13849102211635972,
+          "power_p95_w": 0.597474114811354
+        },
+        "hip_pitch": {
+          "torque_rms": 0.15843580663204193,
+          "torque_p95": 0.3114689886569977,
+          "torque_max": 0.856352686882019,
+          "speed_p95": 4.7010271900187055,
+          "speed_max": 5.09271054245087,
+          "power_mean_w": 0.3313326766329079,
+          "power_p95_w": 1.313752125553299
+        },
+        "knee": {
+          "torque_rms": 0.1641301065683365,
+          "torque_p95": 0.3063197433948517,
+          "torque_max": 0.7703692317008972,
+          "speed_p95": 4.811638031306709,
+          "speed_max": 6.940637341903734,
+          "power_mean_w": 0.4239586643624546,
+          "power_p95_w": 1.286967021609707
+        },
+        "ankle_pitch": {
+          "torque_rms": 0.09998571872711182,
+          "torque_p95": 0.20503155887126923,
+          "torque_max": 0.5568807125091553,
+          "speed_p95": 3.0771117487540174,
+          "speed_max": 5.143549123805113,
+          "power_mean_w": 0.09456099820710848,
+          "power_p95_w": 0.36822205884025627
+        }
+      },
+      "slew_limited_fraction": 0.010970118706508391,
+      "wanted_target_step_mean": 0.03211695523256214,
+      "terms_per_step": {
+        "track_linear_velocity": 0.021834063802845777,
+        "track_angular_velocity": 0.017641239165794104,
+        "upright": 0.0334117623437196,
+        "pose": 0.014942014500498771,
+        "body_ang_vel": -0.0007775955462420824,
+        "dof_pos_limits": -3.2339547760784625e-07,
+        "action_rate_l2": -0.0009260117551166331,
+        "air_time": 0.022164148837793617,
+        "foot_clearance": -0.00015064690297003836,
+        "foot_slip": -2.204270707734679e-05,
+        "feet_collision": 0.0,
+        "action_slew": -4.1869056707964216e-07
+      }
+    }
+  ],
+  "sizing": {
+    "margin": 2.0,
+    "cases_used": 6,
+    "joints": {
+      "hip_yaw": {
+        "torque_max": 0.242584690451622,
+        "torque_rms": 0.05193936824798584,
+        "speed_p95": 1.8427576483848984,
+        "required_torque": 0.485169380903244,
+        "required_speed": 3.685515296769797,
+        "at_torque_limit": false
+      },
+      "hip_roll": {
+        "torque_max": 0.7660854458808899,
+        "torque_rms": 0.19385622441768646,
+        "speed_p95": 3.0447900449056413,
+        "required_torque": 1.5321708917617798,
+        "required_speed": 6.089580089811283,
+        "at_torque_limit": false
+      },
+      "hip_pitch": {
+        "torque_max": 0.6298115849494934,
+        "torque_rms": 0.1909007728099823,
+        "speed_p95": 4.761625454688797,
+        "required_torque": 1.2596231698989868,
+        "required_speed": 9.523250909377595,
+        "at_torque_limit": false
+      },
+      "knee": {
+        "torque_max": 0.522538959980011,
+        "torque_rms": 0.16044817864894867,
+        "speed_p95": 4.770238589596227,
+        "required_torque": 1.045077919960022,
+        "required_speed": 9.540477179192454,
+        "at_torque_limit": false
+      },
+      "ankle_pitch": {
+        "torque_max": 0.3810136616230011,
+        "torque_rms": 0.11076217144727707,
+        "speed_p95": 3.4414927774228086,
+        "required_torque": 0.7620273232460022,
+        "required_speed": 6.882985554845617,
+        "at_torque_limit": false
+      }
+    }
+  }
+}

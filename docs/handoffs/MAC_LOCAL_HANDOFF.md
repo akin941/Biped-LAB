@@ -2135,7 +2135,7 @@ verdict: not met; no terrain policy named. Only 7000 and 7400 pass (0.078 each, 
 ---
 
 ## MAC-42 — biped_v1: average neighbouring MAC-41 checkpoints (WP4-34)
-Status: `queued`
+Status: `done (mac-m5, 2026-11-20): met by k=3, centre 6900`
 
 MAC-41 checkpoints swing the flat yaw by about the bar itself from one save to the next (7000 and
 7400 pass at 0.078, four more miss at 0.084-0.110). No training here: average the weights of
@@ -2160,7 +2160,51 @@ of vx, 0 flat falls, 10 mm 0/16) on eval seeds 0 and 1, and the same-k windows c
 side also meet them on seed 0. Name it the terrain policy candidate (k, centre, ONNX sha256).
 Report a table of all windows (k, centre, flat |wz| max, 40 ms, flat falls, 5/10/20 mm falls).
 
-Result: `(pending)`
+Result (env: mac-m5, 2026-11-20, revision d7b1ef9): WP4-34 met: terrain policy candidate = k=3 average centred on 6900
+```
+run: eval only; 14 k=3 and 12 k=5 windows of runs/mac41 checkpoints averaged with average_checkpoints.py,
+  exported with train_ppo --iters 0 (the handoff flags were enough), scored with the MAC-40b eval (seed 0);
+  passing ones re-scored with --seed 1. Extra: k=3 centred on 6850 (model_6800 of mac40d, the checkpoint
+  MAC-41 resumed from, + mac41 6850 + 6900) to give 6900 its -50 neighbour.
+table (k, centre; flat |wz| max over 0.15 / 0.25 DR off / on; 40 ms of 0.15; flat falls; 5 / 10 / 20 mm falls;
+  P = meets the WP4-32 rows on seed 0):
+  k3 6850 (extra)  0.027   95 %  0  0/0/9   P  
+  k3 6900  0.063   93 %  0  0/0/8   P  seed 1: 0.068 / 93 % / 0 / 0 -> pass
+  k3 6950  0.070   97 %  0  0/0/7   P  seed 1: 0.078 / 97 % / 1 / 0 -> FAIL
+  k3 7000  0.097   96 %  0  0/0/6      
+  k3 7050  0.135   97 %  0  0/0/8      
+  k3 7100  0.122   97 %  0  0/0/7      
+  k3 7150  0.140   97 %  0  0/0/8      
+  k3 7200  0.199   94 %  0  0/0/8      
+  k3 7250  0.133   94 %  0  0/0/4      
+  k3 7300  0.110   91 %  0  0/0/9      
+  k3 7350  0.110   94 %  0  0/0/7      
+  k3 7400  0.096   93 %  0  0/0/9      
+  k3 7450  0.068   94 %  0  0/0/8   P  seed 1: 0.078 / 94 % / 0 / 0 -> pass
+  k3 7500  0.112  101 %  1  0/0/7      
+  k3 7550  0.224  101 %  0  0/0/10     
+  k5 6950  0.056   93 %  0  0/0/6   P  seed 1: 0.066 / 93 % / 0 / 0 -> pass
+  k5 7000  0.120   97 %  0  0/0/9      
+  k5 7050  0.095   96 %  0  0/0/7      
+  k5 7100  0.136   97 %  0  0/0/7      
+  k5 7150  0.166   96 %  0  0/0/8      
+  k5 7200  0.106   96 %  0  0/0/8      
+  k5 7250  0.063   93 %  0  0/0/9   P  seed 1: 0.049 / 93 % / 0 / 0 -> pass
+  k5 7300  0.108   93 %  0  0/0/5      
+  k5 7350  0.090   93 %  0  0/0/7      
+  k5 7400  0.109   94 %  0  0/0/10     
+  k5 7450  0.085   97 %  1  0/0/2      
+  k5 7500  0.177   98 %  0  0/0/9      
+verdict: met. k=3 centred on 6900 (models 6850 + 6900 + 6950 of MAC-41) meets the WP4-32 rows on seed 0
+  (|wz| 0.063, 40 ms 93 %, 0 flat falls, 10 mm 0/16) and seed 1 (0.068, 93 %, 0, 0/16), and its same-k
+  neighbours k=3 6850 (0.027, extra) and k=3 6950 (0.070) pass on seed 0: three passing windows in a row.
+  Seed 0 rows: 0.15 / 0.25 DR off vx 0.164 / 0.238, wz -0.063 / -0.005; DR on vx 0.148 / 0.224, wz -0.028 /
+  -0.009; zero |wz| 0.051; turn 0.8 0.491; 40 ms 0.139; 10 mm vx 0.149. Terrain policy candidate:
+  k=3, centre 6900, ONNX sha256 2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3.
+  Other seed-0 passes: k=3 6950 (seed 1 fails: one flat fall), k=3 7450, k=5 6950 and k=5 7250 (both seeds
+  pass, but a same-k neighbour fails). Averaging narrows the swing (k=3 |wz| 0.063-0.224 against 0.078-0.527
+  single), but it does not remove it. Caveat: the -50 neighbour includes the run's start checkpoint.
+```
 
 ---
 
