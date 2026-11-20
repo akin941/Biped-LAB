@@ -1902,6 +1902,20 @@ wz +0.31). Cause (cloud): the height field was only 8 m x 8 m, while a 20 s epis
 largest command reaches ~7.7 m, so walking envs left the floor and fell. Fixed: 24 m x 24 m
 field (`ROUGH_HALF_SIZE` 12, with a test that a whole episode fits). Re-run from the same
 MAC-37 B checkpoint with the same command, at a revision that has the fix.
+
+Second run (mac-m5, d6b41fb) is void as well: falls 11 / 5.8 / 4.8 / 3.5 per it over the
+first 100 it, at ~0.4-3 mm. The Mac then scored MAC-37 B at 0.15 m/s (16 envs x 20 s,
+STS3215 curve): plane 0/16 falls, a 10 um height field 4/16 (DR on: 0 / 4), 2 mm 2/16 (DR on
+7/16). Cause (cloud): MuJoCo height-field prisms give box feet sideways contact normals at
+their edges even when flat (2.7 % of contacts in a zero-action DR stand; the plane: 0).
+Fixed: the uneven floor is now a periodic patch of box tiles (`ROUGH_*`, 10 cm tiles,
+2 m period, envs wrapped back by one period), above a lowered plane. Tile seams still give
+~2 % sideways contacts at any height (a foot corner catching the next tile, which a real
+step also does), so expect falls early in the ramp. Before training, re-run that check on
+the tiles (plane / `rough_floor=1e-5` / 2 mm, DR off and on) and report it. Then train with
+the falls rule **off until iteration 700** (ramp + 100), on from there. The tiles step
+about 2x slower than the plane. Score MAC-37 B with `--terrain` too, so the terrain rows
+compare on the same floor (MAC-39 used the height field).
 ```bash
 uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1500 \
     --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \

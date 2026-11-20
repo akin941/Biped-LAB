@@ -13,7 +13,7 @@ tilt, encoder bias, random pushes). A zero-action run is the baseline.
 command with DR off, so a failure points at its cause (WP4-12): foot friction fixed
 below and above the DR range, a single forward and a single sideways push of
 ``PUSH_DV`` at ``PUSH_AT_S``, and 1-3 control periods (20-60 ms) of action latency.
-``--terrain`` adds the same command on a random height field instead of the flat
+``--terrain`` adds the same command on a floor of random-height tiles instead of the flat
 plane, ``TERRAIN_HEIGHTS`` peak to peak (WP4-31; training used the flat floor).
 
 Each case also reports per joint type (both legs pooled) the |torque| RMS / p95 / max,
@@ -285,7 +285,7 @@ def terrain_cases(
     torque_limit: float | None = None,
     motor_no_load_speed: float | None = None,
 ) -> list[dict[str, Any]]:
-    """WP4-31: the robustness command on random height fields, DR off."""
+    """WP4-31: the robustness command on random-height tile floors, DR off."""
     return [
         run_case(
             policy,

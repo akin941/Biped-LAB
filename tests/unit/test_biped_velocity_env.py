@@ -308,57 +308,78 @@ def test_motor_curve_limits_force_along_the_motion():
         bve.BipedVelocityEnv(num_envs=1, motor_no_load_speed=0.0)
 
 
-def test_rough_floor_height_field():
-    # WP4-31: the floor plane becomes a random height field at or below z = 0.
+def test_rough_floor_tiles():
+    # WP4-31/32: random-height tiles whose tops lie in [-h, 0], above a lowered plane.
     env = bve.BipedVelocityEnv(num_envs=2, rough_floor=0.02)
-    m = env.model
-    assert m.geom_type[env.floor_geom] == mujoco.mjtGeom.mjGEOM_HFIELD
-    assert m.nhfield == 1 and np.isclose(m.hfield_size[0, 2], 0.02)
-    assert np.isclose(m.geom_pos[env.floor_geom, 2], -0.02)
-    assert m.hfield_data.min() >= 0.0 and m.hfield_data.max() <= 1.0
-    assert m.hfield_data.std() > 0.1
-    # Same seed, same field; another seed, another field.
-    again = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.hfield_data
-    other = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, seed=1).model.hfield_data
-    assert np.array_equal(m.hfield_data, again) and not np.array_equal(m.hfield_data, other)
-    # The robot stands on it at zero action and its feet register contact.
+    m, tiles = env.model, env.tile_geoms
+    assert len(tiles) > 400 and (m.geom_type[tiles] == mujoco.mjtGeom.mjGEOM_BOX).all()
+    top = m.geom_pos[tiles, 2] + bve.ROUGH_TILE_HALF_Z
+    assert top.max() <= 0.0 and top.min() >= -0.02 and top.std() > 0.004
+    assert m.geom_pos[env.floor_geom, 2] < -0.1
+    assert np.allclose(m.geom_friction[tiles], m.geom_friction[env.floor_geom])
+    # Same seed, same tiles; another seed, other tiles.
+    again = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.geom_pos[tiles]
+    other = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, seed=1).model.geom_pos[tiles]
+    assert np.array_equal(m.geom_pos[tiles], again)
+    assert not np.array_equal(m.geom_pos[tiles], other)
+    # The robot stands on them at zero action and its feet register contact.
     for _ in range(100):
         out = env.step(np.zeros((2, bve.ACT_DIM), np.float32))
     assert not out.terminated.any() and env.contact.all()
-    assert bve.BipedVelocityEnv(num_envs=1).model.nhfield == 0
+    flat = bve.BipedVelocityEnv(num_envs=1)
+    assert len(flat.tile_geoms) == 0 and flat.model.geom_pos[flat.floor_geom, 2] == 0.0
     with pytest.raises(ValueError):
         bve.BipedVelocityEnv(num_envs=1, rough_floor=-0.01)
 
 
-def test_rough_floor_ramp_and_seed():
-    # WP4-32: the field rises linearly from flat over rough_floor_ramp env steps.
-    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10, common_step=10**6)
-    m = env.model
-    assert env.floor_height == 0.0 and m.hfield_size[0, 2] < 1e-5
-    for _ in range(5):
-        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
-    assert np.isclose(env.floor_height, 0.01) and np.isclose(m.hfield_size[0, 2], 0.01)
-    assert np.isclose(m.geom_pos[env.floor_geom, 2], -0.01)
-    for _ in range(10):
-        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
-    assert np.isclose(env.floor_height, 0.02) and np.isclose(m.hfield_size[0, 2], 0.02)
-    # rough_floor_seed picks the field independently of the env seed.
-    a = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_seed=7).model.hfield_data
-    b = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, seed=3, rough_floor_seed=7)
-    assert np.array_equal(a, b.model.hfield_data)
-    assert not np.array_equal(
-        a, bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.hfield_data
+def test_flat_tiles_stand_like_the_plane():
+    # MAC-40: a ~0 m MuJoCo height field cost falls where the plane had none (sideways
+    # normals at prism edges). Flat tiles: no falls under DR at zero action, and the
+    # sideways contacts (tile seams) stay a small share.
+    env = bve.BipedVelocityEnv(
+        num_envs=8, rough_floor=0.02, rough_floor_ramp=10**9, dr=True, seed=1, common_step=10**6
     )
+    nz, falls = [], 0
+    for _ in range(300):
+        out = env.step(np.zeros((8, bve.ACT_DIM), np.float32))
+        falls += int(out.terminated.sum())
+        nz += [abs(d.contact.frame[i][2]) for d in env.datas for i in range(d.ncon)]
+    assert falls == 0 and np.mean(np.array(nz) < 0.99) < 0.05
 
 
-def test_rough_floor_holds_a_whole_episode():
-    # MAC-40: a 4 m field let walking envs leave the floor and fall within one episode.
-    reach = bve.RESET_XY + float(np.hypot(*bve.TWIST_RANGE[:2])) * bve.EPISODE_S
-    assert reach + 2.0 <= bve.ROUGH_HALF_SIZE
-    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10**6)
+def test_rough_floor_wraps_by_one_period():
+    # The tile pattern repeats every ROUGH_PERIOD; an env past half a period moves back
+    # by one period onto the same floor, so a whole episode never reaches an edge.
+    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10**9)
     d = env.datas[0]
-    d.qpos[0] = reach
+    d.qpos[0], d.qpos[1] = bve.ROUGH_PERIOD / 2 + 0.05, -(bve.ROUGH_PERIOD / 2 + 0.05)
     mujoco.mj_forward(env.model, d)
     for _ in range(50):
         out = env.step(np.zeros((1, bve.ACT_DIM), np.float32))
     assert not out.terminated.any()
+    assert abs(d.qpos[0]) <= bve.ROUGH_PERIOD / 2 and abs(d.qpos[1]) <= bve.ROUGH_PERIOD / 2
+
+
+def test_rough_floor_ramp_and_seed():
+    # WP4-32: the tiles rise linearly from flat over rough_floor_ramp env steps.
+    env = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_ramp=10, common_step=10**6)
+    tiles = env.tile_geoms
+
+    def depth() -> float:
+        return float(-(env.model.geom_pos[tiles, 2] + bve.ROUGH_TILE_HALF_Z).min())
+
+    assert env.floor_height == 0.0 and depth() == 0.0
+    for _ in range(5):
+        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert np.isclose(env.floor_height, 0.01) and 0.009 < depth() <= 0.01
+    for _ in range(10):
+        env.step(np.zeros((1, bve.ACT_DIM), np.float32))
+    assert np.isclose(env.floor_height, 0.02) and 0.018 < depth() <= 0.02
+
+    # rough_floor_seed picks the tiles independently of the env seed.
+    def tiles_of(**kw: int) -> np.ndarray:
+        e = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, **kw)
+        return e.model.geom_pos[e.tile_geoms]
+
+    assert np.array_equal(tiles_of(rough_floor_seed=7), tiles_of(seed=3, rough_floor_seed=7))
+    assert not np.array_equal(tiles_of(rough_floor_seed=7), tiles_of())

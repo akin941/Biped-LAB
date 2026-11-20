@@ -149,35 +149,53 @@ DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
 DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
 
-# m, half side of the square height field. It must hold a whole episode: a 20 s episode
-# at the largest command (0.3, 0.2 m/s) reaches ~7.7 m from the origin, and past the
-# edge there is no floor (MAC-40's first run fell off a 4 m field: falls from iteration 0).
-ROUGH_HALF_SIZE = 12.0
-ROUGH_CELL = 0.1  # m between height samples (about one foot length)
+# Uneven floor (WP4-31/32): a periodic patch of square tiles at random heights. MAC-40
+# showed that a MuJoCo height field is not a usable floor here: even 10 um high it gave
+# the feet sideways contact normals at the prism edges (~3 % of contacts) and 4/16 falls
+# where the plane gave 0. Box tiles of equal height act like the plane. The tile heights
+# repeat every ROUGH_PERIOD, and an env that walks past half a period is moved back by
+# one period (the floor under it is the same), so no episode can reach an edge.
+ROUGH_CELL = 0.1  # m, tile side (about one foot length)
+ROUGH_PERIOD = 2.0  # m, the tile pattern repeats this often in x and y
+ROUGH_MARGIN = 0.3  # m of tiles beyond half a period on each side (a leg's reach)
+ROUGH_TILE_HALF_Z = 0.05  # m, half thickness of a tile
 
 
-def rough_floor_model(scene: str | Path, height: float, seed: int) -> mujoco.MjModel:
-    """The scene with its ``floor`` plane swapped for a random height field (WP4-31).
+def rough_floor_model(
+    scene: str | Path, seed: int
+) -> tuple[mujoco.MjModel, np.ndarray, np.ndarray]:
+    """The scene with a periodic patch of floor tiles above its ``floor`` plane.
 
-    Heights are uniform in [-height, 0] at every ROUGH_CELL grid point (MuJoCo joins them
-    with triangles, so the floor is a field of small slopes). The geom keeps its name,
-    friction and contact bits, so foot-contact detection works unchanged.
+    Returns the model, the tile geom ids and each tile's height fraction u in [0, 1]; a
+    tile's top sits at ``-h * u`` for a floor height h (set by the env). The plane drops
+    to well below the tiles and only catches an env that leaves them. Tiles copy the
+    plane's friction and contact bits.
     """
-    if height <= 0:
-        raise ValueError("height must be > 0")
     spec = mujoco.MjSpec.from_file(str(scene))
-    n = round(2 * ROUGH_HALF_SIZE / ROUGH_CELL) + 1
-    rng = np.random.default_rng([seed, 31])
-    hf = spec.add_hfield()
-    hf.name = "rough_floor"
-    hf.nrow = hf.ncol = n
-    hf.size = [ROUGH_HALF_SIZE, ROUGH_HALF_SIZE, height, 0.05]
-    hf.userdata = rng.uniform(0.0, 1.0, n * n).astype(np.float32).tolist()
     floor = spec.geom("floor")
-    floor.type = mujoco.mjtGeom.mjGEOM_HFIELD
-    floor.hfieldname = "rough_floor"
-    floor.pos = [0.0, 0.0, -height]
-    return spec.compile()
+    floor.pos = [0.0, 0.0, -0.5]
+    per = round(ROUGH_PERIOD / ROUGH_CELL)
+    rng = np.random.default_rng([seed, 31])
+    pattern = rng.uniform(0.0, 1.0, (per, per))
+    half = ROUGH_PERIOD / 2 + ROUGH_MARGIN
+    k = int(np.ceil(half / ROUGH_CELL))
+    names, fractions = [], []
+    for ix in range(-k, k):
+        for iy in range(-k, k):
+            cx, cy = (ix + 0.5) * ROUGH_CELL, (iy + 0.5) * ROUGH_CELL
+            g = spec.worldbody.add_geom()
+            g.name = f"floor_tile_{ix + k}_{iy + k}"
+            g.type = mujoco.mjtGeom.mjGEOM_BOX
+            g.size = [ROUGH_CELL / 2, ROUGH_CELL / 2, ROUGH_TILE_HALF_Z]
+            g.pos = [cx, cy, -ROUGH_TILE_HALF_Z]
+            g.friction = floor.friction
+            g.contype, g.conaffinity = floor.contype, floor.conaffinity
+            g.rgba = [0.3, 0.4, 0.5, 1.0]
+            names.append(g.name)
+            fractions.append(pattern[ix % per, iy % per])
+    m = spec.compile()
+    ids = np.array([mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, n) for n in names])
+    return m, ids, np.array(fractions)
 
 
 @dataclass
@@ -218,15 +236,15 @@ class BipedVelocityEnv:
     # joint can push along its motion falls linearly from the stall (force) limit at
     # rest to 0 at w0; braking against the motion keeps the full limit. None = ideal.
     motor_no_load_speed: float | None = None
-    # Uneven floor (WP4-31): peak-to-peak height in m of a random height field that
-    # replaces the flat plane (0 = the committed flat floor). Every point of the field
-    # lies at or below z = 0, so the reset pose never starts inside the ground.
+    # Uneven floor (WP4-31): peak-to-peak height in m of a patch of random-height tiles
+    # (see ROUGH_*; 0 = the committed flat plane). Every tile top lies in [-h, 0], so
+    # the reset pose never starts inside the ground.
     rough_floor: float = 0.0
-    # Terrain curriculum (WP4-32): env steps over which the field's height ramps
+    # Terrain curriculum (WP4-32): env steps over which the tiles' height ramps
     # linearly from 0 to ``rough_floor``, counted from this env's construction (so a
     # fine-tune that resumes a late ``common_step`` still starts flat). 0 = no ramp.
     rough_floor_ramp: int = 0
-    # Seed of the height field (None = ``seed``). Training uses another field than the
+    # Seed of the tile heights (None = ``seed``). Training uses another floor than the
     # evaluation's, so a score is not on the floor the policy learned.
     rough_floor_seed: int | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
@@ -243,11 +261,12 @@ class BipedVelocityEnv:
         if self.rough_floor < 0 or self.rough_floor_ramp < 0:
             raise ValueError("rough_floor and rough_floor_ramp must be >= 0")
         field_seed = self.seed if self.rough_floor_seed is None else self.rough_floor_seed
-        m = (
-            rough_floor_model(self.scene, self.rough_floor, field_seed)
-            if self.rough_floor > 0
-            else mujoco.MjModel.from_xml_path(str(self.scene))
-        )
+        self.tile_geoms = np.zeros(0, dtype=int)
+        self._tile_fraction = np.zeros(0)
+        if self.rough_floor > 0:
+            m, self.tile_geoms, self._tile_fraction = rough_floor_model(self.scene, field_seed)
+        else:
+            m = mujoco.MjModel.from_xml_path(str(self.scene))
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
         if m.nu != ACT_DIM:
@@ -299,7 +318,7 @@ class BipedVelocityEnv:
 
     @property
     def floor_height(self) -> float:
-        """Peak-to-peak height of the height field now (m); 0 on the flat floor."""
+        """Peak-to-peak height of the tiles now (m); 0 on the flat floor."""
         if self.rough_floor <= 0:
             return 0.0
         if self.rough_floor_ramp <= 0:
@@ -309,10 +328,14 @@ class BipedVelocityEnv:
     def _set_floor_height(self) -> None:
         if self.rough_floor <= 0:
             return
-        # MuJoCo needs a positive elevation scale; 1 um is flat for a 25 cm robot.
-        h = max(self.floor_height, 1e-6)
-        self.model.hfield_size[0, 2] = h
-        self.model.geom_pos[self.floor_geom, 2] = -h
+        top = -self.floor_height * self._tile_fraction
+        self.model.geom_pos[self.tile_geoms, 2] = top - ROUGH_TILE_HALF_Z
+
+    def _wrap_xy(self, d: mujoco.MjData) -> None:
+        """Move an env back by whole periods once it is past half a period (same floor)."""
+        xy = d.qpos[0:2]
+        if np.abs(xy).max() > ROUGH_PERIOD / 2:
+            xy -= ROUGH_PERIOD * np.round(xy / ROUGH_PERIOD)
 
     def _ids(self, m: mujoco.MjModel) -> None:
         def get(kind: mujoco.mjtObj, name: str) -> int:
@@ -339,6 +362,7 @@ class BipedVelocityEnv:
         self.site_ids = [get(S, f"{s}_foot") for s in biped.SIDES]
         self.foot_geoms = np.array([get(G, f"{s}_foot") for s in biped.SIDES])
         self.floor_geom = get(G, "floor")
+        self.floor_geoms = np.concatenate([[self.floor_geom], self.tile_geoms]).astype(int)
         self.gyro_adr = int(m.sensor_adr[get(mujoco.mjtObj.mjOBJ_SENSOR, "gyro")])
         self.hinge_dofs = np.flatnonzero(m.jnt_type[m.dof_jntid] != mujoco.mjtJoint.mjJNT_FREE)
 
@@ -479,7 +503,7 @@ class BipedVelocityEnv:
     def _contacts(self, d: mujoco.MjData) -> tuple[np.ndarray, bool]:
         """Feet touching the floor, and whether the two feet touch each other."""
         geom = d.contact.geom[: d.ncon]
-        floor = (geom == self.floor_geom).any(axis=1)
+        floor = np.isin(geom, self.floor_geoms).any(axis=1)
         on = [(geom == g).any(axis=1) for g in self.foot_geoms]
         feet = np.array([bool((floor & f).any()) for f in on])
         return feet, bool((on[0] & on[1]).any())
@@ -613,6 +637,8 @@ class BipedVelocityEnv:
         self.last_target = targets
         for i, d in enumerate(self.datas):
             self._apply_physics(i)
+            if self.rough_floor > 0:
+                self._wrap_xy(d)
             d.ctrl[:] = targets[i]
             if self.motor_no_load_speed is None:
                 mujoco.mj_step(self.model, d, nstep=DECIMATION)
