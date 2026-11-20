@@ -2134,5 +2134,35 @@ verdict: not met; no terrain policy named. Only 7000 and 7400 pass (0.078 each, 
 
 ---
 
+## MAC-42 — biped_v1: average neighbouring MAC-41 checkpoints (WP4-34)
+Status: `queued`
+
+MAC-41 checkpoints swing the flat yaw by about the bar itself from one save to the next (7000 and
+7400 pass at 0.078, four more miss at 0.084-0.110). No training here: average the weights of
+consecutive MAC-41 checkpoints and score the averages. Worktree of origin/main at the WP4-34 merge or later.
+
+For each window of consecutive saved checkpoints in runs/mac41 (k = 3: centres 6900…7550; k = 5:
+centres 6950…7500; checkpoints 50 apart):
+```bash
+uv run python scripts/average_checkpoints.py <mac41>/model_<c-50>.pt <mac41>/model_<c>.pt \
+    <mac41>/model_<c+50>.pt --out runs/mac42/k3_<c>/avg.pt          # k = 5: c-100 … c+100
+uv run python scripts/train_ppo.py --robot biped_v1 --envs 8 --iters 0 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 \
+    --resume runs/mac42/k3_<c>/avg.pt --run-dir runs/mac42/k3_<c> --out runs/mac42/k3_<c>/export.json
+uv run python scripts/eval_biped.py runs/mac42/k3_<c>/policy.onnx --terrain --robustness --dr \
+    --envs 16 --seconds 20 --torque-limit 1.91 --motor-no-load-speed 5.45 \
+    --out runs/mac42/k3_<c>/eval.json                                # same eval as MAC-40b
+```
+Then rerun the eval with `--seed 1` for every average that passes on seed 0.
+
+**Acceptance (WP4-34):** one averaged policy meets the WP4-32 rows (flat |wz| <= 0.08, 40 ms >= 80 %
+of vx, 0 flat falls, 10 mm 0/16) on eval seeds 0 and 1, and the same-k windows centred 50 it either
+side also meet them on seed 0. Name it the terrain policy candidate (k, centre, ONNX sha256).
+Report a table of all windows (k, centre, flat |wz| max, 40 ms, flat falls, 5/10/20 mm falls).
+
+Result: `(pending)`
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

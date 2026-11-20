@@ -364,6 +364,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
                 total = first_iter + done
                 save_checkpoint(runner, args, total, common_step + done * STEPS_PER_ENV, rec)
         if args.run_dir:
+            args.run_dir.mkdir(parents=True, exist_ok=True)  # also for --iters 0 exports
             export_onnx(runner, args.run_dir / "policy.onnx")
     finally:
         if isinstance(env, ParallelBatchEnv):
