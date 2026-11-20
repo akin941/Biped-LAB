@@ -1,0 +1,27 @@
+{
+  "onnx": "<mac37 worktree>/runs/mac37-b/policy.onnx",
+  "onnx_sha256": "13070c6af571cccaa7363e73ced8a2c0225d0e0e6082e658622af0e85d763bfb",
+  "mlp": "<mac37 worktree>/runs/mac37-b/policy.bpml",
+  "mlp_sha256": "a7e090fbf4ac2f391fe9386df9f050f7b435ff101a760fa39f541fb0f1912b70",
+  "in_dim": 39,
+  "out_dim": 10,
+  "ops": [
+    "shift",
+    "scale",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense",
+    "elu",
+    "dense"
+  ],
+  "numpy_vs_onnxruntime": {
+    "max_abs_err": 1.9073486328125e-06,
+    "ok": true
+  },
+  "rust_vs_onnxruntime": {
+    "max_abs_err": 1.1920928955078125e-06,
+    "ok": true
+  }
+}
