@@ -1999,6 +1999,34 @@ verdict: WP4-32 met by model_6400: rough_10mm 0/16 falls at 99 % of 0.15, and ev
   the yaw.
 ```
 
+### MAC-40c — stabilise at 10 mm (note under MAC-40)
+Result (env: mac-m5, 2026-11-20, code = 696d466, box tiles): NOT met; 2 consecutive passes, 3 needed
+```
+run: from mac40b/model_6400.pt, --rough-floor 0.010 --rough-floor-ramp-it 0 (10 mm from the start)
+  --mirror-loss-coeff 1.0 --iters 1000 --save-every 50, otherwise the MAC-40b flags; 8 workers;
+  worktree HEAD 7f998c9 (696d466 + MAC-40 docs)
+wall time; rule fired?: falls/it (100-it means) 0.92 / 0.94 / 1.08 -> the falls rule (> 1.0 over 100
+  it, on from the start) fired at it 300 (4 min) -> stopped at model_6700; last good = model_6650.
+  All six saved checkpoints were scored with the MAC-40b eval (--terrain --robustness --dr, 16 x 20 s).
+per checkpoint (flat |wz| max over 0.15 / 0.25 DR off / on; 40 ms of 0.15; flat falls;
+  rough 5 / 10 / 20 mm falls; vx at 10 mm):
+  6450  0.171  78 %  0   0 / 0 / 8    0.140
+  6500  0.215  84 %  0   0 / 0 / 10   0.133
+  6550  0.272  93 %  0   0 / 0 / 7    0.159
+  6600  0.148  90 %  0   0 / 0 / 3    0.152
+  6650  0.045  91 %  0   0 / 0 / 9    0.145   PASS (last good)
+  6700  0.042  93 %  0   0 / 0 / 7    0.158   PASS (saved when the rule fired)
+  ONNX sha256: 6650 3254104cf1fe4b671b686f32bcdd45b5785740faaca5933c88ba58bd4bc1d15f,
+  6700 0881422d097af356194116fcd511f972269b5944adae5c79667e7ca851aae50e
+verdict: not met. Only 6650 and 6700 pass (two in a row; three needed), and the run stopped at
+  300 of 1000 it. Terrain is now steady: 10 mm stays 0/16 falls on every checkpoint (5 mm 0/16,
+  20 mm 3-10/16). What swings is the flat yaw: -0.17 to -0.27 at 6450-6550 (the MAC-40b 6400 gait
+  drifted at first), then 0.04 by 6650. The falls rule fires on the training floor itself: at a held
+  10 mm the policy falls ~0.9-1.1 per it there, while the 10 mm eval floor gives 0/16. So a 1.0/it rule
+  is about the floor's own fall rate. Suggestion: rerun from model_6650 with the falls rule at 1.5/it
+  (or measured against the 10 mm training baseline), so the run can show three or more checkpoints in a row.
+```
+
 ---
 
 ## Later Mac tasks (not ready yet)
