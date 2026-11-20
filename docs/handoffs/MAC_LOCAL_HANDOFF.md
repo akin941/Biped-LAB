@@ -2208,5 +2208,34 @@ verdict: met. k=3 centred on 6900 (models 6850 + 6900 + 6950 of MAC-41) meets th
 
 ---
 
+## MAC-43 — biped_v1: the terrain policy through the Rust runtime (WP4-35)
+Status: `queued` · Deps: MAC-42 done (its `runs/mac42/k3_6900/policy.onnx`, sha256 2e944571…)
+
+Repeat the MAC-38 check with the WP4-34 terrain policy, on a quiet Mac, from a clean worktree of
+origin/main and with absolute paths. The sim bridge floor is flat; this checks that the averaged
+policy runs in real time in the runtime, not the terrain itself.
+```bash
+(cd runtime && cargo build --locked --release)
+P=<mac42>/runs/mac42/k3_6900
+shasum -a 256 $P/policy.onnx      # must start 2e944571
+uv run python scripts/export_mlp.py $P/policy.onnx --out $P/policy.bpml \
+    --rust-bin runtime/target/release/mlp-eval > runs/mac43/mlp.json
+for v in 0.15 0.25; do
+  uv run python scripts/runtime_sim.py --seconds 20 --realtime --env-label mac-m5 \
+      --torque-limit 1.91 --motor-no-load-speed 5.45 \
+      --log runs/mac43/v$v.bplog --out runs/mac43/v$v.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --command 0:20:$v:0:0
+done
+```
+Commit `mlp.json` and the two result JSONs under `docs/experiments/mac43/`, without the logs.
+
+**Acceptance (WP4-35, MAC-38 rows):** for both commands, `fell` false, no latched fault, 1000
+periods, `deadline_misses` <= 10, `vx_body_mean` >= 50 % of the command, and |`wz`| <= 0.08 if the
+bridge reports it. If the supervisor latches a fault, name it. Nothing touches `safety.rs`.
+
+Result: `(pending)`
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
