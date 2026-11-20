@@ -1895,6 +1895,13 @@ evaluation's, so the MAC-39 score is on a floor the policy never saw. Fine-tune 
 MAC-37 B checkpoint under the same STS3215 curve and settings, with H = 20 mm and the ramp
 over 600 of 1500 iterations. Use a clean worktree of origin/main, absolute paths, and
 `caffeinate -i nohup`.
+
+First run (mac-m5, 2026-11-20, bea6114) is void: the falls rule fired at it 200 (2.11/it,
+6.0/it already in the first 25 it at ~0.4 mm), and model_5100 drifted (0.15 -> vx 0.255,
+wz +0.31). Cause (cloud): the height field was only 8 m x 8 m, while a 20 s episode at the
+largest command reaches ~7.7 m, so walking envs left the floor and fell. Fixed: 24 m x 24 m
+field (`ROUGH_HALF_SIZE` 12, with a test that a whole episode fits). Re-run from the same
+MAC-37 B checkpoint with the same command, at a revision that has the fix.
 ```bash
 uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 1500 \
     --workers <best> --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 \

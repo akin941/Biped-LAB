@@ -149,7 +149,10 @@ DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
 DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
 
-ROUGH_HALF_SIZE = 4.0  # m, half side of the square height field
+# m, half side of the square height field. It must hold a whole episode: a 20 s episode
+# at the largest command (0.3, 0.2 m/s) reaches ~7.7 m from the origin, and past the
+# edge there is no floor (MAC-40's first run fell off a 4 m field: falls from iteration 0).
+ROUGH_HALF_SIZE = 12.0
 ROUGH_CELL = 0.1  # m between height samples (about one foot length)
 
 
