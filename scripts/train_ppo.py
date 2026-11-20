@@ -472,7 +472,7 @@ def main() -> None:
     )  # fmt: skip
     parser.add_argument(
         "--rough-floor", type=float, default=0.0,
-        help="biped_v1 height-field floor, peak-to-peak height in m (default flat; WP4-32)",
+        help="biped_v1 uneven tile floor, peak-to-peak height in m (default flat; WP4-32)",
     )  # fmt: skip
     parser.add_argument(
         "--rough-floor-ramp-it", type=int, default=0,
