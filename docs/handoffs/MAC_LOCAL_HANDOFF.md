@@ -2209,7 +2209,7 @@ verdict: met. k=3 centred on 6900 (models 6850 + 6900 + 6950 of MAC-41) meets th
 ---
 
 ## MAC-43 — biped_v1: the terrain policy through the Rust runtime (WP4-35)
-Status: `queued` · Deps: MAC-42 done (its `runs/mac42/k3_6900/policy.onnx`, sha256 2e944571…)
+Status: `done (mac-m5, 2026-11-20): NOT met (0.25 |wz| 0.132 through the runtime)` · Deps: MAC-42 done (its `runs/mac42/k3_6900/policy.onnx`, sha256 2e944571…)
 
 Repeat the MAC-38 check with the WP4-34 terrain policy, on a quiet Mac, from a clean worktree of
 origin/main and with absolute paths. The sim bridge floor is flat; this checks that the averaged
@@ -2233,7 +2233,30 @@ Commit `mlp.json` and the two result JSONs under `docs/experiments/mac43/`, with
 periods, `deadline_misses` <= 10, `vx_body_mean` >= 50 % of the command, and |`wz`| <= 0.08 if the
 bridge reports it. If the supervisor latches a fault, name it. Nothing touches `safety.rs`.
 
-Result: `(pending)`
+Result (env: mac-m5, 2026-11-20, revision 5ad58d1): NOT met; the 0.25 m/s run yaws +0.132 rad/s through the runtime
+```
+policy: runs/mac42/k3_6900/policy.onnx sha256 2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3
+  (checked), policy.bpml sha256 f91559700e24878b6cc0937adf46a64398e6bc1defef3b186f1042abae0466f0;
+  mlp.json: rust vs onnxruntime 1.22e-6, numpy vs onnxruntime 1.67e-6
+tries (VM load sampled every 1.5-2 s during the 2 x 20 s runs; % = one core):
+  noisy1 (09:32Z)  VM max 668 % / mean 439 %   (not quiet: waited 2 min < 2 cores, load came back)
+  try1   (10:27Z)  VM max 243 % / mean 152 %   (not quiet)
+  try2   (13:18Z)  VM max  22 % / mean   2 %   FULLY QUIET (best try)
+best try (try2):
+  v0.15: fell false / latched 0 (no fault) / 1000 periods / 0 misses / vx_body_mean 0.172 (115 %) /
+    wz +0.079; period_max 25.0 ms, max torque demand 0.87 N.m, distance 2.86 m
+  v0.25: fell false / latched 0 / 1000 periods / 0 misses / vx_body_mean 0.253 (101 %) / wz +0.132
+    (FAILS |wz| <= 0.08); period_max 24.9 ms, slew_limit events 61, max torque 1.04 N.m, distance 3.83 m
+  noisy tries: identical vx / wz / torque in all three (the sim is deterministic); only timing moved
+  (noisy1 0.25: 5 misses, period_max 141 ms; try1: 0 misses, 25 ms)
+verdict: not met. Safety and timing are clean on a quiet Mac (no fall, no fault, 0 misses), but at 0.25
+  m/s the averaged terrain policy turns +0.132 rad/s through the runtime, and 0.15 is just inside (+0.079).
+  Load is not the cause: all three tries give the same wz. The Python env scored this policy at 0.25 with
+  wz -0.005 (DR off, mean over 16 envs with reset noise). The runtime runs one env from a fixed start,
+  so a single deterministic trajectory picks one side of the yaw spread that MAC-41/42 saw between
+  checkpoints. safety.rs untouched. Next (cloud): score the runtime at 0.25 over several start seeds,
+  or check the k=3 7450 / k=5 6950 / k=5 7250 averages the same way.
+```
 
 ---
 
