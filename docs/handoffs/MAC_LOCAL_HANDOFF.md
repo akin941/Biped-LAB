@@ -2260,5 +2260,39 @@ verdict: not met. Safety and timing are clean on a quiet Mac (no fall, no fault,
 
 ---
 
+## MAC-44 — biped_v1: score the MAC-42 averages through the runtime from several starts (WP4-36)
+Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`, MAC-43 runtime build
+
+MAC-43 ran the k3_6900 average from the exact keyframe only: one deterministic trajectory, wz
++0.132 at 0.25 m/s, while the Python eval over 16 noisy resets gives -0.005. `runtime_sim.py
+--init-seed N` now starts from a perturbed keyframe (the env's reset ranges). No `--realtime` here
+(sim results do not depend on load; it runs faster than real time), so the VM does not matter.
+
+Candidates (all passed in Python): k3_6900, k3_7450, k5_6950, k5_7250. For each:
+```bash
+(cd runtime && cargo build --locked --release)
+P=<mac42>/runs/mac42/<cand>
+uv run python scripts/export_mlp.py $P/policy.onnx --out $P/policy.bpml \
+    --rust-bin runtime/target/release/mlp-eval > runs/mac44/<cand>/mlp.json
+for v in 0.15 0.25; do for s in 0 1 2 3 4 5 6 7; do
+  uv run python scripts/runtime_sim.py --seconds 20 --env-label mac-m5 --init-seed $s \
+      --torque-limit 1.91 --motor-no-load-speed 5.45 \
+      --out runs/mac44/<cand>/v${v}_s$s.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --command 0:20:$v:0:0
+done; done
+```
+Report per candidate and command: falls, latched faults, mean and min/max of `vx_body_mean` and
+`wz_mean` over the 8 starts. Commit a summary JSON per candidate under `docs/experiments/mac44/`.
+
+**Acceptance (WP4-36):** one candidate with no fall and no latched fault on any start, |mean `wz_mean`
+over the 8 starts| <= 0.08 and mean `vx_body_mean` >= 50 % of the command, at both 0.15 and 0.25.
+If several pass, pick the smallest worst-case |wz|. Then, on a quiet Mac (MAC-43 wait script), one
+`--realtime` run of it from `--init-seed 0` at both commands: MAC-38 rows (no fall, no fault, 1000
+periods, <= 10 misses, vx >= 50 %). Name it (candidate, ONNX sha256).
+
+Result: `(pending)`
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

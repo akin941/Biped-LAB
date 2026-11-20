@@ -34,6 +34,10 @@ import numpy as np
 
 from bipedlab.design import actuators, biped
 
+# Same reset ranges as BipedVelocityEnv (kept here to avoid importing the RL env).
+RESET_JOINT_NOISE = 0.05  # rad
+RESET_Z_LIFT = (0.0, 0.01)  # m
+
 MAGIC = b"BPLB"
 VERSION = 2
 TAG_STATE = 1
@@ -180,6 +184,10 @@ class BridgeConfig:
     # (no-load speed, rad/s), as in BipedVelocityEnv. None keeps the ideal 0.52 N*m.
     torque_limit: float | None = None
     motor_no_load_speed: float | None = None
+    # WP4-36: start from a perturbed keyframe, as the env's reset does (joint noise, yaw,
+    # small lift), so one policy can be scored over several runtime trajectories.
+    # None keeps the exact keyframe (deterministic, as before).
+    init_seed: int | None = None
 
 
 class SimBridge:
@@ -212,6 +220,15 @@ class SimBridge:
         m.actuator_gainprm[:, 0] = self.kp if enable else 0.0
         m.actuator_biasprm[:, 1] = -self.kp if enable else 0.0
 
+    def _perturb_start(self, d: mujoco.MjData, seed: int) -> None:
+        """Joint noise, a random heading and a small lift, with the env's reset ranges."""
+        rng = np.random.default_rng([seed, 41])
+        d.qpos[self.qadr] += rng.uniform(-RESET_JOINT_NOISE, RESET_JOINT_NOISE, self.n)
+        d.qpos[self.qadr] = np.clip(d.qpos[self.qadr], self.lower, self.upper)
+        yaw = rng.uniform(-math.pi, math.pi)
+        d.qpos[2] += rng.uniform(*RESET_Z_LIFT)
+        d.qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+
     def hello(self) -> bytes:
         return encode_hello(self.cfg.control_dt, self.lower, self.upper, self.default,
                             self.kp, self.torque_limit)  # fmt: skip
@@ -221,6 +238,8 @@ class SimBridge:
         m, cfg = self.model, self.cfg
         d = mujoco.MjData(m)
         mujoco.mj_resetDataKeyframe(m, d, 0)
+        if cfg.init_seed is not None:
+            self._perturb_start(d, cfg.init_seed)
         self._torque(True)
         mujoco.mj_forward(m, d)
         conn.settimeout(cfg.action_timeout_s)

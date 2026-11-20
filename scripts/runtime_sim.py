@@ -35,6 +35,10 @@ def main() -> None:
         "--motor-no-load-speed", type=float, default=None,
         help="rad/s: DC-motor torque-speed curve on, as in training (WP4-30)",
     )  # fmt: skip
+    parser.add_argument(
+        "--init-seed", type=int, default=None,
+        help="perturbed start (joint noise, heading, lift) as the env reset (WP4-36)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
         "--log",
@@ -53,7 +57,8 @@ def main() -> None:
     cfg = rb.BridgeConfig(seconds=args.seconds, push_at=args.push_at,
                           push_dv=tuple(args.push_dv), stall_at=args.stall_at,
                           measure_from=args.measure_from, torque_limit=args.torque_limit,
-                          motor_no_load_speed=args.motor_no_load_speed)  # fmt: skip
+                          motor_no_load_speed=args.motor_no_load_speed,
+                          init_seed=args.init_seed)  # fmt: skip
     extra = [*args.runtime_args, *(["--realtime"] if args.realtime else [])]
     if args.log:
         args.log.parent.mkdir(parents=True, exist_ok=True)

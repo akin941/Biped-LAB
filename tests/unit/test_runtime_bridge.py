@@ -139,3 +139,13 @@ def test_motor_force_range_drives_less_along_the_motion():
 
     lo, hi = actuators.motor_force_range(np.ones(3), np.array([-5.0, 0.0, 2.5]), 5.0)
     assert np.allclose(hi, [1.0, 1.0, 0.5]) and np.allclose(lo, [0.0, -1.0, -1.0])
+
+
+def test_init_seed_perturbs_the_start_and_still_stands():
+    # WP4-36: seeded starts differ from each other and from the keyframe, and stand.
+    base = _run()
+    a, b, a2 = _run(init_seed=1), _run(init_seed=2), _run(init_seed=1)
+    assert a["trunk_height_m"] == a2["trunk_height_m"]
+    assert a["trunk_height_m"] != b["trunk_height_m"] != base["trunk_height_m"]
+    for out in (a, b):
+        assert out["steps"] == 100 and not out["fell"] and out["max_tilt_deg"] < 5.0
