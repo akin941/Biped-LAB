@@ -13,6 +13,8 @@ tilt, encoder bias, random pushes). A zero-action run is the baseline.
 command with DR off, so a failure points at its cause (WP4-12): foot friction fixed
 below and above the DR range, a single forward and a single sideways push of
 ``PUSH_DV`` at ``PUSH_AT_S``, and 1-3 control periods (20-60 ms) of action latency.
+``--terrain`` adds the same command on a random height field instead of the flat
+plane, ``TERRAIN_HEIGHTS`` peak to peak (WP4-31; training used the flat floor).
 
 Each case also reports per joint type (both legs pooled) the |torque| RMS / p95 / max,
 the |joint speed| p95 / max and the mean / p95 mechanical power |torque * speed|
@@ -52,6 +54,8 @@ PUSH_AT_S = 4.0
 PUSH_DV = 0.3  # m/s in the trunk's heading frame, 1.5x the DR push
 ROBUST_PUSHES = {"push_forward": (PUSH_DV, 0.0), "push_sideways": (0.0, PUSH_DV)}
 ROBUST_DELAYS = (1, 2, 3)  # control periods of 20 ms
+# Uneven floor (WP4-31): peak-to-peak heights in m; biped_v1 was trained on a flat plane.
+TERRAIN_HEIGHTS = (0.005, 0.01, 0.02)
 SIZING_MARGIN = 2.0  # G4.1
 JOINT_GROUPS = {
     j: np.array([bve.JOINT_INDEX[f"{s}_{j}"] for s in biped.SIDES]) for j in biped.LEG_JOINTS
@@ -99,6 +103,7 @@ def run_case(
     push_dv: tuple[float, float] | None = None,
     torque_limit: float | None = None,
     motor_no_load_speed: float | None = None,
+    rough_floor: float = 0.0,
 ) -> dict[str, Any]:
     env = bve.BipedVelocityEnv(
         num_envs=num_envs,
@@ -109,6 +114,7 @@ def run_case(
         action_delay=action_delay,
         torque_limit=torque_limit,
         motor_no_load_speed=motor_no_load_speed,
+        rough_floor=rough_floor,
     )
     if foot_friction is not None:
         if dr:
@@ -168,6 +174,7 @@ def run_case(
         "action_delay_ms": action_delay * bve.STEP_DT * 1000.0,
         "foot_friction": foot_friction,
         "push_dv": None if push_dv is None else list(push_dv),
+        "rough_floor": rough_floor,
         "twist": list(twist),
         "dr": dr,
         "torque_limit": float(env.stall_torque[0]),
@@ -270,6 +277,32 @@ def robustness_cases(
     return cases
 
 
+def terrain_cases(
+    policy: BatchOnnxPolicy | None,
+    num_envs: int,
+    seconds: float,
+    seed: int,
+    torque_limit: float | None = None,
+    motor_no_load_speed: float | None = None,
+) -> list[dict[str, Any]]:
+    """WP4-31: the robustness command on random height fields, DR off."""
+    return [
+        run_case(
+            policy,
+            ROBUST_TWIST,
+            num_envs,
+            seconds,
+            seed,
+            False,
+            case=f"rough_{round(h * 1000)}mm",
+            rough_floor=h,
+            torque_limit=torque_limit,
+            motor_no_load_speed=motor_no_load_speed,
+        )  # fmt: skip
+        for h in TERRAIN_HEIGHTS
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("policy", type=Path, help="path to a 39->10 .onnx policy")
@@ -280,6 +313,7 @@ def main() -> None:
     parser.add_argument(
         "--robustness", action="store_true", help="add friction, push and latency cases"
     )
+    parser.add_argument("--terrain", action="store_true", help="add uneven-floor cases (WP4-31)")
     parser.add_argument(
         "--torque-limit", type=float, default=None,
         help="actuator force limit in N*m (default: the model's 0.52; WP4-26)",
@@ -300,6 +334,8 @@ def main() -> None:
         cases.append(run_case(None, TWISTS[0], args.envs, args.seconds, args.seed, dr, **lim))
     if args.robustness:
         cases.extend(robustness_cases(policy, args.envs, args.seconds, args.seed, **lim))
+    if args.terrain:
+        cases.extend(terrain_cases(policy, args.envs, args.seconds, args.seed, **lim))
     report = {
         "environment": bench.environment(),
         "policy": str(args.policy),

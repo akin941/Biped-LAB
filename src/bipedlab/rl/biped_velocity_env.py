@@ -149,6 +149,34 @@ DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
 DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
 
+ROUGH_HALF_SIZE = 4.0  # m, half side of the square height field
+ROUGH_CELL = 0.1  # m between height samples (about one foot length)
+
+
+def rough_floor_model(scene: str | Path, height: float, seed: int) -> mujoco.MjModel:
+    """The scene with its ``floor`` plane swapped for a random height field (WP4-31).
+
+    Heights are uniform in [-height, 0] at every ROUGH_CELL grid point (MuJoCo joins them
+    with triangles, so the floor is a field of small slopes). The geom keeps its name,
+    friction and contact bits, so foot-contact detection works unchanged.
+    """
+    if height <= 0:
+        raise ValueError("height must be > 0")
+    spec = mujoco.MjSpec.from_file(str(scene))
+    n = round(2 * ROUGH_HALF_SIZE / ROUGH_CELL) + 1
+    rng = np.random.default_rng([seed, 31])
+    hf = spec.add_hfield()
+    hf.name = "rough_floor"
+    hf.nrow = hf.ncol = n
+    hf.size = [ROUGH_HALF_SIZE, ROUGH_HALF_SIZE, height, 0.05]
+    hf.userdata = rng.uniform(0.0, 1.0, n * n).astype(np.float32).tolist()
+    floor = spec.geom("floor")
+    floor.type = mujoco.mjtGeom.mjGEOM_HFIELD
+    floor.hfieldname = "rough_floor"
+    floor.pos = [0.0, 0.0, -height]
+    return spec.compile()
+
+
 @dataclass
 class BipedStepResult:
     obs: np.ndarray  # (N, 39) float32, after auto-reset
@@ -187,6 +215,10 @@ class BipedVelocityEnv:
     # joint can push along its motion falls linearly from the stall (force) limit at
     # rest to 0 at w0; braking against the motion keeps the full limit. None = ideal.
     motor_no_load_speed: float | None = None
+    # Uneven floor (WP4-31): peak-to-peak height in m of a random height field that
+    # replaces the flat plane (0 = the committed flat floor). Every point of the field
+    # lies at or below z = 0, so the reset pose never starts inside the ground.
+    rough_floor: float = 0.0
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -198,7 +230,13 @@ class BipedVelocityEnv:
             raise ValueError("action_delay and dr_delay_max must be >= 0")
         if self.track_yaw_std2 <= 0:
             raise ValueError("track_yaw_std2 must be > 0")
-        m = mujoco.MjModel.from_xml_path(str(self.scene))
+        if self.rough_floor < 0:
+            raise ValueError("rough_floor must be >= 0")
+        m = (
+            rough_floor_model(self.scene, self.rough_floor, self.seed)
+            if self.rough_floor > 0
+            else mujoco.MjModel.from_xml_path(str(self.scene))
+        )
         if abs(m.opt.timestep - PHYSICS_DT) > 1e-12:
             raise ValueError(f"model timestep must be {PHYSICS_DT}")
         if m.nu != ACT_DIM:

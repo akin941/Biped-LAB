@@ -306,3 +306,25 @@ def test_motor_curve_limits_force_along_the_motion():
     assert not out.terminated.any() and np.allclose(env.stall_torque, 0.52)
     with pytest.raises(ValueError):
         bve.BipedVelocityEnv(num_envs=1, motor_no_load_speed=0.0)
+
+
+def test_rough_floor_height_field():
+    # WP4-31: the floor plane becomes a random height field at or below z = 0.
+    env = bve.BipedVelocityEnv(num_envs=2, rough_floor=0.02)
+    m = env.model
+    assert m.geom_type[env.floor_geom] == mujoco.mjtGeom.mjGEOM_HFIELD
+    assert m.nhfield == 1 and np.isclose(m.hfield_size[0, 2], 0.02)
+    assert np.isclose(m.geom_pos[env.floor_geom, 2], -0.02)
+    assert m.hfield_data.min() >= 0.0 and m.hfield_data.max() <= 1.0
+    assert m.hfield_data.std() > 0.1
+    # Same seed, same field; another seed, another field.
+    again = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02).model.hfield_data
+    other = bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, seed=1).model.hfield_data
+    assert np.array_equal(m.hfield_data, again) and not np.array_equal(m.hfield_data, other)
+    # The robot stands on it at zero action and its feet register contact.
+    for _ in range(100):
+        out = env.step(np.zeros((2, bve.ACT_DIM), np.float32))
+    assert not out.terminated.any() and env.contact.all()
+    assert bve.BipedVelocityEnv(num_envs=1).model.nhfield == 0
+    with pytest.raises(ValueError):
+        bve.BipedVelocityEnv(num_envs=1, rough_floor=-0.01)

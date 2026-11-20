@@ -1836,5 +1836,40 @@ verdict: WP4-30 acceptance met. The STS3215 policy walks through the supervised 
 
 ---
 
+## MAC-39 — biped_v1: walking on an uneven floor (WP4-31)
+Status: `awaiting-mac` · Deps: MAC-37 done (its `runs/mac37-b/policy.onnx`), MAC-25 done (its `runs/mac25/policy.onnx`)
+
+Every biped_v1 policy so far trained and was scored on a flat plane. A real floor is not
+flat. `eval_biped.py --terrain` (WP4-31) swaps the floor for a random height field
+(heights uniform in [-h, 0] every 10 cm; same field for a given `--seed`) and runs the
+0.15 m/s robustness command at h = 5, 10 and 20 mm, DR off. Score the STS3215 policy
+under its curve and, for comparison, the MAC-25 reference at the default 0.52 N·m.
+Run from a clean worktree of origin/main with absolute paths, under `caffeinate -i nohup`.
+No quiet window is needed (no real-time loop).
+```bash
+uv run python scripts/eval_biped.py <mac37>/runs/mac37-b/policy.onnx --terrain --robustness \
+    --envs 16 --seconds 20 --torque-limit 1.91 --motor-no-load-speed 5.45 \
+    --out runs/mac39/sts3215.json
+uv run python scripts/eval_biped.py <mac25>/runs/mac25/policy.onnx --terrain \
+    --envs 16 --seconds 20 --out runs/mac39/mac25.json
+```
+Commit both JSONs under `docs/experiments/mac39/` and a short report.
+
+**Acceptance (WP4-31):** for the STS3215 policy, `rough_10mm` has 0 falls of 16 and
+`vx_mean` ≥ 50 % of 0.15. Also report `rough_5mm` and `rough_20mm` (falls, vx, |wz|) for
+both policies; 20 mm is about 8 % of the leg length and is expected to be hard. If
+10 mm fails, say whether the policy falls or only slows down.
+
+Result:
+```
+revision:
+sts3215 rough_5/10/20mm: falls / vx_mean / wz_mean:
+mac25 rough_5/10/20mm: falls / vx_mean / wz_mean:
+sts3215 robustness rows (falls, vx):
+verdict:
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
