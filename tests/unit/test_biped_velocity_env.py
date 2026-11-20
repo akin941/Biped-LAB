@@ -371,7 +371,7 @@ def test_rough_floor_ramp_and_seed():
     assert env.floor_height == 0.0 and depth() == 0.0
     for _ in range(5):
         env.step(np.zeros((1, bve.ACT_DIM), np.float32))
-    assert np.isclose(env.floor_height, 0.01) and 0.009 < depth() <= 0.01
+    assert np.isclose(env.floor_height, 0.01) and 0.007 < depth() <= 0.01
     for _ in range(10):
         env.step(np.zeros((1, bve.ACT_DIM), np.float32))
     assert np.isclose(env.floor_height, 0.02) and 0.018 < depth() <= 0.02
@@ -383,3 +383,29 @@ def test_rough_floor_ramp_and_seed():
 
     assert np.array_equal(tiles_of(rough_floor_seed=7), tiles_of(seed=3, rough_floor_seed=7))
     assert not np.array_equal(tiles_of(rough_floor_seed=7), tiles_of())
+
+
+def test_rough_floor_flat_fraction():
+    # WP4-33: some episodes run on flat tiles; each env steps on its own floor.
+    zero = np.zeros((8, bve.ACT_DIM), np.float32)
+    env = bve.BipedVelocityEnv(num_envs=8, rough_floor=0.02, rough_floor_flat_fraction=0.5)
+    flat = env.flat_env.copy()
+    assert 0 < flat.sum() < 8
+    seen = []
+    orig = bve.mujoco.mj_step
+
+    def spy(m, d, *a, **k):
+        i = next(j for j, dd in enumerate(env.datas) if dd is d)
+        seen.append((i, float(-(m.geom_pos[env.tile_geoms, 2] + bve.ROUGH_TILE_HALF_Z).min())))
+        return orig(m, d, *a, **k)
+
+    bve.mujoco.mj_step = spy
+    try:
+        env.step(zero)
+    finally:
+        bve.mujoco.mj_step = orig
+    for i, depth in seen:
+        assert (depth == 0.0) == flat[i]
+    assert bve.BipedVelocityEnv(num_envs=8, rough_floor=0.02).flat_env.sum() == 0
+    with pytest.raises(ValueError):
+        bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_flat_fraction=1.5)

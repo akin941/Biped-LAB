@@ -286,6 +286,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--torque-limit / --motor-no-load-speed are biped_v1 options")
     if args.rough_floor < 0 or args.rough_floor_ramp_it < 0:
         raise SystemExit("--rough-floor and --rough-floor-ramp-it must be >= 0")
+    if not 0.0 <= args.rough_floor_flat_fraction <= 1.0:
+        raise SystemExit("--rough-floor-flat-fraction must be in [0, 1]")
     if args.rough_floor and not biped_v1:
         raise SystemExit("--rough-floor is a biped_v1 option")
     if args.motor_no_load_speed is not None and args.motor_no_load_speed <= 0:
@@ -318,6 +320,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             kwargs["rough_floor_ramp"] = args.rough_floor_ramp_it * STEPS_PER_ENV
             # A field the evaluation (seed 0 by default) never shows.
             kwargs["rough_floor_seed"] = args.seed + 1000
+            kwargs["rough_floor_flat_fraction"] = args.rough_floor_flat_fraction
     elif args.dr_delay_max is not None or args.dr_friction is not None:
         raise SystemExit("--dr-delay-max / --dr-friction are biped_v1 options")
     else:
@@ -386,6 +389,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "motor_no_load_speed": args.motor_no_load_speed,
         "rough_floor": args.rough_floor,
         "rough_floor_ramp_it": args.rough_floor_ramp_it,
+        "rough_floor_flat_fraction": args.rough_floor_flat_fraction,
         "forward_min_vx": args.forward_min_vx,
         "posture_gate": args.posture_gate,
         "track_lin_ref_speed": args.track_lin_ref_speed,
@@ -477,6 +481,10 @@ def main() -> None:
     parser.add_argument(
         "--rough-floor-ramp-it", type=int, default=0,
         help="iterations over which --rough-floor ramps up from flat (default 0 = at once)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--rough-floor-flat-fraction", type=float, default=0.0,
+        help="share of --rough-floor episodes run on a flat floor (WP4-33, default 0)",
     )  # fmt: skip
     parser.add_argument(
         "--init-std",

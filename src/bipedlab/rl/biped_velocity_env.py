@@ -247,6 +247,9 @@ class BipedVelocityEnv:
     # Seed of the tile heights (None = ``seed``). Training uses another floor than the
     # evaluation's, so a score is not on the floor the policy learned.
     rough_floor_seed: int | None = None
+    # WP4-33: share of episodes (drawn per env at each reset) that run on flat tiles
+    # inside a rough_floor env, so terrain training keeps seeing the flat floor.
+    rough_floor_flat_fraction: float = 0.0
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -260,6 +263,8 @@ class BipedVelocityEnv:
             raise ValueError("track_yaw_std2 must be > 0")
         if self.rough_floor < 0 or self.rough_floor_ramp < 0:
             raise ValueError("rough_floor and rough_floor_ramp must be >= 0")
+        if not 0.0 <= self.rough_floor_flat_fraction <= 1.0:
+            raise ValueError("rough_floor_flat_fraction must be in [0, 1]")
         field_seed = self.seed if self.rough_floor_seed is None else self.rough_floor_seed
         self.tile_geoms = np.zeros(0, dtype=int)
         self._tile_fraction = np.zeros(0)
@@ -283,6 +288,11 @@ class BipedVelocityEnv:
         self.actuator_dof = m.jnt_dofadr[m.actuator_trnid[:, 0]].astype(int)
         self._ids(m)
         self._steps_taken = 0
+        self._floor_applied = -1.0
+        self.flat_env = np.zeros(n, dtype=bool)
+        self._floor_rngs = [
+            np.random.default_rng([self.seed, self.first_env + i, 3]) for i in range(n)
+        ]
         self._set_floor_height()
         self.datas = [mujoco.MjData(m) for _ in range(n)]
         self.max_episode_steps = round(self.episode_s / STEP_DT)
@@ -325,11 +335,17 @@ class BipedVelocityEnv:
             return self.rough_floor
         return self.rough_floor * min(1.0, self._steps_taken / self.rough_floor_ramp)
 
-    def _set_floor_height(self) -> None:
+    def _set_floor_height(self, flat: bool = False) -> None:
+        """Raise the tiles to the current floor height (or lay them flat); the model is
+        shared, so this runs before each env's step and only writes on a change."""
         if self.rough_floor <= 0:
             return
-        top = -self.floor_height * self._tile_fraction
+        h = 0.0 if flat else self.floor_height
+        if h == self._floor_applied:
+            return
+        top = -h * self._tile_fraction
         self.model.geom_pos[self.tile_geoms, 2] = top - ROUGH_TILE_HALF_Z
+        self._floor_applied = h
 
     def _wrap_xy(self, d: mujoco.MjData) -> None:
         """Move an env back by whole periods once it is past half a period (same floor)."""
@@ -467,6 +483,10 @@ class BipedVelocityEnv:
         if self.dr:
             self._sample_dr_reset(i)
             self._apply_physics(i)
+        if self.rough_floor > 0:
+            frac = self.rough_floor_flat_fraction
+            self.flat_env[i] = frac > 0 and self._floor_rngs[i].uniform() < frac
+            self._set_floor_height(bool(self.flat_env[i]))
         mujoco.mj_resetData(m, d)
         d.qpos[:] = self.stand_qpos
         x, y = rng.uniform(-RESET_XY, RESET_XY, 2)
@@ -638,6 +658,7 @@ class BipedVelocityEnv:
         for i, d in enumerate(self.datas):
             self._apply_physics(i)
             if self.rough_floor > 0:
+                self._set_floor_height(bool(self.flat_env[i]))
                 self._wrap_xy(d)
             d.ctrl[:] = targets[i]
             if self.motor_no_load_speed is None:
@@ -649,8 +670,6 @@ class BipedVelocityEnv:
         self.episode_steps += 1
         self.common_step += 1
         self._steps_taken += 1
-        if self.rough_floor_ramp > 0 and self._steps_taken <= self.rough_floor_ramp:
-            self._set_floor_height()
         s = self._state()
         finite = s["finite"]
         for value in s.values():
