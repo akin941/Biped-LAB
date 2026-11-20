@@ -2261,7 +2261,7 @@ verdict: not met. Safety and timing are clean on a quiet Mac (no fall, no fault,
 ---
 
 ## MAC-44 — biped_v1: score the MAC-42 averages through the runtime from several starts (WP4-36)
-Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`, MAC-43 runtime build
+Status: `seed part met by k3_7450 (mac-m5, 2026-11-20); realtime run pending (waiting for a quiet Mac)` · Deps: MAC-42 averages in `runs/mac42/`, MAC-43 runtime build
 
 MAC-43 ran the k3_6900 average from the exact keyframe only: one deterministic trajectory, wz
 +0.132 at 0.25 m/s, while the Python eval over 16 noisy resets gives -0.005. `runtime_sim.py
@@ -2290,7 +2290,30 @@ If several pass, pick the smallest worst-case |wz|. Then, on a quiet Mac (MAC-43
 `--realtime` run of it from `--init-seed 0` at both commands: MAC-38 rows (no fall, no fault, 1000
 periods, <= 10 misses, vx >= 50 %). Name it (candidate, ONNX sha256).
 
-Result: `(pending)`
+Result (env: mac-m5, 2026-11-20, revision 32a0ac7): seed part MET by k3_7450; realtime part PENDING
+```
+run: runtime_sim.py (no --realtime) --seconds 20 --init-seed 0..7 --torque-limit 1.91 --motor-no-load-speed 5.45,
+  0.15 and 0.25 m/s, 4 candidates x 2 commands x 8 starts = 64 runs; every run: no fall, no latched fault,
+  1000 periods
+per candidate (over the 8 starts: mean vx (of cmd) [min..max]; mean wz [min..max]):
+  k3_6900  0.15: 0.173 (115 %) [0.173..0.174], wz +0.076 [+0.069..+0.086]
+           0.25: 0.252 (101 %) [0.250..0.253], wz +0.088 [+0.072..+0.100]   -> fails (|mean wz| 0.088)
+  k3_7450  0.15: 0.192 (128 %) [0.190..0.193], wz +0.021 [-0.022..+0.045]
+           0.25: 0.264 (105 %) [0.259..0.267], wz +0.051 [+0.013..+0.078]   -> PASSES, worst |wz| 0.078
+  k5_6950  0.15: 0.178 (119 %) [0.178..0.178], wz +0.089 [+0.074..+0.103]
+           0.25: 0.261 (104 %) [0.259..0.263], wz +0.106 [+0.078..+0.123]   -> fails
+  k5_7250  0.15: 0.185 (124 %) [0.185..0.186], wz +0.084 [+0.059..+0.110]
+           0.25: 0.266 (106 %) [0.265..0.268], wz +0.224 [+0.203..+0.252]   -> fails
+  rust vs onnxruntime <= 1.3e-6 for all four exports
+chosen: k3_7450 (MAC-41 models 7400 + 7450 + 7500), ONNX sha256
+  959ab77b081d202e87e767ff12feb73a3547812285c7d8c1e9e682776c36bce0
+caveat: k3_7450 is not a stable window like k3_6900. Its own k=3 neighbours failed the Python bar in
+  MAC-42 (k3_7400 |wz| 0.096, k3_7500 0.112 with one flat fall), while k3_6900 passed there with both
+  neighbours but yaws +0.088 here through the runtime. Every candidate yaws positive through the
+  runtime at both commands.
+realtime (k3_7450, --init-seed 0, both commands, quiet Mac): pending. The wait script (3 min of VM
+  < 2 cores, then the runs with VM sampled; repeat if any sample >= 2 cores) is running.
+```
 
 ---
 
