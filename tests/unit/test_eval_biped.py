@@ -82,3 +82,12 @@ def test_motor_curve_case_records_its_settings():
     )
     assert case["torque_limit"] == 1.1 and case["motor_no_load_speed"] == 10.2
     assert case["falls"] == 0
+
+
+def test_terrain_cases_run_on_height_fields():
+    # WP4-31: one case per height, the robustness command, DR off; zero action stands.
+    cases = eval_biped.terrain_cases(None, num_envs=1, seconds=3.0, seed=0)
+    assert [c["case"] for c in cases] == ["rough_5mm", "rough_10mm", "rough_20mm"]
+    assert [c["rough_floor"] for c in cases] == list(eval_biped.TERRAIN_HEIGHTS)
+    assert all(c["twist"] == list(eval_biped.ROBUST_TWIST) and not c["dr"] for c in cases)
+    assert all(c["falls"] == 0 for c in cases)
