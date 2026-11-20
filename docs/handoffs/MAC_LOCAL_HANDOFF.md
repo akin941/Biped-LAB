@@ -2078,5 +2078,35 @@ verdict: not met. Only 6800 and 6850 pass in a row (with MAC-40c: 6650 and 6700 
 
 ---
 
+## MAC-41 — biped_v1: terrain training with flat episodes mixed in (WP4-33)
+Status: `queued`
+
+MAC-40c/d learned the 10 mm floor (0/16 falls on every checkpoint) but the flat 0.25 m/s gait drifts
+into a turn as 10 mm-only training goes on (|wz| up to 0.48). WP4-33 adds
+`--rough-floor-flat-fraction p`: a share p of episodes (drawn per env at each reset) runs on flat
+tiles, so the flat gait keeps being trained. Continue from the best MAC-40d checkpoint.
+
+Pre-flight (worktree of origin/main at the WP4-33 merge or later):
+`uv run pytest -q tests/unit/test_biped_velocity_env.py -k flat_fraction` passes.
+```bash
+uv run python scripts/train_ppo.py --robot biped_v1 --dr --envs 256 --iters 800 --workers 8 \
+    --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 --rough-floor 0.010 --rough-floor-ramp-it 0 \
+    --rough-floor-flat-fraction 0.4 --desired-kl 0.005 \
+    --resume <mac40>/runs/mac40d/model_6800.pt --run-dir runs/mac41 \
+    --save-every 50 --out runs/mac41/report.json
+```
+Falls rule: stop if the 100-it mean is above 1.5/it, active after 100 it (with 40 % flat episodes the
+training fall rate should sit below MAC-40d's 0.7-0.9). Score every saved checkpoint with the MAC-40b
+eval (`eval_biped --terrain --robustness --dr --envs 16 --seconds 20`, STS3215 curve).
+
+**Acceptance (WP4-32/33):** at least 3 consecutive saved checkpoints (50 apart), each with flat
+|wz| <= 0.08, 40 ms >= 80 % of vx, 0 flat falls, and 10 mm 0/16 falls. Name the middle one as the
+terrain policy and record its ONNX sha256.
+
+Result: `(pending)`
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
