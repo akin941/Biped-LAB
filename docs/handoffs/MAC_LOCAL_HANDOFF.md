@@ -2431,7 +2431,7 @@ realtime (k3_6900, --init-seed 0, both commands; NOT QUIET: VM ~7 cores): run at
     wz -0.041; period_max 28.5 ms, compute mean / max 63 / 1504 us, max torque 0.84 N.m;
     load: not quiet, VM ~7.3 cores (max 796 %), host load1 up to 18.6
   v0.25: fell false / no fault / 1000 periods / 0 misses / vx_body_mean 0.238 (95 %) / wz +0.031;
-    period_max 25.0 ms, compute mean / max 64 / 572 us, max torque 1.10 N.m, slew_limit 61;
+    period_max 25.0 ms, compute mean / max 64 / 572 us, max torque 1.10 N.m, slew_limit 62;
     load: not quiet, VM ~7.1 cores (max 803 %), host load1 up to 16.4
   -> all MAC-38 rows pass, even under load (no deadline-miss failure to attribute)
 verdict: WP4-38 met. Terrain candidate k3_6900 (ONNX sha256 2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3)
