@@ -2318,7 +2318,7 @@ realtime (k3_7450, --init-seed 0, both commands, quiet Mac): pending. The wait s
 ---
 
 ## MAC-45 — biped_v1: does the runtime's clean observation explain the +wz? (WP4-37)
-Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`; can run while the MAC-44 realtime part waits
+Status: `done (mac-m5, 2026-11-23): yes, the observation mismatch (mostly the joint-velocity lag) explains the +wz` · Deps: MAC-42 averages in `runs/mac42/`; can run while the MAC-44 realtime part waits
 
 Every MAC-44 candidate yaws positive through the runtime (+0.02..+0.22), while the Python eval gives
 |wz| <= 0.07 (k3_6900 -0.005 over 16 resets). The model is identical (cloud check, 2026-11-20). One
@@ -2343,6 +2343,28 @@ under `docs/experiments/mac45/`.
 most candidates) while `train` stays near 0, the observation mismatch is the cause; `no-vel-lag` says
 whether the joint-velocity lag alone is enough. If all modes stay near 0, the cause is elsewhere
 (start pose or something in the runtime path) and the cloud goes on comparing.
+
+Result (env: mac-m5, 2026-11-23, revision aed9352): the runtime's clean observation explains the +wz
+```
+run: eval_biped.py --obs-mode train / no-vel-lag / runtime, --envs 16 --seconds 20, STS3215 curve,
+  nominal rows DR off; 0 falls in every case; no --realtime. "MAC-44" = runtime_sim mean over 8 starts
+per candidate and command: vx / wz for train | no-vel-lag | runtime | MAC-44 runtime wz
+  k3_6900 0.15  0.164 / -0.063 | 0.172 / +0.057 | 0.173 / +0.065 | +0.076
+          0.25  0.238 / -0.005 | 0.251 / +0.080 | 0.252 / +0.092 | +0.088
+  k3_7450 0.15  0.182 / -0.068 | 0.191 / +0.022 | 0.192 / +0.006 | +0.021
+          0.25  0.257 / +0.031 | 0.261 / +0.052 | 0.263 / +0.053 | +0.051
+  k5_6950 0.15  0.169 / -0.027 | 0.177 / +0.071 | 0.179 / +0.065 | +0.089
+          0.25  0.248 / +0.019 | 0.260 / +0.091 | 0.261 / +0.104 | +0.106
+  k5_7250 0.15  0.176 / +0.009 | 0.187 / +0.056 | 0.186 / +0.076 | +0.084
+          0.25  0.258 / +0.063 | 0.264 / +0.245 | 0.265 / +0.235 | +0.224
+reading: runtime mode matches the MAC-44 runtime wz within 0.024 in all 8 rows (6 of 8 within 0.015),
+  while train mode stays near 0 or negative. no-vel-lag alone gives most of the shift (within 0.02 of
+  runtime mode in 7 of 8 rows), so the one-period-old joint velocities in training are the main cause;
+  removing noise and the gyro/gravity lag adds the rest. vx rises ~5 % in the same way. The runtime path
+  itself is faithful: the Python env with the runtime's observation reproduces it. Next (cloud): make
+  training and runtime see the same observation, either feed the runtime the same lagged joint
+  velocities (and noise-free equivalents) or train without the lag, then re-score with --obs-mode runtime.
+```
 
 ---
 
