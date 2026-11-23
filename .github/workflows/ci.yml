@@ -116,6 +116,16 @@ jobs:
           cargo fmt --check
           cargo clippy --locked --release -- -D warnings
           cargo build --locked --release
+      - name: Supervisor firmware as UF2 (WP5-11, flash by copying onto the Pico in BOOTSEL mode)
+        run: |
+          mkdir -p reports/firmware
+          uv run python scripts/elf_to_uf2.py \
+            firmware/supervisor-rp2040/target/thumbv6m-none-eabi/release/supervisor-rp2040 \
+            --out reports/firmware/supervisor-rp2040.uf2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: supervisor-firmware
+          path: reports/firmware/
       - name: Runtime drives the sim (G4.4 tests)
         env:
           BIPEDLAB_REQUIRE_RUNTIME: "1"
