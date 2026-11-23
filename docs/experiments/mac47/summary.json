@@ -1,0 +1,394 @@
+{
+ "task": "MAC-47",
+ "env": "mac-m5",
+ "revision": "53c919f",
+ "run": "A (fine-tune of mac37-b model_5000, 1500 it)",
+ "train": {
+  "iterations": 1500,
+  "wall_s": 3078.933328915853,
+  "first_quarter_reward": 0.09217744476348162,
+  "last_quarter_reward": 0.12590588439173167,
+  "falls_per_it_150": [
+   4.073,
+   0.173,
+   0.033,
+   0.013,
+   0.02,
+   0.02,
+   0.0,
+   0.007,
+   0.02,
+   0.0
+  ]
+ },
+ "eval_dr_robustness": [
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.16864202916622162,
+   "vy_mean": 0.002094398718327284,
+   "wz_mean": 0.007886847481131554,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.25,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.2466353327035904,
+   "vy_mean": 0.004485034849494696,
+   "wz_mean": 0.03567815199494362,
+   "slew_limited_fraction": 0.027375,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.028939971700310707,
+   "vy_mean": 0.007954729720950127,
+   "wz_mean": 0.048406027257442474,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.0,
+    0.0,
+    0.8
+   ],
+   "falls": 0,
+   "vx_mean": 0.00012900251022074372,
+   "vy_mean": 0.004304646048694849,
+   "wz_mean": 1.0484017133712769,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": true,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.14426252245903015,
+   "vy_mean": -0.00013701795251108706,
+   "wz_mean": -0.01030992716550827,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": true,
+   "twist": [
+    0.25,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.21605031192302704,
+   "vy_mean": 2.5121189537458122e-05,
+   "wz_mean": 0.005929731763899326,
+   "slew_limited_fraction": 0.013375,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": true,
+   "twist": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.024165742099285126,
+   "vy_mean": 0.007282456383109093,
+   "wz_mean": 0.02750571072101593,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "nominal",
+   "dr": true,
+   "twist": [
+    0.0,
+    0.0,
+    0.8
+   ],
+   "falls": 0,
+   "vx_mean": 0.0018155534053221345,
+   "vy_mean": 0.002968370681628585,
+   "wz_mean": 0.8836249709129333,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "friction_0.5",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.1652257889509201,
+   "vy_mean": 0.0013745607575401664,
+   "wz_mean": 0.007081407122313976,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": 0.5,
+   "push_dv": null
+  },
+  {
+   "case": "friction_1.5",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.1719202995300293,
+   "vy_mean": 0.0031330224592238665,
+   "wz_mean": 0.0073961843736469746,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": 1.5,
+   "push_dv": null
+  },
+  {
+   "case": "push_forward",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.1689015030860901,
+   "vy_mean": 0.0021663662046194077,
+   "wz_mean": 0.00667683407664299,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": [
+    0.3,
+    0.0
+   ]
+  },
+  {
+   "case": "push_sideways",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.16842810809612274,
+   "vy_mean": 0.0027150409296154976,
+   "wz_mean": 0.010192281566560268,
+   "slew_limited_fraction": 0.000375,
+   "action_delay_ms": 0.0,
+   "foot_friction": null,
+   "push_dv": [
+    0.0,
+    0.3
+   ]
+  },
+  {
+   "case": "latency_20ms",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.14158998429775238,
+   "vy_mean": -0.0015051142545416951,
+   "wz_mean": -0.008946502581238747,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 20.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "latency_40ms",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.12195026129484177,
+   "vy_mean": -0.0030941381119191647,
+   "wz_mean": -0.016216497868299484,
+   "slew_limited_fraction": 0.0,
+   "action_delay_ms": 40.0,
+   "foot_friction": null,
+   "push_dv": null
+  },
+  {
+   "case": "latency_60ms",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.10549823939800262,
+   "vy_mean": -0.003751478623598814,
+   "wz_mean": -0.023446526378393173,
+   "slew_limited_fraction": 0.00125,
+   "action_delay_ms": 60.0,
+   "foot_friction": null,
+   "push_dv": null
+  }
+ ],
+ "eval_obs_mode_runtime": [
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.16996517777442932,
+   "wz_mean": 0.006065150257200003,
+   "obs_mode": "runtime"
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.25,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.25040191411972046,
+   "wz_mean": 0.049995336681604385,
+   "obs_mode": "runtime"
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "falls": 0,
+   "vx_mean": 0.028171636164188385,
+   "wz_mean": 0.045900531113147736,
+   "obs_mode": "runtime"
+  },
+  {
+   "case": "nominal",
+   "dr": false,
+   "twist": [
+    0.0,
+    0.0,
+    0.8
+   ],
+   "falls": 0,
+   "vx_mean": -0.00039454305078834295,
+   "wz_mean": 1.0487076044082642,
+   "obs_mode": "runtime"
+  }
+ ],
+ "sizing": {
+  "margin": 2.0,
+  "cases_used": 6,
+  "joints": {
+   "hip_yaw": {
+    "torque_max": 0.43535053730010986,
+    "torque_rms": 0.11364290118217468,
+    "speed_p95": 2.1282316686205474,
+    "required_torque": 0.8707010746002197,
+    "required_speed": 4.256463337241095,
+    "at_torque_limit": false
+   },
+   "hip_roll": {
+    "torque_max": 1.1261507272720337,
+    "torque_rms": 0.35755082964897156,
+    "speed_p95": 2.3872183822395003,
+    "required_torque": 2.2523014545440674,
+    "required_speed": 4.774436764479001,
+    "at_torque_limit": false
+   },
+   "hip_pitch": {
+    "torque_max": 1.0184800624847412,
+    "torque_rms": 0.3749471604824066,
+    "speed_p95": 5.047468950564441,
+    "required_torque": 2.0369601249694824,
+    "required_speed": 10.094937901128882,
+    "at_torque_limit": false
+   },
+   "knee": {
+    "torque_max": 0.8258385062217712,
+    "torque_rms": 0.2761740982532501,
+    "speed_p95": 5.145814486184086,
+    "required_torque": 1.6516770124435425,
+    "required_speed": 10.291628972368173,
+    "at_torque_limit": false
+   },
+   "ankle_pitch": {
+    "torque_max": 0.7632640600204468,
+    "torque_rms": 0.22636543214321136,
+    "speed_p95": 4.234106992218528,
+    "required_torque": 1.5265281200408936,
+    "required_speed": 8.468213984437057,
+    "at_torque_limit": false
+   }
+  }
+ },
+ "servo": {
+  "stall_nm": 1.96,
+  "no_load_rad_s": 7.0,
+  "torque_bar_nm": 1.3066666666666666
+ },
+ "onnx_sha256": "d9a1d6ae1c82b4fc3dab53e4d9f2f5dd07d2231788f3867fc2bc3f100e4bdb5c",
+ "run_b": "not run (A meets WP4-40)"
+}
