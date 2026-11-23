@@ -92,6 +92,10 @@ impl JointMap {
         Ok(JointMap { joints })
     }
 
+    pub fn joint(&self, name: &str) -> Option<(usize, &Joint)> {
+        self.joints.iter().enumerate().find(|(_, j)| j.name == name)
+    }
+
     pub fn ids(&self) -> Vec<u8> {
         self.joints.iter().map(|j| j.id).collect()
     }
@@ -116,11 +120,50 @@ impl JointMap {
             .collect()
     }
 
+    /// One joint: sim angle -> servo angle.
+    pub fn to_servo_one(&self, k: usize, sim: f64) -> f64 {
+        let j = &self.joints[k];
+        j.sign * sim + j.offset
+    }
+
+    /// One joint: servo angle -> sim angle.
+    pub fn to_sim_one(&self, k: usize, servo: f64) -> f64 {
+        let j = &self.joints[k];
+        j.sign * (servo - j.offset)
+    }
+
     /// Servo velocities -> sim joint velocities (the offset drops out).
     pub fn vel_to_sim(&self, servo: &[f64]) -> Vec<f64> {
         assert_eq!(servo.len(), self.joints.len());
         self.joints.iter().zip(servo).map(|(j, w)| j.sign * w).collect()
     }
+}
+
+/// Returns `text` with the offset of joint `name` replaced, keeping the other
+/// lines and comments; the result is parsed again, so a bad offset is refused.
+pub fn set_offset(text: &str, name: &str, offset: f64, expected: &[&str]) -> Result<String, String> {
+    let mut found = false;
+    let mut out = String::with_capacity(text.len());
+    for raw in text.split_inclusive('\n') {
+        let (body, comment) = raw.split_once('#').map_or((raw, None), |(b, c)| (b, Some(c)));
+        let f: Vec<&str> = body.split_whitespace().collect();
+        if f.len() == 4 && f[0] == name {
+            found = true;
+            out.push_str(&format!("{:<20} {:>3}  {:>3}  {offset:+.4}", f[0], f[1], f[2]));
+            match comment {
+                Some(c) => out.push_str(&format!("   #{c}")),
+                None if raw.ends_with('\n') => out.push('\n'),
+                None => {}
+            }
+        } else {
+            out.push_str(raw);
+        }
+    }
+    if !found {
+        return Err(format!("no joint {name:?} in the map"));
+    }
+    JointMap::parse(&out, expected)?;
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -168,6 +211,21 @@ right_knee     9   1  -0.02
         let text = include_str!("../../hardware/calibration/biped_v1_joints.example.txt");
         let m = JointMap::parse(text, &BIPED_V1_JOINTS).unwrap();
         assert_eq!(m.ids(), (1..=10).collect::<Vec<u8>>());
+    }
+
+    #[test]
+    fn offsets_are_written_back_in_place() {
+        let t = set_offset(TEXT, "left_knee", -0.1234, &NAMES).unwrap();
+        let m = JointMap::parse(&t, &NAMES).unwrap();
+        assert_eq!(m.joint("left_knee").unwrap().1.offset, -0.1234);
+        assert_eq!(m.joint("left_knee").unwrap().0, 1);
+        assert!(t.contains("# mounted mirrored"), "{t}");
+        assert_eq!(m.joints[2], JointMap::parse(TEXT, &NAMES).unwrap().joints[2]);
+        assert!(set_offset(TEXT, "left_knee", 0.9, &NAMES)
+            .unwrap_err()
+            .contains("offset"));
+        assert!(set_offset(TEXT, "neck", 0.0, &NAMES).unwrap_err().contains("neck"));
+        assert!(m.joint("neck").is_none());
     }
 
     #[test]

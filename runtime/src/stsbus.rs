@@ -34,6 +34,8 @@ pub trait Port {
 /// What the simulated port does with the reply to the next packet.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Fault {
+    /// Answers normally (to script faults for later packets).
+    Pass,
     /// The servo does not answer.
     Drop,
     /// One byte of the reply is flipped.

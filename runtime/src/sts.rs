@@ -25,6 +25,10 @@ pub const SYNC_WRITE: u8 = 0x83;
 pub mod addr {
     pub const TORQUE_ENABLE: u8 = 40; // 1 byte
     pub const GOAL_POSITION: u8 = 42; // 2 bytes
+    /// Torque limit, 0..=1000 = 0..100 % of the stall torque (RAM, reset at
+    /// power-up from the EEPROM max torque). From the STS memory table; to be
+    /// confirmed on the first servo at stage 3.
+    pub const TORQUE_LIMIT: u8 = 48; // 2 bytes
     pub const PRESENT_POSITION: u8 = 56; // 2 bytes
     pub const PRESENT_SPEED: u8 = 58; // 2 bytes, bit 15 = sign
     pub const PRESENT_LOAD: u8 = 60; // 2 bytes, bit 10 = sign
@@ -171,7 +175,9 @@ pub fn le_u16(b: &[u8]) -> Option<u16> {
 }
 
 /// A simulated STS bus for tests: answers ping, read, write, sync read and sync
-/// write from a byte-level memory table. Corrupt packets get no answer.
+/// write from a byte-level memory table. Corrupt packets get no answer. A servo
+/// with torque on is at its goal position the next time it is read (an ideal
+/// servo); with torque off its position stays where the test put it.
 #[derive(Debug, Clone)]
 pub struct SimBus {
     pub tables: Vec<(u8, [u8; 128])>,
@@ -194,6 +200,13 @@ impl SimBus {
     }
 
     pub fn transact(&mut self, packet: &[u8]) -> Vec<u8> {
+        for (_, t) in self.tables.iter_mut() {
+            if t[addr::TORQUE_ENABLE as usize] == 1 {
+                let g = addr::GOAL_POSITION as usize;
+                let p = addr::PRESENT_POSITION as usize;
+                t.copy_within(g..g + 2, p);
+            }
+        }
         let n = packet.len();
         if n < 6
             || packet[0..2] != HEADER
