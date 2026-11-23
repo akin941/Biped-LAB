@@ -495,6 +495,9 @@ fn pwm_link<P: Port + 'static>(args: &Args, port: P, hello: &Hello) -> Result<Bo
     let imu = open_imu(args.imu.as_deref().expect("checked in parse_args")).map_err(|e| format!("imu: {e}"))?;
     let default: Vec<f64> = hello.joints.iter().map(|j| j.default).collect();
     let hw = PwmSource::new(port, imu, &default, hello.control_dt)?;
+    if !hw.mcu_tilt_sensor() {
+        eprintln!("biped-runtime: the supervisor MCU has no tilt sensor (S-2 tilt stop off): stand work only");
+    }
     Ok(Box::new(HwLink {
         hw,
         end: end_time(args),

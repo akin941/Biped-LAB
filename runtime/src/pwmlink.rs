@@ -203,6 +203,11 @@ impl<P: Port, I: Imu> PwmSource<P, I> {
     pub fn torque_on(&self) -> bool {
         self.torque
     }
+
+    /// False when the MCU reports no tilt sensor (its S-2 tilt stop is off).
+    pub fn mcu_tilt_sensor(&self) -> bool {
+        self.last_status.is_some_and(|s| s.bits & bits::NO_TILT_SENSOR == 0)
+    }
 }
 
 /// The supervisor MCU in software: `supervisor_core::Supervisor` behind a
@@ -214,6 +219,9 @@ pub struct SimMcu {
     pub now_ms: u32,
     pub ms_per_frame: u32,
     pub battery_v: f32,
+    /// The MCU's own accelerometer (body frame), sampled once per frame;
+    /// `None` = no sensor fitted (the tilt stop is off).
+    pub accel: Option<[f32; 3]>,
     pub faults: VecDeque<Fault>,
     /// Targets frames received with a valid CRC.
     pub frames: u64,
@@ -234,6 +242,7 @@ impl SimMcu {
             now_ms: 1000,
             ms_per_frame: 20,
             battery_v: 7.4,
+            accel: None,
             faults: VecDeque::new(),
             frames: 0,
             reader: Reader::default(),
@@ -247,6 +256,9 @@ impl Port for SimMcu {
         for &b in bytes {
             let Some(raw) = self.reader.push(b) else { continue };
             self.now_ms = self.now_ms.wrapping_add(self.ms_per_frame);
+            if let Some(a) = self.accel {
+                self.sup.on_accel(a, self.now_ms);
+            }
             match Targets::decode(&raw) {
                 Ok(t) => {
                     self.frames += 1;
@@ -425,5 +437,23 @@ mod tests {
         hw.apply(&action(true, t, 0)).unwrap();
         let p = hw.last_status.unwrap().pulses_us;
         assert_eq!((p[0], p[3], p[8]), (1500, 1500, 1500));
+    }
+
+    #[test]
+    fn the_mcu_tilt_stop_shows_as_estop() {
+        let hw = source();
+        assert!(!hw.mcu_tilt_sensor());
+        let mut mcu = mcu();
+        mcu.accel = Some([0.0, 0.0, 9.8]);
+        let mut hw = PwmSource::new(mcu, UprightImu, &[0.0; N_JOINTS], 0.02).unwrap();
+        assert!(hw.mcu_tilt_sensor());
+        hw.apply(&action(true, vec![0.0; N_JOINTS], 0)).unwrap();
+        assert!(!hw.read().unwrap().estop);
+        hw.port.accel = Some([9.8, 0.0, 0.0]); // fallen forward
+        for _ in 0..10 {
+            hw.apply(&action(true, vec![0.0; N_JOINTS], 0)).unwrap();
+        }
+        assert!(hw.read().unwrap().estop);
+        assert!(hw.port.sup.latched() & bits::TILT != 0);
     }
 }

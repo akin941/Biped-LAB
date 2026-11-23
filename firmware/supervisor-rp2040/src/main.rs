@@ -8,8 +8,14 @@
 //! |-----------|-------------------------------------------------------|
 //! | GP0 / GP1 | UART0 TX → Pi RX, RX ← Pi TX, 115200 8N1, 3.3 V logic |
 //! | GP2–GP11  | servo signals, joints 0–9 in the runtime's order       |
+//! | GP14/GP15 | I2C1 SDA/SCL to an MPU6050 (GY-521) for the tilt stop  |
 //! | GP26      | battery through a 22 kΩ / 10 kΩ divider (ADC0)         |
 //! | GP25      | on-board LED: on while a fault is latched              |
+//!
+//! The MPU6050 is optional: without it the tilt stop is off and every status
+//! carries `NO_TILT_SENSOR` (bench and stand work). With it, it must sit flat
+//! on the body with its x axis forward and z axis up; it is read at 200 Hz and
+//! a body tilt over 45 deg (S-2) or a sensor that stops answering latches.
 //!
 //! Servo power never goes through the Pico: the 6 V UBEC feeds the servos,
 //! behind the e-stop switch (S-3), with a common ground.
@@ -25,6 +31,7 @@
 #![no_main]
 
 use embedded_hal::digital::OutputPin;
+use embedded_hal::i2c::I2c;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_nb::nb;
 use panic_halt as _;
@@ -33,6 +40,7 @@ use rp2040_hal::{
     adc::{Adc, AdcPin},
     clocks::init_clocks_and_plls,
     fugit::{ExtU32, RateExtU32},
+    gpio::{FunctionI2C, PullUp},
     pac,
     uart::{DataBits, StopBits, UartConfig, UartPeripheral},
     Clock, Sio, Timer, Watchdog,
@@ -52,6 +60,29 @@ const TICK_MS: u32 = 20;
 /// Battery divider: V_bat = V_adc * (22k + 10k) / 10k.
 const DIVIDER: f32 = 3.2;
 const ADC_VREF: f32 = 3.3;
+/// MPU6050 (WHO_AM_I 0x68; clones answer 0x70 / 0x71), as `runtime/src/mpu6050.rs`.
+const MPU_ADDR: u8 = 0x68;
+const IMU_PERIOD_MS: u32 = 5;
+
+/// Wakes the MPU6050 (44 Hz DLPF, ±4 g) and checks WHO_AM_I; false if absent.
+fn mpu_init<B: I2c>(i2c: &mut B) -> bool {
+    let mut who = [0u8];
+    if i2c.write_read(MPU_ADDR, &[0x75], &mut who).is_err() || ![0x68, 0x70, 0x71].contains(&who[0])
+    {
+        return false;
+    }
+    [[0x6B, 0x00], [0x1A, 0x03], [0x1C, 0x08]]
+        .iter()
+        .all(|w| i2c.write(MPU_ADDR, w).is_ok())
+}
+
+/// Accelerometer (raw counts, chip axes = body axes), or None on a bus error.
+fn mpu_accel<B: I2c>(i2c: &mut B) -> Option<[f32; 3]> {
+    let mut b = [0u8; 6];
+    i2c.write_read(MPU_ADDR, &[0x3B], &mut b).ok()?;
+    let v = |k: usize| i16::from_be_bytes([b[k], b[k + 1]]) as f32;
+    Some([v(0), v(2), v(4)])
+}
 
 /// Sets one slice to 1 MHz / 20 ms and routes both its channels to pins.
 macro_rules! servo_slice {
@@ -128,11 +159,21 @@ fn main() -> ! {
     let mut adc = Adc::new(pac.ADC, &mut pac.RESETS);
     let mut battery_pin = AdcPin::new(pins.gpio26.into_floating_input()).unwrap();
     let mut led = pins.gpio25.into_push_pull_output();
+    let mut i2c = hal::I2C::i2c1(
+        pac.I2C1,
+        pins.gpio14.reconfigure::<FunctionI2C, PullUp>(),
+        pins.gpio15.reconfigure::<FunctionI2C, PullUp>(),
+        400.kHz(),
+        &mut pac.RESETS,
+        clocks.system_clock.freq(),
+    );
+    let imu = mpu_init(&mut i2c);
 
     let mut sup = Supervisor::new(joints::biped_ds3218(), Limits::default());
     let mut reader = Reader::<TARGETS_LEN>::default();
     let now_ms = || (timer.get_counter().ticks() / 1000) as u32;
     let mut next_tick = now_ms();
+    let mut next_imu = now_ms();
     let mut battery_v = 0.0f32;
 
     watchdog.start(100.millis());
@@ -152,6 +193,13 @@ fn main() -> ! {
                 pulses_us: out.pulses_us.unwrap_or([0; N_JOINTS]),
             }
         };
+
+        if imu && now_ms().wrapping_sub(next_imu) < u32::MAX / 2 {
+            next_imu = next_imu.wrapping_add(IMU_PERIOD_MS);
+            if let Some(a) = mpu_accel(&mut i2c) {
+                sup.on_accel(a, now_ms()); // a missed read ages into IMU_LOST
+            }
+        }
 
         if now_ms().wrapping_sub(next_tick) < u32::MAX / 2 {
             next_tick = next_tick.wrapping_add(TICK_MS);

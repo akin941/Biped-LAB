@@ -34,7 +34,7 @@ option if the gait needs it.
 | 1 | DSServo DS3218MG 20 kg·cm digital servo, 180° | 10 | est. ~600 TL | robotsepeti: in stock | 60 g | 6 V: ~1.96 N·m, 0.15 s/60° (seller datasheet) |
 | 2 | RP2040 board, e.g. Raspberry Pi Pico (supervisor + PWM) | 1 | not checked | not checked | ~3 g | |
 | 3 | Raspberry Pi Zero 2 W (policy computer) | 1 | not checked in TL | not checked | 10 g | skip if one is already at hand |
-| 4 | MPU6050 IMU (GY-521) | 1 | robotistan: 123.00 TL incl. VAT | robotistan: sold out; robotsepeti not checked | ~2 g | BNO085 is the better, dearer option |
+| 4 | MPU6050 IMU (GY-521): one for the Pi (policy), one on the RP2040 (S-2 tilt stop, ADR-0015) | 2 | robotistan: 123.00 TL incl. VAT | robotistan: sold out; robotsepeti not checked | ~2 g | BNO085 is the better, dearer option |
 | 5 | 6 V UBEC, ≥ 10 A continuous (servo supply) | 1 | not checked (est. ~300 TL) | not checked | ~15 g | DS3218MG max 6.8 V: a full 2S pack (8.4 V) must not reach the servos |
 | 6 | 5 V regulator for Pi / RP2040 / IMU (≥ 1.5 A) | 1 | not checked | not checked | ~3 g | |
 | 7 | 2S 7.4 V LiPo, 1200 mAh 25C (e.g. Profuse) | 1 | not readable (est. ~600 TL) | robotsepeti: in stock | ~70 g | 450 mAh (JSumo) also in stock there, shorter runtime |

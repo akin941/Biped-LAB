@@ -19,6 +19,7 @@ that purchase rather than extra spend. Only the USB-serial adapter is extra.
 | 4 | 6 V UBEC, ≥ 5 A (servo supply) | 1 | Henge 6 A: 800.68 TL, Henge 8 A: 1,109.25 TL incl. KDV (promodelhobby, sold out); est. 300–800 TL elsewhere | not checked at robotsepeti | keeps the 8.4 V pack off the servo (max 6.8 V) |
 | 5 | USB-TTL serial adapter, 3.3 V (CP2102 or CH340) | 1 | est. 80–150 TL | not checked | lets the owner's Mac run `biped-runtime --servos pwm` against the Pico without a Pi |
 | 6 | Latching kill switch ≥ 10 A + blade fuse and holder | 1 + 1 | est. 100–250 TL | not checked | S-3 / S-4, mandatory before the servo moves |
+| (opt.) | MPU6050 (GY-521) on the Pico's GP14/GP15 | 1 | 94.86 TL incl. KDV (f1depo, sold out); 123 TL (robotistan, sold out) | robotsepeti: in stock, price not readable | tests the S-2 tilt stop: tip the board past 45° and the LED must light |
 | 7 | Breadboard, jumper wires, 22 kΩ + 10 kΩ resistors, XT60/JST lead | – | est. 100–200 TL | not checked | wiring and the battery divider |
 | (if missing) | 2S balance charger + LiPo bag | 1 | est. 400–800 TL | – | S-4; skip if one is at hand |
 
