@@ -15,6 +15,7 @@ pub mod channel;
 pub mod controller;
 pub mod dxl;
 pub mod gate;
+pub mod jointmap;
 pub mod mlp;
 pub mod pacer;
 pub mod policy;
