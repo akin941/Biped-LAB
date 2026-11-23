@@ -70,3 +70,19 @@ def test_stands_open_loop_across_leg_lengths(thigh):
     assert result.finite and not result.fell
     assert result.tilt_deg.max() < 5.0
     assert result.trunk_height.min() > biped.stand_height(p, p.stand_knee) - 0.01
+
+
+def test_ds3218_variant_is_committed_and_about_one_kilogram():
+    """G4.5: the DS3218MG build keeps biped_v1's joints and stand pose, ~1 kg."""
+    p = biped.BIPED_DS3218
+    path = REPO_ROOT / "simulation/custom-biped/biped_ds3218.xml"
+    assert path.read_text() == biped.to_mjcf(p)
+    model, data = build(p)
+    v1, _ = build()
+    assert model.nu == v1.nu and model.njnt == v1.njnt
+    np.testing.assert_allclose(model.key_qpos[0][7:], v1.key_qpos[0][7:])
+    assert model.body_subtreemass[1] == pytest.approx(budget(p), abs=1e-9)
+    assert 0.95 <= budget(p) <= 1.15
+    np.testing.assert_allclose(model.actuator_forcerange[:, 1], p.servo.torque_limit)
+    top = data.qpos[2] + p.trunk_size[2] / 2
+    assert 0.20 <= top <= 0.30

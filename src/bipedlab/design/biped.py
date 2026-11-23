@@ -89,6 +89,46 @@ class BipedParams:
         return asdict(self)
 
 
+# Low-budget variant (G4.5, 2026-11-23): the owner picked ten DSServo DS3218MG PWM hobby
+# servos (sold in Turkey, ~1/3 of the bus-servo cost). Electrical numbers are the
+# seller's datasheet (5 V: 19 kg*cm, 0.16 s/60 deg; 6.8 V: 21.5 kg*cm, 0.14 s/60 deg),
+# taken at the 6 V supply by linear interpolation: 20 kg*cm = 1.96 N*m and
+# 0.15 s/60 deg = 7.0 rad/s. 60 g, 40 x 20 x 40.5 mm. The position-loop gains, reflected
+# inertia and friction are guesses for a geared hobby servo until a bench
+# identification (PHASE5_BRINGUP_PLAN.md) measures them; DR should cover them.
+DS3218_SERVO = ServoSpec(
+    name="ds3218mg",
+    mass=0.060,
+    size=(0.020, 0.040, 0.0405),
+    torque_limit=1.96,
+    speed_limit=7.0,
+    kp=10.0,
+    kv=0.2,
+    armature=0.004,
+    damping=0.1,
+    frictionloss=0.03,
+)
+
+# The same kinematics as biped_v1 (legs, ranges, stand pose), so the gait work carries
+# over, with the heavier parts the DS3218MG build needs: a larger trunk for two
+# 40 mm hip-yaw servos, a 2S 1200 mAh pack (~70 g), the PWM electronics (Pi Zero 2 W,
+# RP2040 or PCA9685, MPU6050, 6 V UBEC, wiring ~50 g) and stiffer brackets and links.
+BIPED_DS3218 = BipedParams(
+    name="biped_ds3218",
+    servo=DS3218_SERVO,
+    trunk_size=(0.080, 0.110, 0.080),
+    trunk_structure_mass=0.140,
+    electronics_mass=0.050,
+    battery_mass=0.070,
+    bracket_mass=0.012,
+    thigh_mass=0.020,
+    shin_mass=0.020,
+    foot_mass=0.025,
+)
+
+VARIANTS = {"biped_v1": BipedParams(), "biped_ds3218": BIPED_DS3218}
+
+
 def crouch_pose(knee: float) -> dict[str, float]:
     """Joint angles that keep trunk upright and feet flat for equal thigh and shin.
 

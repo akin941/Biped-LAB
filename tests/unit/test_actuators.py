@@ -45,3 +45,15 @@ def test_gait_requirements_cover_the_same_joints():
     # Our gait needs more than the WP4-01 estimate at every joint.
     for new, old in zip(act.GAIT_MAC36, act.WP4_01, strict=True):
         assert new.peak_torque > old.peak_torque
+
+
+def test_low_budget_pwm_servos() -> None:
+    """G4.5: DS3218MG covers the MAC-36 hip torques with margin; MG90S cannot."""
+    by_name = {c.name: c for c in act.CANDIDATES}
+    ds = by_name["DS3218MG (6 V)"]
+    mg90 = by_name["MG90S (6 V)"]
+    for r in act.GAIT_MAC36:
+        assert act.fit(ds, r)["torque_margin"] >= 2.0
+        assert act.fit(mg90, r)["torque_margin"] < 2.0
+    hip_roll = next(r for r in act.GAIT_MAC36 if r.joint == "hip_roll")
+    assert act.fit(mg90, hip_roll)["torque_margin"] < 1.0

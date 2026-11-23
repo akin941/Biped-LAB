@@ -41,6 +41,14 @@ DR draws are unchanged. The DR delay range follows ``DR_DELAY_STAGES`` (WP4-19):
 same DR without delay walked (MAC-13 run A), so the delay starts at 0 and widens once
 a gait exists. ``dr_delay_max`` caps the range.
 
+Joint feedback (G4.5): PWM hobby servos such as the DS3218MG report nothing back, so
+the robot cannot measure its joint angles or speeds. ``joint_feedback="commanded"``
+fills the actor's joint-position slots with the joint targets the env sent last (after
+the slew limit, relative to the stand pose) and the joint-velocity slots with the
+change of those targets over the last period divided by the period, both of which the
+runtime knows without sensors. The observation keeps its 39-float layout; the critic
+keeps the measured values. ``"measured"`` (default) is the bus-servo behaviour.
+
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
 requirement of WP4-01 with a learned gait.
@@ -60,6 +68,9 @@ from bipedlab.design import actuators, biped
 from bipedlab.rl.velocity_env import axis_angle_matrix, rotate, rotate_inverse, stage_value
 
 DEFAULT_SCENE = REPO_ROOT / "simulation/custom-biped/biped_v1.xml"
+# The DS3218MG build (G4.5): same joints and stand pose, ~1 kg, PWM hobby servos.
+DS3218_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218.xml"
+JOINT_FEEDBACK = ("measured", "commanded")
 
 PHYSICS_DT = 0.005
 DECIMATION = 4
@@ -255,6 +266,9 @@ class BipedVelocityEnv:
     # WP4-33: share of episodes (drawn per env at each reset) that run on flat tiles
     # inside a rough_floor env, so terrain training keeps seeing the flat floor.
     rough_floor_flat_fraction: float = 0.0
+    # G4.5: "measured" joint angles/speeds (bus servos) or "commanded" targets (PWM
+    # servos without feedback); see the module docstring.
+    joint_feedback: str = "measured"
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -270,6 +284,8 @@ class BipedVelocityEnv:
             raise ValueError("rough_floor and rough_floor_ramp must be >= 0")
         if not 0.0 <= self.rough_floor_flat_fraction <= 1.0:
             raise ValueError("rough_floor_flat_fraction must be in [0, 1]")
+        if self.joint_feedback not in JOINT_FEEDBACK:
+            raise ValueError(f"joint_feedback must be one of {JOINT_FEEDBACK}")
         field_seed = self.seed if self.rough_floor_seed is None else self.rough_floor_seed
         self.tile_geoms = np.zeros(0, dtype=int)
         self._tile_fraction = np.zeros(0)
@@ -308,6 +324,7 @@ class BipedVelocityEnv:
         self.episode_steps = z(n, dtype=np.int64)
         self.last_action = z((n, ACT_DIM), dtype=np.float32)
         self.last_target = np.tile(self.default_pose, (n, 1))
+        self.target_rate = z((n, ACT_DIM))  # (target - previous target) / STEP_DT
         max_delay = self.action_delay + (self.dr_delay_max if self.dr else 0)
         # history[k] = the action produced k periods ago (0 = this period).
         self.action_history = z((max_delay + 1, n, ACT_DIM), dtype=np.float32)
@@ -505,6 +522,7 @@ class BipedVelocityEnv:
         self.episode_steps[i] = 0
         self.last_action[i] = 0.0
         self.last_target[i] = self.default_pose
+        self.target_rate[i] = 0.0
         self.action_history[:, i] = 0.0
         self.delay[i] = self.action_delay
         if self.dr:
@@ -574,10 +592,15 @@ class BipedVelocityEnv:
         lagged = self.noise if self.joint_vel_lag is None else self.joint_vel_lag
         joint_vel = self.prev_joint_vel[envs] if lagged else s["joint_vel"]
         actor_joint = joint_rel
+        commanded = self.joint_feedback == "commanded"
+        if commanded:
+            actor_joint = self.last_target[envs] - self.default_pose
+            joint_vel = self.target_rate[envs]
         if self.dr:
             gyro = np.einsum("nij,nj->ni", self.imu_rot[envs], gyro)
             gravity = np.einsum("nij,nj->ni", self.imu_rot[envs], gravity)
-            actor_joint = joint_rel + self.encoder_bias[envs]
+            if not commanded:
+                actor_joint = joint_rel + self.encoder_bias[envs]
         actor = np.concatenate(
             [gyro, gravity, actor_joint, joint_vel, self.last_action[envs], cmd], axis=1
         )
@@ -660,6 +683,7 @@ class BipedVelocityEnv:
             targets = self.last_target + step
         cut = wanted - targets
         slew_limited = np.any(np.abs(cut) > 1e-9, axis=1)
+        self.target_rate = (targets - self.last_target) / STEP_DT
         self.last_target = targets
         for i, d in enumerate(self.datas):
             self._apply_physics(i)

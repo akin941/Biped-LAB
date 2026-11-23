@@ -44,6 +44,7 @@ from bipedlab import bench
 from bipedlab.design import biped
 from bipedlab.rl import biped_velocity_env as bve
 
+SCENES = {"biped_v1": bve.DEFAULT_SCENE, "biped_ds3218": bve.DS3218_SCENE}
 SETTLE_S = 2.0
 TWISTS = [(0.15, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.8)]
 
@@ -117,11 +118,15 @@ def run_case(
     motor_no_load_speed: float | None = None,
     rough_floor: float = 0.0,
     obs_mode: str = "train",
+    scene: str | Path = bve.DEFAULT_SCENE,
+    joint_feedback: str = "measured",
 ) -> dict[str, Any]:
     if obs_mode not in OBS_MODES:
         raise ValueError(f"obs_mode must be one of {OBS_MODES}")
     env = bve.BipedVelocityEnv(
         **OBS_ENV_KWARGS[obs_mode],
+        scene=scene,
+        joint_feedback=joint_feedback,
         num_envs=num_envs,
         seed=seed,
         episode_s=seconds + 1.0,
@@ -277,15 +282,13 @@ def robustness_cases(
     num_envs: int,
     seconds: float,
     seed: int,
-    torque_limit: float | None = None,
-    motor_no_load_speed: float | None = None,
-    obs_mode: str = "train",
+    **env_kw: Any,
 ) -> list[dict[str, Any]]:
-    """G4.3 robustness: friction, pushes and latency, one factor per case, DR off."""
-    run = partial(
-        run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False,
-        torque_limit=torque_limit, motor_no_load_speed=motor_no_load_speed, obs_mode=obs_mode,
-    )  # fmt: skip
+    """G4.3 robustness: friction, pushes and latency, one factor per case, DR off.
+
+    ``env_kw`` are the shared ``run_case`` options (torque limit, motor curve,
+    observation mode, scene, joint feedback)."""
+    run = partial(run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False, **env_kw)
     cases = [run(case=f"friction_{mu}", foot_friction=mu) for mu in ROBUST_FRICTION]
     cases += [run(case=name, push_dv=dv) for name, dv in ROBUST_PUSHES.items()]
     cases += [
@@ -300,9 +303,7 @@ def terrain_cases(
     num_envs: int,
     seconds: float,
     seed: int,
-    torque_limit: float | None = None,
-    motor_no_load_speed: float | None = None,
-    obs_mode: str = "train",
+    **env_kw: Any,
 ) -> list[dict[str, Any]]:
     """WP4-31: the robustness command on random-height tile floors, DR off."""
     return [
@@ -315,9 +316,7 @@ def terrain_cases(
             False,
             case=f"rough_{round(h * 1000)}mm",
             rough_floor=h,
-            torque_limit=torque_limit,
-            motor_no_load_speed=motor_no_load_speed,
-            obs_mode=obs_mode,
+            **env_kw,
         )  # fmt: skip
         for h in TERRAIN_HEIGHTS
     ]
@@ -346,6 +345,14 @@ def main() -> None:
         "--obs-mode", choices=OBS_MODES, default="train",
         help="actor observation: training noise (default) or the runtime's (WP4-37)",
     )  # fmt: skip
+    parser.add_argument(
+        "--model", choices=sorted(SCENES), default="biped_v1",
+        help="robot model: biped_v1 (bus servos) or biped_ds3218 (DS3218MG build, G4.5)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--joint-feedback", choices=bve.JOINT_FEEDBACK, default="measured",
+        help="actor joint terms: measured (bus servos) or commanded targets (PWM, G4.5)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     tl = args.torque_limit
@@ -353,6 +360,8 @@ def main() -> None:
         "torque_limit": tl,
         "motor_no_load_speed": args.motor_no_load_speed,
         "obs_mode": args.obs_mode,
+        "scene": SCENES[args.model],
+        "joint_feedback": args.joint_feedback,
     }
     policy = BatchOnnxPolicy(args.policy)
     cases = []
@@ -367,6 +376,8 @@ def main() -> None:
     report = {
         "environment": bench.environment(),
         "policy": str(args.policy),
+        "model": args.model,
+        "joint_feedback": args.joint_feedback,
         "cases": cases,
         "sizing": sizing_summary(cases),
     }

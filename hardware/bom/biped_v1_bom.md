@@ -1,5 +1,8 @@
 # biped_v1 bill of materials: draft (WP4-05, G4.5)
 
+> **2026-11-23:** the owner chose the low-budget DS3218MG build for the prototype
+> (`biped_ds3218_bom.md`). This bus-servo draft is kept as the later upgrade path.
+
 **Status: draft for the owner's decision. Nothing is bought** (AGENTS.md;
 Phase 5 entry needs Phase 4 gate + owner purchase approval).
 **Environment:** cloud web research, 2026-10-26. Prices are single-unit retail
