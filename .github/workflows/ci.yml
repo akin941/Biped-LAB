@@ -102,6 +102,14 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
           cargo build --locked --release
+      - name: Supervisor firmware core (ADR-0015), host tests and RP2040 build
+        working-directory: firmware/supervisor-core
+        run: |
+          rustup target add thumbv6m-none-eabi
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --locked --target thumbv6m-none-eabi
       - name: Runtime drives the sim (G4.4 tests)
         env:
           BIPEDLAB_REQUIRE_RUNTIME: "1"
