@@ -2369,7 +2369,7 @@ reading: runtime mode matches the MAC-44 runtime wz within 0.024 in all 8 rows (
 ---
 
 ## MAC-46 — biped_v1: re-score the MAC-42 averages with the runtime's lagged joint velocities (WP4-38)
-Status: `seed part met (mac-m5, 2026-11-23): k3_6900; realtime row pending (waiting for a quiet Mac)` · Deps: MAC-42 averages in `runs/mac42/`; replaces the MAC-44 realtime part
+Status: `done (mac-m5, 2026-11-23): met (seed part + realtime row, realtime not quiet: VM ~7 cores)` · Deps: MAC-42 averages in `runs/mac42/`; replaces the MAC-44 realtime part
 
 MAC-45 showed the runtime's +wz comes from feeding current joint velocities to a policy trained on
 one-period-old ones. The runtime now feeds the previous period's joint velocities by default
@@ -2400,7 +2400,7 @@ Mac (MAC-43 wait script, at most 4 h), one `--realtime` run of it from `--init-s
 MAC-38 rows (no fall, no fault, 1000 periods, <= 10 misses, vx >= 50 %). Name it (candidate, ONNX sha256).
 If the Mac never gets quiet, report the seed part and leave the realtime row pending.
 
-Result (env: mac-m5, 2026-11-23, revision 1ded258): seed part MET, chosen k3_6900; realtime PENDING
+Result (env: mac-m5, 2026-11-23, revision 1ded258 / realtime 3104543): MET, chosen k3_6900
 ```
 run: runtime rebuilt at 1ded258 (lagged joint velocities by default), runtime_sim.py --init-seed 0..7, no
   --realtime, STS3215 curve, MAC-44 policy.bpml exports; plus eval_biped --obs-mode runtime (16 envs x 20 s).
@@ -2424,8 +2424,19 @@ chosen: k3_6900 (smallest worst-case |wz| 0.056, and its neighbours passed MAC-4
 reading: with lagged joint velocities the runtime matches the Python env again: runtime mean wz is within
   ~0.02 of eval --obs-mode runtime (and of the MAC-42 train-mode eval) for every candidate and command, and
   the positive bias of MAC-44 is gone (k3_6900 at 0.25: +0.088 -> +0.009). WP4-38 fixes the mismatch.
-realtime (k3_6900, --init-seed 0, both commands, quiet Mac): pending; wait script running since 06:35Z
-  (at most 4 h, VM sampled during the runs).
+realtime (k3_6900, --init-seed 0, both commands; NOT QUIET: VM ~7 cores): run at 08:48Z on the owner's
+  request, after the quiet-window wait (since 06:35Z) was stopped; runtime rebuilt at 3104543 (main),
+  policy.bpml sha256 f91559700e24878b6cc0937adf46a64398e6bc1defef3b186f1042abae0466f0
+  v0.15: fell false / no fault (latched 0) / 1000 periods / 0 misses / vx_body_mean 0.164 (109 %) /
+    wz -0.041; period_max 28.5 ms, compute mean / max 63 / 1504 us, max torque 0.84 N.m;
+    load: not quiet, VM ~7.3 cores (max 796 %), host load1 up to 18.6
+  v0.25: fell false / no fault / 1000 periods / 0 misses / vx_body_mean 0.238 (95 %) / wz +0.031;
+    period_max 25.0 ms, compute mean / max 64 / 572 us, max torque 1.10 N.m, slew_limit 61;
+    load: not quiet, VM ~7.1 cores (max 803 %), host load1 up to 16.4
+  -> all MAC-38 rows pass, even under load (no deadline-miss failure to attribute)
+verdict: WP4-38 met. Terrain candidate k3_6900 (ONNX sha256 2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3)
+  walks through the supervised Rust runtime in real time at 0.15 and 0.25 with |wz| <= 0.041, no fall, no fault,
+  0 misses; its 8-start seed results agree (mean wz -0.044 / +0.009).
 ```
 
 ---

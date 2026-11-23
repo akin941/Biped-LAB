@@ -28,3 +28,17 @@ All 64 runtime runs: no fall, no latched fault, 1000 periods.
 - **Realtime row pending:** a quiet-Mac `--realtime` run of k3_6900 from `--init-seed 0` at both commands. The wait script is running.
 
 Files: `mac46/<candidate>-summary.json` (per-start rows, mean/min/max, MAC-44 means, eval --obs-mode runtime).
+
+## Realtime row (added 2026-11-23, 08:48Z; not quiet: VM ~7 cores)
+At the owner's request I stopped the quiet-window wait and ran k3_6900 right away, from a clean worktree of 3104543 with the runtime rebuilt
+(`--realtime --init-seed 0`, STS3215 curve, policy.bpml sha256 `f91559700e24878b6cc0937adf46a64398e6bc1defef3b186f1042abae0466f0`).
+VM and host load were sampled every 1.5 s during each run.
+
+| cmd | vx_body_mean | wz | fell | latched | periods | misses | period_max | load during the run |
+|---|---|---|---|---|---|---|---|---|
+| 0.15 | 0.164 (109 %) | −0.041 | no | 0 | 1000 | 0 | 28.5 ms | not quiet: VM ~7.3 cores (max 796 %), load1 ≤ 18.6 |
+| 0.25 | 0.238 (95 %) | +0.031 | no | 0 | 1000 | 0 | 25.0 ms | not quiet: VM ~7.1 cores (max 803 %), load1 ≤ 16.4 |
+
+Every MAC-38 row passes, including 0 deadline misses despite the load. **MAC-46 / WP4-38 met:** the terrain candidate k3_6900
+walks through the supervised Rust runtime in real time with |wz| ≤ 0.041 and agrees with its 8-start seed results.
+Files: `mac46/realtime/v0.15.json`, `v0.25.json`, `load-v*.log`.
