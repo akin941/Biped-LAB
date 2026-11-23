@@ -2507,5 +2507,50 @@ verdict: met. The fine-tuned policy walks the heavier DS3218MG build with comman
 
 ---
 
+## MAC-48 — biped_ds3218: the DS3218MG policy through the Rust runtime (WP5-06 / WP4-40)
+Status: `done (mac-m5, 2026-11-23): met (seed part + realtime row, realtime not quiet: VM ~7 cores)` · Deps: MAC-47 run A (`runs/mac47-a/policy.onnx`), WP5-06 on main (`--joint-feedback commanded` in biped-runtime, `runtime_sim.py --model biped_ds3218`)
+
+Run the MAC-47 run-A policy through the supervised Rust runtime with the DS3218MG build and commanded-only joint
+feedback, from a clean worktree of origin/main (bc59934 or later) with absolute paths. Seed part first (no
+`--realtime`, so VM load does not matter), then one `--realtime` run from `--init-seed 0`.
+```bash
+(cd runtime && cargo build --locked --release)
+P=<mac47>/runs/mac47-a
+uv run python scripts/export_mlp.py $P/policy.onnx --out $P/policy.bpml \
+    --rust-bin runtime/target/release/mlp-eval > runs/mac48/mlp.json
+for v in 0.15 0.25; do for s in 0 1 2 3 4 5 6 7; do
+  uv run python scripts/runtime_sim.py --model biped_ds3218 --seconds 20 --env-label mac-m5 --init-seed $s \
+      --torque-limit 1.96 --motor-no-load-speed 7.0 --out runs/mac48/v${v}_s$s.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --joint-feedback commanded --command 0:20:$v:0:0
+done; done
+# if it passes: the same command with --realtime --init-seed 0 at both speeds (MAC-38 rows)
+```
+**Acceptance (as WP4-36/38):** no fall and no latched fault on any start; |mean `wz_mean`| <= 0.08 and mean
+`vx_body_mean` >= 50 % of the command at 0.15 and 0.25. Then the realtime run: MAC-38 rows (no fall, no fault,
+1000 periods, <= 10 misses, vx >= 50 %), with the VM / host load noted.
+
+Result (env: mac-m5, 2026-11-23, revision bc59934): MET
+```
+policy: MAC-47 run A, ONNX sha256 d9a1d6ae1c82b4fc3dab53e4d9f2f5dd07d2231788f3867fc2bc3f100e4bdb5c,
+  policy.bpml sha256 08be6b7116315e2fe2dcbdfb2cde65c12dd3da92144fd73c50f820abec52dcb1 (39 -> 10);
+  rust vs onnxruntime 1.3e-6
+seed part (8 starts, no --realtime; 16 runs: no fall, no latched fault, 1000 periods each):
+  0.15: vx 0.170 (113 %) [0.170..0.170], wz +0.003 [+0.000..+0.007], max torque demand 1.48 N.m
+  0.25: vx 0.250 (100 %) [0.250..0.251], wz +0.044 [+0.041..+0.046], max torque demand 2.03 N.m;
+        slew_limit 27-32 events per run, torque_clamp 0, position_clamp 0
+realtime (--init-seed 0; NOT QUIET: VM ~7.1-7.2 cores, host load1 up to ~106):
+  v0.15: fell false / latched 0 / 1000 periods / 0 misses / vx 0.170 (113 %) / wz +0.000; period_max 30.5 ms
+  v0.25: fell false / latched 0 / 1000 periods / 0 misses / vx 0.250 (100 %) / wz +0.045; period_max 30.0 ms,
+         slew_limit 27
+verdict: met. The DS3218MG policy walks through the runtime with commanded-only feedback, from every start and in
+  real time, |mean wz| <= 0.044, matching the Python eval (MAC-47: vx 0.169 / 0.247, runtime-obs wz +0.006 /
+  +0.050). Note: at 0.25 the bridge's max_torque_demand peaks at ~2.0 N.m, slightly above the 1.96 N.m stall
+  (a demand, capped by the servo curve; the runtime's torque_clamp stayed 0). The Python sizing's walking max was
+  1.13 N.m (a different measure: applied actuator force over the walking cases). Worth a look before hardware.
+  No hardware powered.
+```
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
