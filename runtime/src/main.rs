@@ -6,7 +6,8 @@
 //!                  --torque-fraction F [--seconds S])
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
-//!               [--torque-fraction F] [--action-scale 0.5] [--no-joint-vel-lag] [--log FILE]
+//!               [--torque-fraction F] [--action-scale 0.5] [--no-joint-vel-lag]
+//!               [--joint-feedback measured|commanded] [--log FILE]
 //!               [--command-udp 127.0.0.1:PORT [--command-key KEY_FILE]]
 //! ```
 //!
@@ -37,7 +38,7 @@ use biped_runtime::hwstate::{HwSource, UprightImu};
 use biped_runtime::jointmap::{JointMap, BIPED_V1_JOINTS};
 use biped_runtime::mlp::Mlp;
 use biped_runtime::pacer::Pacer;
-use biped_runtime::policy::{Policy, DEFAULT_ACTION_SCALE};
+use biped_runtime::policy::{JointFeedback, Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
 use biped_runtime::sts::{self, addr};
@@ -59,6 +60,7 @@ struct Args {
     torque_fraction: Option<f64>,
     action_scale: f64,
     joint_vel_lag: bool,
+    joint_feedback: JointFeedback,
     log: Option<String>,
     command_udp: Option<String>,
     command_key: Option<String>,
@@ -88,6 +90,7 @@ fn parse_args() -> Result<Args, String> {
         torque_fraction: None,
         action_scale: DEFAULT_ACTION_SCALE,
         joint_vel_lag: true,
+        joint_feedback: JointFeedback::Measured,
         log: None,
         command_udp: None,
         command_key: None,
@@ -122,6 +125,7 @@ fn parse_args() -> Result<Args, String> {
             }
             "--realtime" => a.realtime = true,
             "--no-joint-vel-lag" => a.joint_vel_lag = false,
+            "--joint-feedback" => a.joint_feedback = value()?.parse()?,
             "--torque-fraction" => {
                 let f = value()?.parse::<f64>().map_err(|e| e.to_string())?;
                 if !(f > 0.0 && f <= 1.0) {
@@ -182,6 +186,7 @@ fn make_controller(
     hello: &Hello,
     action_scale: f64,
     joint_vel_lag: bool,
+    joint_feedback: JointFeedback,
 ) -> Result<Box<dyn Controller>, String> {
     let stand = Stand::new(hello);
     let (kind, rest) = spec.split_once(':').unwrap_or((spec, ""));
@@ -190,7 +195,11 @@ fn make_controller(
         "policy" => {
             let buf = std::fs::read(rest).map_err(|e| format!("policy {rest:?}: {e}"))?;
             let mlp = Mlp::from_bytes(&buf).map_err(|e| format!("policy {rest:?}: {e}"))?;
-            Box::new(Policy::new(mlp, hello, action_scale)?.with_joint_vel_lag(joint_vel_lag))
+            Box::new(
+                Policy::new(mlp, hello, action_scale)?
+                    .with_joint_vel_lag(joint_vel_lag)
+                    .with_joint_feedback(joint_feedback),
+            )
         }
         "nan-at" => {
             let v = floats(rest, 1)?;
@@ -422,7 +431,13 @@ fn open_link(args: &Args) -> Result<(Hello, Box<dyn Link>), String> {
 fn run(args: &Args) -> Result<ExitCode, String> {
     let (hello, mut link) = open_link(args)?;
     let dt = hello.control_dt;
-    let mut controller = make_controller(&args.controller, &hello, args.action_scale, args.joint_vel_lag)?;
+    let mut controller = make_controller(
+        &args.controller,
+        &hello,
+        args.action_scale,
+        args.joint_vel_lag,
+        args.joint_feedback,
+    )?;
     let mut gate = CommandGate::new(GateLimits::default());
     let mut sup = Supervisor::new(
         &hello,
@@ -506,6 +521,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
             targets: out.targets,
         };
         link.send(&action)?;
+        controller.sent(&action.targets);
         let compute = start.elapsed();
         if let Some(l) = log.as_mut() {
             // After the action is sent, so logging never delays it.

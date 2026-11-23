@@ -356,9 +356,12 @@ def run_with_runtime(
     runtime_args: Sequence[str] = (),
     cfg: BridgeConfig | None = None,
     timeout_s: float = 120.0,
+    model: mujoco.MjModel | None = None,
 ) -> dict[str, Any]:
-    """Start ``biped-runtime`` against a fresh sim bridge and return both summaries."""
-    bridge = SimBridge(cfg=cfg)
+    """Start ``biped-runtime`` against a fresh sim bridge and return both summaries.
+
+    ``model`` replaces the default biped_v1 model (e.g. the DS3218MG build, G4.5)."""
+    bridge = SimBridge(model=model, cfg=cfg)
     with socket.create_server(("127.0.0.1", 0)) as server:
         server.settimeout(10.0)
         port = server.getsockname()[1]

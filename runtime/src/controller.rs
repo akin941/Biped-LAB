@@ -9,6 +9,11 @@ use crate::protocol::{Hello, State};
 
 pub trait Controller {
     fn targets(&mut self, state: &State, cmd: Command) -> Vec<f64>;
+
+    /// The targets that actually went out this period, after the safety
+    /// supervisor. A controller that observes its own commands (PWM servos
+    /// without feedback, G4.5) keeps them; the default ignores them.
+    fn sent(&mut self, _targets: &[f64]) {}
 }
 
 /// Holds the default (stand) pose sent by the sim.
@@ -58,5 +63,9 @@ impl<C: Controller> Controller for FaultInjector<C> {
             }
         }
         t
+    }
+
+    fn sent(&mut self, targets: &[f64]) {
+        self.inner.sent(targets);
     }
 }
