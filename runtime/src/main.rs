@@ -2,7 +2,8 @@
 //!
 //! ```text
 //! biped-runtime (--connect 127.0.0.1:PORT
-//!                | (--device DEV | --hw-sim) --hello FILE --map FILE --imu upright
+//!                | (--device DEV | --hw-sim) --hello FILE --map FILE
+//!                  --imu upright|mpu6050:I2C_DEV[:MOUNT]|mpu6050:sim
 //!                  --torque-fraction F [--seconds S])
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
@@ -19,8 +20,11 @@
 //! contract comes from a `Hello` file (`scripts/export_hello.py`), states from
 //! `hwstate::HwSource` through the joint map, actions go out as servo goals. It
 //! always paces at the control rate and requires an explicit torque fraction
-//! (S-5). `--imu upright` is the only IMU so far: it reports upright, so the
-//! tilt fault cannot fire, and it is for a robot on a stand only. `--hw-sim`
+//! (S-5). `--imu upright` reports upright, so the tilt fault cannot fire: it is
+//! for a robot on a stand only. `--imu mpu6050:/dev/i2c-1[:MOUNT]` reads an
+//! MPU6050 (`mpu6050.rs`, WP5-07; MOUNT maps chip to body axes, e.g. `-y,x,z`,
+//! default `x,y,z`; the robot must be still at start for the gyro bias), and
+//! `mpu6050:sim` runs the same driver on a simulated level chip (CI). `--hw-sim`
 //! runs the same path on the simulated bus (CI). Nothing here has run on a
 //! real servo; first use is Phase 5 stage 4 with the owner's approval.
 
@@ -34,9 +38,10 @@ use biped_runtime::auth::random_u64;
 use biped_runtime::channel::{load_key, ChannelStats, CommandChannel};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
-use biped_runtime::hwstate::{HwSource, UprightImu};
+use biped_runtime::hwstate::{HwSource, Imu, UprightImu};
 use biped_runtime::jointmap::{JointMap, BIPED_V1_JOINTS};
 use biped_runtime::mlp::Mlp;
+use biped_runtime::mpu6050::{self, LinuxI2c, Mount, Mpu6050, Mpu6050Imu, SimI2c};
 use biped_runtime::pacer::Pacer;
 use biped_runtime::policy::{JointFeedback, Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
@@ -168,8 +173,14 @@ fn parse_args() -> Result<Args, String> {
         if a.hello.is_none() || a.map.is_none() {
             return Err("hardware mode needs --hello FILE and --map FILE".into());
         }
-        if a.imu.as_deref() != Some("upright") {
-            return Err("hardware mode needs --imu upright (robot on a stand; no IMU driver yet)".into());
+        match a.imu.as_deref() {
+            Some("upright") => {}
+            Some(spec) if spec.starts_with("mpu6050:") => {
+                imu_mount(spec)?;
+            }
+            _ => {
+                return Err("hardware mode needs --imu upright (robot on a stand) or --imu mpu6050:DEV[:MOUNT]".into())
+            }
         }
         if a.torque_fraction.is_none() {
             return Err("hardware mode needs an explicit --torque-fraction (S-5)".into());
@@ -343,8 +354,41 @@ impl Link for SimLink {
     }
 }
 
+/// The device and axis mount of an `mpu6050:DEV[:MOUNT]` spec.
+fn imu_mount(spec: &str) -> Result<(&str, Mount), String> {
+    let rest = spec.strip_prefix("mpu6050:").unwrap_or(spec);
+    let (dev, mount) = match rest.split_once(':') {
+        Some((d, m)) => (d, Mount::parse(m)?),
+        None => (rest, Mount::IDENTITY),
+    };
+    if dev.is_empty() {
+        return Err("--imu mpu6050 needs a device, e.g. mpu6050:/dev/i2c-1".into());
+    }
+    Ok((dev, mount))
+}
+
+/// Gyro bias samples at start (~0.1 s of reads; the robot must be still).
+const IMU_BIAS_SAMPLES: usize = 100;
+
+fn open_imu(spec: &str) -> Result<Box<dyn Imu>, String> {
+    if spec == "upright" {
+        return Ok(Box::new(UprightImu));
+    }
+    let (dev, mount) = imu_mount(spec)?;
+    let addr = mpu6050::DEFAULT_ADDR;
+    let imu: Box<dyn Imu> = if dev == "sim" {
+        let mut bus = SimI2c::mpu(addr, 0x68);
+        bus.set_sample(addr, [0, 0, 8192], [0, 0, 0]);
+        Box::new(Mpu6050Imu::new(Mpu6050::open(bus, addr, mount, IMU_BIAS_SAMPLES)?)?)
+    } else {
+        let bus = LinuxI2c::open(dev)?;
+        Box::new(Mpu6050Imu::new(Mpu6050::open(bus, addr, mount, IMU_BIAS_SAMPLES)?)?)
+    };
+    Ok(imu)
+}
+
 struct HwLink<P: Port> {
-    hw: HwSource<P, UprightImu>,
+    hw: HwSource<P, Box<dyn Imu>>,
     end: Option<Instant>,
 }
 
@@ -388,7 +432,8 @@ fn sim_port(ids: &[u8]) -> SimPort {
 }
 
 fn hw_link<P: Port + 'static>(args: &Args, port: P, map: JointMap) -> Result<Box<dyn Link>, String> {
-    let hw = HwSource::new(Bus::new(port), map, UprightImu).map_err(|e| format!("servo bus: {e}"))?;
+    let imu = open_imu(args.imu.as_deref().expect("checked in parse_args")).map_err(|e| format!("imu: {e}"))?;
+    let hw = HwSource::new(Bus::new(port), map, imu).map_err(|e| format!("servo bus: {e}"))?;
     Ok(Box::new(HwLink {
         hw,
         end: args.seconds.map(|s| Instant::now() + Duration::from_secs_f64(s)),
@@ -583,7 +628,8 @@ mod tests {
     fn link(ids_on_bus: &[u8]) -> HwLink<SimPort> {
         let text = include_str!("../../hardware/calibration/biped_v1_joints.example.txt");
         let map = JointMap::parse(text, &BIPED_V1_JOINTS).unwrap();
-        let mut hw = HwSource::new(Bus::new(sim_port(&map.ids())), map, UprightImu).unwrap();
+        let imu: Box<dyn Imu> = Box::new(UprightImu);
+        let mut hw = HwSource::new(Bus::new(sim_port(&map.ids())), map, imu).unwrap();
         hw.bus.port.bus.tables.retain(|(id, _)| ids_on_bus.contains(id));
         HwLink { hw, end: None }
     }
