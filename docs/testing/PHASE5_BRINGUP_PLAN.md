@@ -43,8 +43,13 @@ bus voltage, e-stop form) is made; servo-specific notes are for the STS3215 cand
    simulated bus and over a socket pair. The device's baud rate is set outside the runtime
    (`stty -F <dev> 1000000 raw -echo`); first real use is stage 2. Dynamixel needs the same
    wrapper if G4.5 picks it.
-2. Hardware state source: servo positions/speeds through the joint map, IMU orientation and
-   gyro, bus voltage and temperature, in the same `State` the sim bridge sends.
-3. Bench tools: ping/scan, read one joint, move one joint by a small step with the torque
-   fraction capped, record the calibration offset into the joint-map file.
+2. ~~Hardware state source~~ done (WP5-02, `runtime/src/hwstate.rs`): servo positions and
+   speeds through the joint map, bus voltage and temperature, in the same `State` the sim
+   bridge sends; actions go out as one sync write. The IMU is a trait with an upright
+   placeholder, which is only allowed with the robot on a stand (stages 2-4). Not yet wired
+   into `biped-runtime` (needs a `--device` mode next to `--connect`).
+3. Bench tools: ~~scan, read every joint, 1-minute bus check~~ done (WP5-02, `biped-bench`,
+   read-only, e.g. `biped-bench check --device /dev/ttyUSB0 --map MAP --seconds 60` is the
+   stage 2 pass test). Still missing: move one joint by a small step with the torque capped,
+   and record the calibration offset into the joint-map file (stage 3).
 4. IMU driver: depends on the IMU part in the BOM (G4.5).

@@ -334,6 +334,15 @@ impl<P: Port> Bus<P> {
         self.port.send(&pkt).map_err(|e| BusError::Io(e.to_string()))
     }
 
+    /// Torque on or off for all servos in one broadcast packet (no reply).
+    pub fn set_torque(&mut self, ids: &[u8], on: bool) -> Result<(), BusError> {
+        let v = [on as u8];
+        let items: Vec<(u8, &[u8])> = ids.iter().map(|&i| (i, &v[..])).collect();
+        let pkt = sts::sync_write(sts::addr::TORQUE_ENABLE, &items).map_err(BusError::Request)?;
+        self.port.clear();
+        self.port.send(&pkt).map_err(|e| BusError::Io(e.to_string()))
+    }
+
     /// Present position and speed of all servos in one sync read.
     pub fn read_state(&mut self, ids: &[u8]) -> Result<Vec<ServoState>, BusError> {
         let pkt = sts::sync_read(sts::addr::PRESENT_POSITION, 4, ids).map_err(BusError::Request)?;
