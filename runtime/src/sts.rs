@@ -3,7 +3,7 @@
 //! The candidate servo that walks under its real torque-speed curve in MAC-37
 //! (mac-m5). This is only the codec: it builds instruction packets and parses
 //! status packets, so a hardware backend can be tested here against reference
-//! packets and a simulated bus. Nothing in this crate opens a device.
+//! packets and a simulated bus. `stsbus` sends them over a port.
 //!
 //! ```text
 //! instruction: FF FF | id | len | instruction | params | checksum
