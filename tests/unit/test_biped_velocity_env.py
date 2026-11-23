@@ -409,3 +409,26 @@ def test_rough_floor_flat_fraction():
     assert bve.BipedVelocityEnv(num_envs=8, rough_floor=0.02).flat_env.sum() == 0
     with pytest.raises(ValueError):
         bve.BipedVelocityEnv(num_envs=1, rough_floor=0.02, rough_floor_flat_fraction=1.5)
+
+
+def test_joint_vel_lag_switch():
+    """WP4-37: with noise the actor's joint velocities lag one period unless switched off."""
+    from bipedlab.rl.biped_velocity_env import ACT_DIM, NOISE_HALF_WIDTH
+
+    sl = slice(16, 26)  # gyro 3 | gravity 3 | joint pos 10 | joint vel 10
+    rng = np.random.default_rng(0)
+    acts = [rng.uniform(-0.3, 0.3, size=(1, ACT_DIM)).astype(np.float32) for _ in range(3)]
+    half = NOISE_HALF_WIDTH[sl].max()
+    for lag in (True, False):
+        env = BipedVelocityEnv(num_envs=1, seed=2, joint_vel_lag=lag)
+        prev = env.critic_obs[0, sl].copy()
+        for a in acts:
+            r = env.step(a)
+            assert not (r.terminated[0] or r.truncated[0])
+            current = r.critic_obs[0, sl]
+            expected = prev if lag else current
+            other = current if lag else prev
+            err = np.abs(r.obs[0, sl] - expected).max()
+            assert err <= half + 1e-5
+            prev = current.copy()
+        assert np.abs(r.obs[0, sl] - other).max() > half

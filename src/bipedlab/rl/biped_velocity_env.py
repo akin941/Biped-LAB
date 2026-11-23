@@ -219,6 +219,10 @@ class BipedVelocityEnv:
     first_env: int = 0
     episode_s: float = EPISODE_S
     noise: bool = True
+    # With ``noise``, the actor's joint velocities are one period old (as in Microduck).
+    # WP4-37: False keeps the noise but feeds the current joint velocities, which is
+    # what the runtime sends; ``noise=False`` gives the runtime's clean observation.
+    joint_vel_lag: bool = True
     common_step: int = 0
     dr: bool = False
     target_slew: float | None = TARGET_SLEW
@@ -566,7 +570,8 @@ class BipedVelocityEnv:
         clean = [s["gyro"], s["gravity"], joint_rel, s["joint_vel"], self.last_action[envs], cmd]
         gyro = np.where(self.lag[envs, 0:1], self.prev_gyro[envs], s["gyro"])
         gravity = np.where(self.lag[envs, 1:2], self.prev_gravity[envs], s["gravity"])
-        joint_vel = self.prev_joint_vel[envs] if self.noise else s["joint_vel"]
+        lagged = self.noise and self.joint_vel_lag
+        joint_vel = self.prev_joint_vel[envs] if lagged else s["joint_vel"]
         actor_joint = joint_rel
         if self.dr:
             gyro = np.einsum("nij,nj->ni", self.imu_rot[envs], gyro)

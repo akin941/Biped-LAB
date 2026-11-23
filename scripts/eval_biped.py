@@ -49,6 +49,10 @@ TWISTS = [(0.15, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.8)]
 
 # Robustness cases (G4.3): one factor each, DR off, forward command.
 ROBUST_TWIST = TWISTS[0]
+# Actor observation (WP4-37): "train" = the training noise, gyro/gravity lag and
+# one-period-old joint velocities; "no-vel-lag" = the same with current joint
+# velocities; "runtime" = the clean observation runtime/src/policy.rs builds.
+OBS_MODES = ("train", "no-vel-lag", "runtime")
 ROBUST_FRICTION = (0.5, 1.5)  # foot friction outside the DR range (0.7, 1.3)
 PUSH_AT_S = 4.0
 PUSH_DV = 0.3  # m/s in the trunk's heading frame, 1.5x the DR push
@@ -104,8 +108,13 @@ def run_case(
     torque_limit: float | None = None,
     motor_no_load_speed: float | None = None,
     rough_floor: float = 0.0,
+    obs_mode: str = "train",
 ) -> dict[str, Any]:
+    if obs_mode not in OBS_MODES:
+        raise ValueError(f"obs_mode must be one of {OBS_MODES}")
     env = bve.BipedVelocityEnv(
+        noise=obs_mode != "runtime",
+        joint_vel_lag=obs_mode == "train",
         num_envs=num_envs,
         seed=seed,
         episode_s=seconds + 1.0,
@@ -175,6 +184,7 @@ def run_case(
         "foot_friction": foot_friction,
         "push_dv": None if push_dv is None else list(push_dv),
         "rough_floor": rough_floor,
+        "obs_mode": obs_mode,
         "twist": list(twist),
         "dr": dr,
         "torque_limit": float(env.stall_torque[0]),
@@ -262,11 +272,12 @@ def robustness_cases(
     seed: int,
     torque_limit: float | None = None,
     motor_no_load_speed: float | None = None,
+    obs_mode: str = "train",
 ) -> list[dict[str, Any]]:
     """G4.3 robustness: friction, pushes and latency, one factor per case, DR off."""
     run = partial(
         run_case, policy, ROBUST_TWIST, num_envs, seconds, seed, False,
-        torque_limit=torque_limit, motor_no_load_speed=motor_no_load_speed,
+        torque_limit=torque_limit, motor_no_load_speed=motor_no_load_speed, obs_mode=obs_mode,
     )  # fmt: skip
     cases = [run(case=f"friction_{mu}", foot_friction=mu) for mu in ROBUST_FRICTION]
     cases += [run(case=name, push_dv=dv) for name, dv in ROBUST_PUSHES.items()]
@@ -284,6 +295,7 @@ def terrain_cases(
     seed: int,
     torque_limit: float | None = None,
     motor_no_load_speed: float | None = None,
+    obs_mode: str = "train",
 ) -> list[dict[str, Any]]:
     """WP4-31: the robustness command on random-height tile floors, DR off."""
     return [
@@ -298,6 +310,7 @@ def terrain_cases(
             rough_floor=h,
             torque_limit=torque_limit,
             motor_no_load_speed=motor_no_load_speed,
+            obs_mode=obs_mode,
         )  # fmt: skip
         for h in TERRAIN_HEIGHTS
     ]
@@ -322,10 +335,18 @@ def main() -> None:
         "--motor-no-load-speed", type=float, default=None,
         help="DC-motor no-load speed in rad/s: torque-speed curve on (WP4-28)",
     )  # fmt: skip
+    parser.add_argument(
+        "--obs-mode", choices=OBS_MODES, default="train",
+        help="actor observation: training noise (default) or the runtime's (WP4-37)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     tl = args.torque_limit
-    lim = {"torque_limit": tl, "motor_no_load_speed": args.motor_no_load_speed}
+    lim = {
+        "torque_limit": tl,
+        "motor_no_load_speed": args.motor_no_load_speed,
+        "obs_mode": args.obs_mode,
+    }
     policy = BatchOnnxPolicy(args.policy)
     cases = []
     for dr in [False, True] if args.dr else [False]:

@@ -3,6 +3,7 @@
 import importlib.util
 
 import numpy as np
+import pytest
 
 from bipedlab import REPO_ROOT
 
@@ -91,3 +92,11 @@ def test_terrain_cases_run_on_height_fields():
     assert [c["rough_floor"] for c in cases] == list(eval_biped.TERRAIN_HEIGHTS)
     assert all(c["twist"] == list(eval_biped.ROBUST_TWIST) and not c["dr"] for c in cases)
     assert all(c["falls"] == 0 for c in cases)
+
+
+def test_obs_mode_is_recorded_and_checked():
+    """WP4-37: a case can run with the runtime's clean observation."""
+    case = eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 2.0, 0, False, obs_mode="runtime")
+    assert case["obs_mode"] == "runtime"
+    with pytest.raises(ValueError):
+        eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 2.0, 0, False, obs_mode="clean")
