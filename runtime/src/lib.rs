@@ -22,6 +22,7 @@ pub mod policy;
 pub mod protocol;
 pub mod safety;
 pub mod sts;
+pub mod stsbus;
 pub mod telemetry;
 
 /// Tilt of the body z axis from vertical (rad), from a unit quaternion (w, x, y, z).

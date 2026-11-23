@@ -34,10 +34,15 @@ bus voltage, e-stop form) is made; servo-specific notes are for the STS3215 cand
 - Joint map and calibration file (`runtime/src/jointmap.rs`,
   `hardware/calibration/biped_v1_joints.example.txt`): sim angles ↔ servo angles with id,
   direction and offset per joint (WP5-00).
+- STS bus backend (`runtime/src/stsbus.rs`, WP5-01): packets over a port with timeouts and
+  retries; can open a serial device file, never used on one yet.
 
 ## Software still missing before stage 2 (cloud work, no hardware needed)
-1. Serial backend: open the bus device, transact packets with timeouts, retry policy;
-   tested against the simulated bus first.
+1. ~~Serial backend~~ done for STS (WP5-01, `runtime/src/stsbus.rs`): ping, scan, register
+   read/write, sync goals, sync state read, timeouts, retries and error counters, tested on the
+   simulated bus and over a socket pair. The device's baud rate is set outside the runtime
+   (`stty -F <dev> 1000000 raw -echo`); first real use is stage 2. Dynamixel needs the same
+   wrapper if G4.5 picks it.
 2. Hardware state source: servo positions/speeds through the joint map, IMU orientation and
    gyro, bus voltage and temperature, in the same `State` the sim bridge sends.
 3. Bench tools: ping/scan, read one joint, move one joint by a small step with the torque
