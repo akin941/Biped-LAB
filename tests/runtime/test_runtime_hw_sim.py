@@ -75,3 +75,33 @@ def test_mpu6050_imu_specs_are_checked():
     assert r.returncode == 2 and "once" in r.stderr
     r = with_imu("mpu6050:/dev/no-such-i2c")
     assert r.returncode == 2 and "imu" in r.stderr
+
+
+PWM = [
+    "--servos", "pwm",
+    "--hello", CAL / "biped_ds3218.hello",
+    "--imu", "upright",
+    "--joint-feedback", "commanded",
+]  # fmt: skip
+
+
+def test_pwm_link_to_the_simulated_supervisor_mcu_runs_cleanly(tmp_path):
+    """WP5-09: the DS3218MG build's UART link, with the MCU's supervisor-core logic behind it."""
+    log = tmp_path / "pwm.bplog"
+    r = runtime("--hw-sim", *PWM, "--torque-fraction", "0.3", "--seconds", "1", "--log", log)
+    assert r.returncode == 0, r.stderr
+    s = json.loads(r.stdout)
+    assert s["exit"] == "duration" and s["latched"] == 0
+    assert 40 <= s["periods"] <= 51 and s["log_records"] == s["periods"]
+
+
+def test_pwm_link_setups_are_checked(tmp_path):
+    base = ["--hw-sim", *PWM, "--torque-fraction", "0.3", "--seconds", "1"]
+    r = runtime(*base, "--map", CAL / "biped_v1_joints.example.txt")
+    assert r.returncode == 2 and "own calibration" in r.stderr
+    r = runtime(*[a if a != "pwm" else "can" for a in base])
+    assert r.returncode == 2 and "sts or pwm" in r.stderr
+    r = runtime("--connect", "127.0.0.1:1", "--servos", "pwm")
+    assert r.returncode == 2 and "hardware mode" in r.stderr
+    r = runtime("--device", tmp_path / "no-tty", *base[1:])
+    assert r.returncode == 2 and "no-tty" in r.stderr

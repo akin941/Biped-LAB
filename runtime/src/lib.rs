@@ -23,6 +23,7 @@ pub mod mpu6050;
 pub mod pacer;
 pub mod policy;
 pub mod protocol;
+pub mod pwmlink;
 pub mod safety;
 pub mod sts;
 pub mod stsbus;
