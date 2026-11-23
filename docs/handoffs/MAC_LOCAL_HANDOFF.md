@@ -2442,7 +2442,7 @@ verdict: WP4-38 met. Terrain candidate k3_6900 (ONNX sha256 2e94457133cef85e2348
 ---
 
 ## MAC-47 — biped_ds3218: learn to walk with the owner's low-budget servos (WP4-40, G4.5)
-Status: `awaiting-mac` · Deps: WP4-39 on main; MAC-37 B checkpoint (`runs/mac37-b/model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-23): met by run A (fine-tune); run B not needed` · Deps: WP4-39 on main; MAC-37 B checkpoint (`runs/mac37-b/model_<newest>.pt`)
 
 The owner picked ten DSServo DS3218MG PWM hobby servos (G4.5, 2026-11-23). Two things change from
 biped_v1: the robot is ~1.04 kg instead of 0.51 kg (`simulation/custom-biped/biped_ds3218.xml`, same
@@ -2477,7 +2477,33 @@ latency row), the `sizing` block (max torque and p95 speed per joint against 1.9
 for the heavier real build). If neither run walks, report where it stops (stands only, falls, torque
 clip) so the cloud can adjust the model or the gait range; that is a valid result, not a failure of the task.
 
-Result (env: mac-m5): `pending`
+Result (env: mac-m5, 2026-11-23, revision 53c919f): WP4-40 MET by run A; run B not run
+```
+run A: train_ppo.py with the flags above, --iters 1500 --workers 8, --resume mac37-b/model_5000.pt;
+  3079 s (51 min); reward/step 0.092 -> 0.126 (first -> last quarter); training falls/it (150-it means)
+  4.07 (heavier robot, commanded feedback) -> 0.17 -> 0.00-0.03 from it 300 on
+MAC-25 rows (eval --dr --robustness, 8 envs x 20 s; 0 falls in every case):
+  0.15 / 0.25 DR off: vx 0.169 (113 %) / 0.247 (99 %), wz +0.008 / +0.036
+  0.15 / 0.25 DR on:  vx 0.144 (96 %) / 0.216 (86 %), wz -0.010 / +0.006
+  zero command: wz +0.048 / +0.028 (vx 0.029 / 0.024); turn 0.8: wz 1.048 / 0.884
+  friction 0.5 / 1.5: vx 0.165 / 0.172; pushes fwd / side: 0.169 / 0.168, 0 falls
+  latency 20 / 40 / 60 ms: vx 0.142 / 0.122 / 0.105 (95 / 81 / 70 % of 0.15)
+  --obs-mode runtime (16 envs): 0.15 / 0.25 vx 0.170 / 0.250, wz +0.006 / +0.050; turn 0.8 wz 1.049; 0 falls
+sizing (walking max torque / RMS / p95 speed; servo 1.96 N.m stall, 7.0 rad/s no-load; bar 1.3 N.m):
+  hip_yaw      0.435 / 0.114 / 2.13
+  hip_roll     1.126 / 0.358 / 2.39   (highest torque, 57 % of stall)
+  hip_pitch    1.018 / 0.375 / 5.05   (p95 speed 72 % of no-load)
+  knee         0.826 / 0.276 / 5.15   (p95 speed 74 % of no-load)
+  ankle_pitch  0.763 / 0.226 / 4.23
+  at_torque_limit false everywhere; all five <= 1.3 N.m
+slew-limited fraction: 0.000 at 0.15, 0.027 / 0.013 at 0.25 (DR off / on), <= 0.001 elsewhere
+policy.onnx sha256: d9a1d6ae1c82b4fc3dab53e4d9f2f5dd07d2231788f3867fc2bc3f100e4bdb5c
+verdict: met. The fine-tuned policy walks the heavier DS3218MG build with commanded-only joint feedback:
+  no fall in any nominal, DR or robustness case, vx >= 86 % of the command at 0.15 / 0.25, and every
+  joint's worst walking torque <= 1.13 N.m (bar 1.3 N.m). The tighter margin is speed: hip pitch and
+  knee run at p95 ~5.1 rad/s against 7.0 rad/s no-load, so torque at speed should be checked on the bench
+  (the model's gains and friction are guesses until servo ID). No hardware was powered.
+```
 
 ---
 
