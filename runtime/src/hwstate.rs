@@ -33,6 +33,12 @@ impl Imu for UprightImu {
     }
 }
 
+impl Imu for Box<dyn Imu> {
+    fn read(&mut self) -> Result<([f64; 4], [f64; 3]), String> {
+        (**self).read()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum HwError {
     Bus(BusError),
