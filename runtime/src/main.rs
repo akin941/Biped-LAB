@@ -1,7 +1,9 @@
 //! `biped-runtime`: runs the control loop against the MuJoCo sim bridge.
 //!
 //! ```text
-//! biped-runtime --connect 127.0.0.1:PORT
+//! biped-runtime (--connect 127.0.0.1:PORT
+//!                | (--device DEV | --hw-sim) --hello FILE --map FILE --imu upright
+//!                  --torque-fraction F [--seconds S])
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
 //!               [--torque-fraction F] [--action-scale 0.5] [--no-joint-vel-lag] [--log FILE]
@@ -9,10 +11,20 @@
 //! ```
 //!
 //! Prints a one-line JSON summary on exit. Exit codes: 0 the sim closed the
-//! connection, 2 usage or protocol error, 3 state timeout (watchdog).
+//! connection (or `--seconds` ran out on hardware), 2 usage or protocol error,
+//! 3 state timeout (watchdog; on hardware also a servo that stops answering).
+//!
+//! Hardware mode (WP5-03) replaces the sim bridge with the STS bus: the joint
+//! contract comes from a `Hello` file (`scripts/export_hello.py`), states from
+//! `hwstate::HwSource` through the joint map, actions go out as servo goals. It
+//! always paces at the control rate and requires an explicit torque fraction
+//! (S-5). `--imu upright` is the only IMU so far: it reports upright, so the
+//! tilt fault cannot fire, and it is for a robot on a stand only. `--hw-sim`
+//! runs the same path on the simulated bus (CI). Nothing here has run on a
+//! real servo; first use is Phase 5 stage 4 with the owner's approval.
 
 use std::fs::File;
-use std::io::{self, BufReader, BufWriter, ErrorKind};
+use std::io::{BufReader, BufWriter, ErrorKind};
 use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -21,11 +33,15 @@ use biped_runtime::auth::random_u64;
 use biped_runtime::channel::{load_key, ChannelStats, CommandChannel};
 use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
+use biped_runtime::hwstate::{HwSource, UprightImu};
+use biped_runtime::jointmap::{JointMap, BIPED_V1_JOINTS};
 use biped_runtime::mlp::Mlp;
 use biped_runtime::pacer::Pacer;
 use biped_runtime::policy::{Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
+use biped_runtime::sts::{self, addr};
+use biped_runtime::stsbus::{open_device, Bus, Port, SimPort};
 use biped_runtime::telemetry::{Log, Record};
 
 struct Scheduled {
@@ -46,6 +62,12 @@ struct Args {
     log: Option<String>,
     command_udp: Option<String>,
     command_key: Option<String>,
+    device: Option<String>,
+    hw_sim: bool,
+    hello: Option<String>,
+    map: Option<String>,
+    imu: Option<String>,
+    seconds: Option<f64>,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -69,6 +91,12 @@ fn parse_args() -> Result<Args, String> {
         log: None,
         command_udp: None,
         command_key: None,
+        device: None,
+        hw_sim: false,
+        hello: None,
+        map: None,
+        imu: None,
+        seconds: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -104,6 +132,18 @@ fn parse_args() -> Result<Args, String> {
             "--log" => a.log = Some(value()?),
             "--command-udp" => a.command_udp = Some(value()?),
             "--command-key" => a.command_key = Some(value()?),
+            "--device" => a.device = Some(value()?),
+            "--hw-sim" => a.hw_sim = true,
+            "--hello" => a.hello = Some(value()?),
+            "--map" => a.map = Some(value()?),
+            "--imu" => a.imu = Some(value()?),
+            "--seconds" => {
+                let s = value()?.parse::<f64>().map_err(|e| e.to_string())?;
+                if !(s > 0.0 && s.is_finite()) {
+                    return Err("--seconds must be > 0".into());
+                }
+                a.seconds = Some(s);
+            }
             "--action-scale" => a.action_scale = value()?.parse::<f64>().map_err(|e| e.to_string())?,
             _ => return Err(format!("unknown argument {flag:?}")),
         }
@@ -111,8 +151,28 @@ fn parse_args() -> Result<Args, String> {
     if a.command_key.is_some() && a.command_udp.is_none() {
         return Err("--command-key needs --command-udp".into());
     }
-    if a.connect.is_empty() {
-        return Err("--connect HOST:PORT is required".into());
+    let hardware = a.device.is_some() || a.hw_sim;
+    if [!a.connect.is_empty(), a.device.is_some(), a.hw_sim]
+        .iter()
+        .filter(|&&x| x)
+        .count()
+        != 1
+    {
+        return Err("give exactly one of --connect HOST:PORT, --device DEV or --hw-sim".into());
+    }
+    if hardware {
+        if a.hello.is_none() || a.map.is_none() {
+            return Err("hardware mode needs --hello FILE and --map FILE".into());
+        }
+        if a.imu.as_deref() != Some("upright") {
+            return Err("hardware mode needs --imu upright (robot on a stand; no IMU driver yet)".into());
+        }
+        if a.torque_fraction.is_none() {
+            return Err("hardware mode needs an explicit --torque-fraction (S-5)".into());
+        }
+        a.realtime = true;
+    } else if a.hello.is_some() || a.map.is_some() || a.imu.is_some() || a.seconds.is_some() {
+        return Err("--hello, --map, --imu and --seconds are for hardware mode".into());
     }
     Ok(a)
 }
@@ -231,17 +291,136 @@ fn summary(exit: &str, s: &Stats, sup: &Supervisor, gate: &CommandGate) -> Strin
     )
 }
 
+/// What the loop gets from the robot (or the sim playing it) each period.
+enum Next {
+    State(State),
+    /// The sim closed the connection, or the hardware run's time is up.
+    Closed,
+    /// No fresh state in time (watchdog), with the reason.
+    Timeout(String),
+}
+
+trait Link {
+    fn next(&mut self) -> Result<Next, String>;
+    fn send(&mut self, action: &Action) -> Result<(), String>;
+    /// Summary `exit` name for `Next::Closed`.
+    fn closed_name(&self) -> &'static str;
+}
+
+struct SimLink {
+    reader: BufReader<TcpStream>,
+    writer: TcpStream,
+    n: usize,
+}
+
+impl Link for SimLink {
+    fn next(&mut self) -> Result<Next, String> {
+        match State::read(&mut self.reader, self.n) {
+            Ok(s) => Ok(Next::State(s)),
+            Err(e) if e.kind() == ErrorKind::UnexpectedEof => Ok(Next::Closed),
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                Ok(Next::Timeout("no state from the sim".into()))
+            }
+            Err(e) => Err(format!("state: {e}")),
+        }
+    }
+
+    fn send(&mut self, action: &Action) -> Result<(), String> {
+        action.write(&mut self.writer).map_err(|e| format!("action: {e}"))
+    }
+
+    fn closed_name(&self) -> &'static str {
+        "sim_closed"
+    }
+}
+
+struct HwLink<P: Port> {
+    hw: HwSource<P, UprightImu>,
+    end: Option<Instant>,
+}
+
+impl<P: Port> Link for HwLink<P> {
+    fn next(&mut self) -> Result<Next, String> {
+        if self.end.is_some_and(|e| Instant::now() >= e) {
+            // Time is up: limp, then report a clean end.
+            let off = Action {
+                step: 0,
+                torque_enable: false,
+                fault_bits: 0,
+                targets: Vec::new(),
+            };
+            self.hw.apply(&off).map_err(|e| format!("torque off: {e}"))?;
+            return Ok(Next::Closed);
+        }
+        match self.hw.read(false) {
+            Ok(s) => Ok(Next::State(s)),
+            Err(e) => Ok(Next::Timeout(e.to_string())),
+        }
+    }
+
+    fn send(&mut self, action: &Action) -> Result<(), String> {
+        self.hw.apply(action).map_err(|e| format!("action: {e}"))
+    }
+
+    fn closed_name(&self) -> &'static str {
+        "duration"
+    }
+}
+
+/// A simulated bus with every joint's servo at its centre, 7.4 V, 30 deg C.
+fn sim_port(ids: &[u8]) -> SimPort {
+    let mut bus = sts::SimBus::new(ids);
+    for (_, t) in bus.tables.iter_mut() {
+        t[addr::PRESENT_POSITION as usize..][..2].copy_from_slice(&2048u16.to_le_bytes());
+        t[addr::PRESENT_VOLTAGE as usize] = 74;
+        t[addr::PRESENT_TEMPERATURE as usize] = 30;
+    }
+    SimPort::new(bus)
+}
+
+fn hw_link<P: Port + 'static>(args: &Args, port: P, map: JointMap) -> Result<Box<dyn Link>, String> {
+    let hw = HwSource::new(Bus::new(port), map, UprightImu).map_err(|e| format!("servo bus: {e}"))?;
+    Ok(Box::new(HwLink {
+        hw,
+        end: args.seconds.map(|s| Instant::now() + Duration::from_secs_f64(s)),
+    }))
+}
+
+fn open_link(args: &Args) -> Result<(Hello, Box<dyn Link>), String> {
+    if !args.connect.is_empty() {
+        let stream = TcpStream::connect(&args.connect).map_err(|e| format!("connect: {e}"))?;
+        stream.set_nodelay(true).map_err(|e| e.to_string())?;
+        let writer = stream.try_clone().map_err(|e| e.to_string())?;
+        let mut reader = BufReader::new(stream);
+        let hello = Hello::read(&mut reader).map_err(|e| format!("hello: {e}"))?;
+        reader
+            .get_ref()
+            .set_read_timeout(Some(args.state_timeout))
+            .map_err(|e| e.to_string())?;
+        let n = hello.joints.len();
+        return Ok((hello, Box::new(SimLink { reader, writer, n })));
+    }
+    let path = args.hello.as_deref().expect("checked in parse_args");
+    let mut f = File::open(path).map_err(|e| format!("hello {path:?}: {e}"))?;
+    let hello = Hello::read(&mut f).map_err(|e| format!("hello {path:?}: {e}"))?;
+    let path = args.map.as_deref().expect("checked in parse_args");
+    let text = std::fs::read_to_string(path).map_err(|e| format!("map {path:?}: {e}"))?;
+    let map = JointMap::parse(&text, &BIPED_V1_JOINTS).map_err(|e| format!("map {path:?}: {e}"))?;
+    if map.joints.len() != hello.joints.len() {
+        return Err("the hello file and the joint map have different joint counts".into());
+    }
+    let link = match &args.device {
+        Some(dev) => hw_link(args, open_device(dev).map_err(|e| format!("{dev}: {e}"))?, map)?,
+        None => {
+            let port = sim_port(&map.ids());
+            hw_link(args, port, map)?
+        }
+    };
+    Ok((hello, link))
+}
+
 fn run(args: &Args) -> Result<ExitCode, String> {
-    let stream = TcpStream::connect(&args.connect).map_err(|e| format!("connect: {e}"))?;
-    stream.set_nodelay(true).map_err(|e| e.to_string())?;
-    let mut writer = stream.try_clone().map_err(|e| e.to_string())?;
-    let mut reader = BufReader::new(stream);
-    let hello = Hello::read(&mut reader).map_err(|e| format!("hello: {e}"))?;
-    reader
-        .get_ref()
-        .set_read_timeout(Some(args.state_timeout))
-        .map_err(|e| e.to_string())?;
-    let n = hello.joints.len();
+    let (hello, mut link) = open_link(args)?;
     let dt = hello.control_dt;
     let mut controller = make_controller(&args.controller, &hello, args.action_scale, args.joint_vel_lag)?;
     let mut gate = CommandGate::new(GateLimits::default());
@@ -277,29 +456,28 @@ fn run(args: &Args) -> Result<ExitCode, String> {
     let mut prev_start: Option<Instant> = None;
     let mut pacer = Pacer::new(Duration::from_secs_f64(dt));
     loop {
-        let state = match State::read(&mut reader, n) {
-            Ok(s) => s,
-            Err(e) if e.kind() == ErrorKind::UnexpectedEof => {
+        let state = match link.next()? {
+            Next::State(s) => s,
+            Next::Closed => {
                 close_log(&mut log, &mut stats);
-                println!("{}", summary("sim_closed", &stats, &sup, &gate));
+                println!("{}", summary(link.closed_name(), &stats, &sup, &gate));
                 return Ok(ExitCode::SUCCESS);
             }
-            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+            Next::Timeout(why) => {
                 // Watchdog: no fresh state. Latch and send torque off once (best effort).
+                eprintln!("biped-runtime: state timeout: {why}");
                 sup.latch(FAULT_STATE_TIMEOUT, last_step + 1);
                 let off = sup.filter_off();
-                let _ = Action {
+                let _ = link.send(&Action {
                     step: last_step + 1,
                     torque_enable: false,
                     fault_bits: sup.latched,
                     targets: off,
-                }
-                .write(&mut writer);
+                });
                 close_log(&mut log, &mut stats);
                 println!("{}", summary("state_timeout", &stats, &sup, &gate));
                 return Ok(ExitCode::from(3));
             }
-            Err(e) => return Err(format!("state: {e}")),
         };
         let start = Instant::now();
         if let Some(p) = prev_start {
@@ -327,9 +505,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
             fault_bits: out.bits,
             targets: out.targets,
         };
-        action
-            .write(&mut writer)
-            .map_err(|e: io::Error| format!("action: {e}"))?;
+        link.send(&action)?;
         let compute = start.elapsed();
         if let Some(l) = log.as_mut() {
             // After the action is sent, so logging never delays it.
@@ -381,5 +557,48 @@ fn main() -> ExitCode {
             eprintln!("biped-runtime: {e}");
             ExitCode::from(2)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn link(ids_on_bus: &[u8]) -> HwLink<SimPort> {
+        let text = include_str!("../../hardware/calibration/biped_v1_joints.example.txt");
+        let map = JointMap::parse(text, &BIPED_V1_JOINTS).unwrap();
+        let mut hw = HwSource::new(Bus::new(sim_port(&map.ids())), map, UprightImu).unwrap();
+        hw.bus.port.bus.tables.retain(|(id, _)| ids_on_bus.contains(id));
+        HwLink { hw, end: None }
+    }
+
+    #[test]
+    fn a_silent_servo_is_a_state_timeout() {
+        let all: Vec<u8> = (1..=10).collect();
+        assert!(matches!(link(&all).next(), Ok(Next::State(_))));
+        let mut l = link(&[1, 2, 3]);
+        match l.next() {
+            Ok(Next::Timeout(why)) => assert!(why.contains('4'), "{why}"),
+            _ => panic!("expected a timeout"),
+        }
+    }
+
+    #[test]
+    fn end_of_run_switches_torque_off() {
+        let all: Vec<u8> = (1..=10).collect();
+        let mut l = link(&all);
+        l.send(&Action {
+            step: 0,
+            torque_enable: true,
+            fault_bits: 0,
+            targets: vec![0.0; 10],
+        })
+        .unwrap();
+        assert_eq!(l.hw.torque_on(), Some(true));
+        l.end = Some(Instant::now());
+        assert!(matches!(l.next(), Ok(Next::Closed)));
+        assert_eq!(l.hw.torque_on(), Some(false));
+        let t = &l.hw.bus.port.bus.tables;
+        assert!(t.iter().all(|(_, r)| r[addr::TORQUE_ENABLE as usize] == 0));
     }
 }

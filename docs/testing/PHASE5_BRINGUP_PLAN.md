@@ -46,8 +46,10 @@ bus voltage, e-stop form) is made; servo-specific notes are for the STS3215 cand
 2. ~~Hardware state source~~ done (WP5-02, `runtime/src/hwstate.rs`): servo positions and
    speeds through the joint map, bus voltage and temperature, in the same `State` the sim
    bridge sends; actions go out as one sync write. The IMU is a trait with an upright
-   placeholder, which is only allowed with the robot on a stand (stages 2-4). Not yet wired
-   into `biped-runtime` (needs a `--device` mode next to `--connect`).
+   placeholder, which is only allowed with the robot on a stand (stages 2-4). Wired into
+   `biped-runtime` (WP5-03): `biped-runtime --device /dev/ttyUSB0 --hello
+   hardware/calibration/biped_v1_sts3215.hello --map MAP --imu upright --torque-fraction 0.2
+   --seconds 30 --log run.bplog` is the stage 4 run; `--hw-sim` runs the same path in CI.
 3. Bench tools: ~~scan, read every joint, 1-minute bus check~~ done (WP5-02, `biped-bench`,
    read-only, e.g. `biped-bench check --device /dev/ttyUSB0 --map MAP --seconds 60` is the
    stage 2 pass test). Still missing: move one joint by a small step with the torque capped,
