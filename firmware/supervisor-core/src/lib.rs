@@ -47,7 +47,14 @@ pub mod bits {
     /// Event: battery below `voltage_derate` (warning only: a PWM servo has
     /// no torque limit to lower).
     pub const LOW_VOLTAGE: u16 = 1 << 12;
-    pub const LATCHED: u16 = WATCHDOG | UNDERVOLTAGE | SOFT_STOP;
+    /// Body tilt from the MCU's own accelerometer above `Limits::max_tilt_rad`
+    /// (S-2), latched.
+    pub const TILT: u16 = 1 << 3;
+    /// The accelerometer stopped delivering samples after it had started, latched.
+    pub const IMU_LOST: u16 = 1 << 4;
+    /// No accelerometer on the MCU: the tilt check is off (bench / stand only).
+    pub const NO_TILT_SENSOR: u16 = 1 << 13;
+    pub const LATCHED: u16 = WATCHDOG | UNDERVOLTAGE | SOFT_STOP | TILT | IMU_LOST;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,6 +68,15 @@ pub struct Limits {
     /// Battery (2S) warning and stop levels (V).
     pub voltage_derate: f32,
     pub voltage_stop: f32,
+    /// Tilt of the body's up axis from vertical that latches TILT: the
+    /// runtime's own limit (45 deg, `runtime/src/safety.rs`), on the MCU's
+    /// low-passed accelerometer (S-2).
+    pub max_tilt_rad: f32,
+    /// Accelerometer low-pass time constant (s): long enough to ride over
+    /// footstep jolts, short enough to see a fall.
+    pub tilt_tau_s: f32,
+    /// Once samples have started, a gap this long latches IMU_LOST.
+    pub imu_timeout_ms: u32,
 }
 
 impl Default for Limits {
@@ -71,6 +87,9 @@ impl Default for Limits {
             max_speed: 10.0,
             voltage_derate: 7.0,
             voltage_stop: 6.6,
+            max_tilt_rad: 45.0 * core::f32::consts::PI / 180.0,
+            tilt_tau_s: 0.1,
+            imu_timeout_ms: 50,
         }
     }
 }
@@ -97,6 +116,8 @@ pub struct Supervisor {
     torque: bool,
     /// Sequence number of the last valid targets frame (echoed in status).
     pub last_seq: u8,
+    /// Low-passed accelerometer (body frame, any unit) and its last sample time.
+    gravity: Option<([f32; 3], u32)>,
 }
 
 impl Supervisor {
@@ -110,7 +131,33 @@ impl Supervisor {
             events: 0,
             torque: false,
             last_seq: 0,
+            gravity: None,
         }
+    }
+
+    /// One accelerometer sample in the body frame (x forward, y left, z up;
+    /// at rest it reads +g on z). Any unit: only the direction counts.
+    pub fn on_accel(&mut self, a: [f32; 3], now_ms: u32) {
+        self.gravity = Some(match self.gravity {
+            None => (a, now_ms),
+            Some((g, t)) => {
+                let dt = now_ms.wrapping_sub(t) as f32 * 1e-3;
+                let k = dt / (self.limits.tilt_tau_s + dt);
+                let mut out = g;
+                for (o, ai) in out.iter_mut().zip(a) {
+                    *o += k * (ai - *o);
+                }
+                (out, now_ms)
+            }
+        });
+    }
+
+    /// True when the filtered up axis is more than `max_tilt_rad` from vertical.
+    /// Compares squares, so no `acos` or `sqrt` is needed without std.
+    fn tilted(&self, g: [f32; 3]) -> bool {
+        let c = cos_approx(self.limits.max_tilt_rad);
+        let n2 = g[0] * g[0] + g[1] * g[1] + g[2] * g[2];
+        !(g[2] > 0.0 && g[2] * g[2] >= c * c * n2)
     }
 
     pub fn latched(&self) -> u16 {
@@ -180,6 +227,14 @@ impl Supervisor {
         if silent.is_none() && now_ms >= l.timeout_off_ms {
             self.latched |= bits::WATCHDOG;
         }
+        match self.gravity {
+            None => self.events |= bits::NO_TILT_SENSOR,
+            Some((_, t)) if now_ms.wrapping_sub(t) >= l.imu_timeout_ms => {
+                self.latched |= bits::IMU_LOST;
+            }
+            Some((g, _)) if self.tilted(g) => self.latched |= bits::TILT,
+            _ => {}
+        }
         let bits = self.latched | self.events;
         self.events = 0;
         let pulses_us = match (self.latched, self.torque, self.last) {
@@ -206,6 +261,12 @@ impl Supervisor {
         self.last = None;
         true
     }
+}
+
+/// cos(x) for |x| <= pi/2 without std (Taylor to x^8, error < 1e-5 there).
+fn cos_approx(x: f32) -> f32 {
+    let x2 = x * x;
+    1.0 - x2 / 2.0 * (1.0 - x2 / 12.0 * (1.0 - x2 / 30.0 * (1.0 - x2 / 56.0)))
 }
 
 #[cfg(test)]
@@ -312,5 +373,52 @@ mod tests {
         s.on_targets(&targets(0.0, true), u32::MAX - 5);
         let o = s.tick(10, 7.4); // 16 ms later across the wrap
         assert_eq!(o.bits & (bits::HOLD | bits::WATCHDOG), 0);
+    }
+
+    #[test]
+    fn tilt_latches_on_the_filtered_accelerometer() {
+        let mut s = sup();
+        assert!(s.tick(0, 7.4).bits & bits::NO_TILT_SENSOR != 0);
+        s.on_targets(&targets(0.0, true), 0);
+        // Upright, with one sideways jolt: filtered out.
+        s.on_accel([0.0, 0.0, 9.8], 0);
+        s.on_accel([15.0, 0.0, 9.8], 5);
+        let o = s.tick(5, 7.4);
+        assert_eq!(o.bits & (bits::TILT | bits::NO_TILT_SENSOR), 0);
+        assert!(o.pulses_us.is_some());
+        // 40 deg is still inside the limit, 50 deg (held) is not.
+        let (s40, c40) = (40f32.to_radians().sin(), 40f32.to_radians().cos());
+        for t in (10..400).step_by(5) {
+            s.on_accel([9.8 * s40, 0.0, 9.8 * c40], t);
+        }
+        assert_eq!(s.tick(400, 7.4).bits & bits::TILT, 0);
+        let (s50, c50) = (50f32.to_radians().sin(), 50f32.to_radians().cos());
+        for t in (405..800).step_by(5) {
+            s.on_accel([0.0, 9.8 * s50, 9.8 * c50], t);
+        }
+        let o = s.tick(800, 7.4);
+        assert!(o.bits & bits::TILT != 0 && o.pulses_us.is_none());
+        // Upside down is tilted too.
+        let mut s = sup();
+        s.on_accel([0.0, 0.0, -9.8], 0);
+        assert!(s.tick(0, 7.4).bits & bits::TILT != 0);
+    }
+
+    #[test]
+    fn a_silent_accelerometer_latches() {
+        let mut s = sup();
+        s.on_targets(&targets(0.0, true), 0);
+        s.on_accel([0.0, 0.0, 9.8], 0);
+        assert_eq!(s.tick(49, 7.4).bits & bits::IMU_LOST, 0);
+        s.on_targets(&targets(0.0, true), 40);
+        assert!(s.tick(50, 7.4).bits & bits::IMU_LOST != 0);
+    }
+
+    #[test]
+    fn cos_approx_is_close() {
+        for d in [0.0f32, 30.0, 45.0, 60.0, 90.0] {
+            let x = d.to_radians();
+            assert!((cos_approx(x) - x.cos()).abs() < 1e-4, "{d}");
+        }
     }
 }

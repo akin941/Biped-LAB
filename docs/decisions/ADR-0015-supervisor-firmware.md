@@ -32,9 +32,13 @@ the firmware language to a later ADR. The supervisor's checks already exist in R
   readback. A digital servo may also hold its position when the pulses stop, so
   "pulses off" is a best effort. The hardware e-stop (S-3) cutting servo power is
   the real stop and stays mandatory before first motion.
-- **IMU placement:** the MPU6050 driver runs on the Pi for now (`runtime/src/mpu6050.rs`,
-  enough for stand work). S-2 tilt detection on the supervisor needs the IMU on the
-  MCU's I2C or a second sensor; that is an open point before walking on the floor.
+- **IMU placement:** the MPU6050 driver runs on the Pi for the policy
+  (`runtime/src/mpu6050.rs`). Since WP5-12, S-2 tilt detection also runs on the
+  supervisor, from a **second** MPU6050 on the Pico's I2C1 (GP14/GP15, ~100 TL). It
+  uses a low-passed accelerometer with the runtime's 45° limit, and a silent sensor
+  latches. Two cheap sensors keep the stop independent of the Pi. Without the second
+  sensor, the MCU reports `NO_TILT_SENSOR` and the runtime warns that this is
+  stand work only.
 
 ## Consequences
 The supervisor's logic is testable in CI without hardware. The runtime gets a PWM
