@@ -64,6 +64,9 @@ option if the gait needs it.
   guessed in the model; stage 3 must measure them before training is trusted.
 
 ## Open points
-1. Confirm the cart prices on robotsepeti before deciding the purchase.
+1. Confirm the cart prices on robotsepeti before deciding the purchase. Note
+   (2026-11-23): the only readable DS3218MG price was 1,197 TL at
+   robolinkmarket, about twice the ~600 TL estimate above, which would put the
+   servos near ~12,000 TL. The bench kit (`bench_test_wp5_11.md`) buys one first.
 2. MAC-47 (sim training on the Mac) should show the robot walks before buying.
 3. Runtime work for PWM output, commanded feedback and the MPU6050 (WP5-06).
