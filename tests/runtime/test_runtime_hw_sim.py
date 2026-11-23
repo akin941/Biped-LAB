@@ -53,3 +53,25 @@ def test_hardware_mode_refuses_unsafe_or_incomplete_setups(tmp_path):
     swapped = [str(bad) if str(a).endswith("example.txt") else a for a in base]
     r = runtime(*swapped, "--torque-fraction", "0.3")
     assert r.returncode == 2 and "twice" in r.stderr
+
+
+def test_mpu6050_imu_on_a_simulated_chip_runs_cleanly():
+    """WP5-07: --imu mpu6050:sim runs the real driver and filter on a level simulated chip."""
+    hw = [a if a != "upright" else "mpu6050:sim" for a in HW]
+    r = runtime("--hw-sim", *hw, "--torque-fraction", "0.3", "--seconds", "1")
+    assert r.returncode == 0, r.stderr
+    s = json.loads(r.stdout)
+    assert s["exit"] == "duration" and s["latched"] == 0 and s["periods"] >= 40
+
+
+def test_mpu6050_imu_specs_are_checked():
+    def with_imu(spec):
+        hw = [a if a != "upright" else spec for a in HW]
+        return runtime("--hw-sim", *hw, "--torque-fraction", "0.3", "--seconds", "1")
+
+    r = with_imu("mpu6050:")
+    assert r.returncode == 2 and "needs a device" in r.stderr
+    r = with_imu("mpu6050:sim:x,x,z")
+    assert r.returncode == 2 and "once" in r.stderr
+    r = with_imu("mpu6050:/dev/no-such-i2c")
+    assert r.returncode == 2 and "imu" in r.stderr

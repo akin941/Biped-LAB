@@ -19,6 +19,7 @@ pub mod gate;
 pub mod hwstate;
 pub mod jointmap;
 pub mod mlp;
+pub mod mpu6050;
 pub mod pacer;
 pub mod policy;
 pub mod protocol;
