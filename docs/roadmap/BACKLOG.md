@@ -117,5 +117,6 @@ task matching your environment whose deps are `done`.
 | ID | Task | Env | Status |
 |---|---|---|---|
 | WP4-05 | BOM draft (no purchase): `hardware/bom/biped_v1_bom.md` | cloud | awaiting-owner (draft done, cloud web research 2026-10-26; owner decides bus voltage, e-stop form, purchase timing; nothing bought) |
+| WP5-00 | Bring-up prep without hardware: Phase 5 plan (`docs/testing/PHASE5_BRINGUP_PLAN.md`: stages, pass / abort per gate, software still missing) and the joint map / calibration file (`runtime/src/jointmap.rs`, `hardware/calibration/biped_v1_joints.example.txt`: id, direction, offset per joint, sim ↔ servo angles) | cloud | WP4-29 | done (cloud: `cargo test`, pytest; plan is a draft, nothing ran on hardware) | plan covers every Phase 5 gate; joint map round-trips and reaches the STS codec; bad files rejected |
 | WP5-xx | Hardware tasks (all `hw`, owner approval) | hw | later |
 | WP6-xx | Autonomy | – | later |
