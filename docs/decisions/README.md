@@ -19,3 +19,4 @@ update the old one's status line only.
 | [0012](ADR-0012-ppo-library.md) | PPO library: rsl-rl-lib 5.0.1 (upstream's trainer), torch on CPU | accepted |
 | [0013](ADR-0013-runtime-policy-inference.md) | Policy inference in the runtime with a std-only MLP interpreter (amends ADR-0007) | accepted |
 | [0014](ADR-0014-command-channel-auth.md) | Command-channel authentication: pre-shared key HMAC-SHA256, session + sequence against replay, keyless only on loopback | accepted |
+| [0015](ADR-0015-supervisor-firmware.md) | Supervisor MCU firmware: no_std Rust on the RP2040; host-tested core crate (frames, pulse map, limits, watchdog); PWM servo limits stated | accepted |

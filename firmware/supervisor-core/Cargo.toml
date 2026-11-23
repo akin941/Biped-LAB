@@ -1,0 +1,12 @@
+[package]
+name = "supervisor-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+description = "Hardware-independent core of the RP2040 safety supervisor for the DS3218MG build (ADR-0015): UART frames, joint limits, slew, watchdog, servo pulse mapping"
+publish = false
+
+# no_std and no third-party crates: the same code is unit-tested on the host and
+# built for thumbv6m-none-eabi (RP2040) in CI.
+[dependencies]
