@@ -2317,5 +2317,34 @@ realtime (k3_7450, --init-seed 0, both commands, quiet Mac): pending. The wait s
 
 ---
 
+## MAC-45 — biped_v1: does the runtime's clean observation explain the +wz? (WP4-37)
+Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`; can run while the MAC-44 realtime part waits
+
+Every MAC-44 candidate yaws positive through the runtime (+0.02..+0.22), while the Python eval gives
+|wz| <= 0.07 (k3_6900 -0.005 over 16 resets). The model is identical (cloud check, 2026-11-20). One
+known difference: in training and in `eval_biped.py` the actor sees noise, a gyro/gravity lag and
+**one-period-old joint velocities**; the runtime sends clean, current values. `eval_biped.py
+--obs-mode` now switches this: `train` (default), `no-vel-lag` (noise on, current joint velocities),
+`runtime` (the runtime's clean observation). No `--realtime`, so VM load does not matter.
+
+For each of k3_6900, k3_7450, k5_6950, k5_7250 and each mode:
+```bash
+P=<mac42>/runs/mac42/<cand>
+for mode in train no-vel-lag runtime; do
+  uv run python scripts/eval_biped.py $P/policy.onnx --envs 16 --seconds 20 \
+      --torque-limit 1.91 --motor-no-load-speed 5.45 --obs-mode $mode \
+      --out runs/mac45/<cand>/$mode.json
+done
+```
+Report per candidate, mode and command (0.15, 0.25): falls, `vx_mean`, `wz_mean`. Commit a summary JSON
+under `docs/experiments/mac45/`.
+
+**Reading (WP4-37):** if `runtime` mode gives a positive wz near the MAC-44 values (within ~0.04 for
+most candidates) while `train` stays near 0, the observation mismatch is the cause; `no-vel-lag` says
+whether the joint-velocity lag alone is enough. If all modes stay near 0, the cause is elsewhere
+(start pose or something in the runtime path) and the cloud goes on comparing.
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
