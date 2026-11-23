@@ -42,3 +42,8 @@ link that speaks these frames instead of the STS bus. Changes to the supervisor'
 limits need owner approval, like `runtime/src/safety.rs`. Torque and temperature
 protections of the bus-servo design are lost with PWM servos; the stand procedure
 (S-5) and the e-stop carry more of the risk.
+
+The Pi side of the link is `runtime/src/pwmlink.rs` (`biped-runtime --servos pwm`,
+WP5-09), which uses this crate's frame code directly, so both ends share one
+definition. The runtime's over-temperature check cannot fire on this build (no
+sensor), and its joint terms are the commanded targets.

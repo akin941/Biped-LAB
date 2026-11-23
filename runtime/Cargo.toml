@@ -9,8 +9,10 @@ publish = false
 
 # No third-party crates in the skeleton: the bridge protocol is fixed-size
 # little-endian frames over TCP (std only). ONNX inference (`ort`) is added with
-# the first policy for our robot (G4.3), with its own review.
+# the first policy for our robot (G4.3), with its own review. `supervisor-core`
+# is this repository's own no_std crate (ADR-0015): the PWM link shares its frames.
 [dependencies]
+supervisor-core = { path = "../firmware/supervisor-core" }
 
 [profile.release]
 debug = false

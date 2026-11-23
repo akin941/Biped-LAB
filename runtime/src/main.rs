@@ -2,8 +2,8 @@
 //!
 //! ```text
 //! biped-runtime (--connect 127.0.0.1:PORT
-//!                | (--device DEV | --hw-sim) --hello FILE --map FILE
-//!                  --imu upright|mpu6050:I2C_DEV[:MOUNT]|mpu6050:sim
+//!                | (--device DEV | --hw-sim) --hello FILE [--servos sts|pwm]
+//!                  [--map FILE (sts)] --imu upright|mpu6050:I2C_DEV[:MOUNT]|mpu6050:sim
 //!                  --torque-fraction F [--seconds S])
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
@@ -27,6 +27,13 @@
 //! `mpu6050:sim` runs the same driver on a simulated level chip (CI). `--hw-sim`
 //! runs the same path on the simulated bus (CI). Nothing here has run on a
 //! real servo; first use is Phase 5 stage 4 with the owner's approval.
+//!
+//! `--servos pwm` is the DS3218MG build (G4.5, WP5-09): the device is the UART
+//! to the RP2040 safety supervisor (`pwmlink`, ADR-0015) instead of the STS
+//! bus, no joint map is used (the MCU holds the pulse calibration), and the
+//! state's joint terms are the commanded targets, so it is meant with
+//! `--joint-feedback commanded`. `--hw-sim` then runs the MCU's own
+//! `supervisor-core` logic behind the link.
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter, ErrorKind};
@@ -45,6 +52,7 @@ use biped_runtime::mpu6050::{self, LinuxI2c, Mount, Mpu6050, Mpu6050Imu, SimI2c}
 use biped_runtime::pacer::Pacer;
 use biped_runtime::policy::{JointFeedback, Policy, DEFAULT_ACTION_SCALE};
 use biped_runtime::protocol::{Action, Hello, State};
+use biped_runtime::pwmlink::{PwmSource, SimMcu};
 use biped_runtime::safety::{SafetyLimits, Supervisor, FAULT_STATE_TIMEOUT, N_EVENTS, N_FAULTS};
 use biped_runtime::sts::{self, addr};
 use biped_runtime::stsbus::{open_device, Bus, Port, SimPort};
@@ -75,6 +83,7 @@ struct Args {
     map: Option<String>,
     imu: Option<String>,
     seconds: Option<f64>,
+    pwm: bool,
 }
 
 fn floats(s: &str, n: usize) -> Result<Vec<f64>, String> {
@@ -105,6 +114,7 @@ fn parse_args() -> Result<Args, String> {
         map: None,
         imu: None,
         seconds: None,
+        pwm: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -146,6 +156,13 @@ fn parse_args() -> Result<Args, String> {
             "--hello" => a.hello = Some(value()?),
             "--map" => a.map = Some(value()?),
             "--imu" => a.imu = Some(value()?),
+            "--servos" => {
+                a.pwm = match value()?.as_str() {
+                    "sts" => false,
+                    "pwm" => true,
+                    v => return Err(format!("--servos must be sts or pwm, not {v:?}")),
+                }
+            }
             "--seconds" => {
                 let s = value()?.parse::<f64>().map_err(|e| e.to_string())?;
                 if !(s > 0.0 && s.is_finite()) {
@@ -170,8 +187,11 @@ fn parse_args() -> Result<Args, String> {
         return Err("give exactly one of --connect HOST:PORT, --device DEV or --hw-sim".into());
     }
     if hardware {
-        if a.hello.is_none() || a.map.is_none() {
+        if a.hello.is_none() || (a.map.is_none() && !a.pwm) {
             return Err("hardware mode needs --hello FILE and --map FILE".into());
+        }
+        if a.pwm && a.map.is_some() {
+            return Err("--map is for the STS bus; the PWM supervisor holds its own calibration".into());
         }
         match a.imu.as_deref() {
             Some("upright") => {}
@@ -186,8 +206,8 @@ fn parse_args() -> Result<Args, String> {
             return Err("hardware mode needs an explicit --torque-fraction (S-5)".into());
         }
         a.realtime = true;
-    } else if a.hello.is_some() || a.map.is_some() || a.imu.is_some() || a.seconds.is_some() {
-        return Err("--hello, --map, --imu and --seconds are for hardware mode".into());
+    } else if a.hello.is_some() || a.map.is_some() || a.imu.is_some() || a.seconds.is_some() || a.pwm {
+        return Err("--hello, --map, --imu, --servos and --seconds are for hardware mode".into());
     }
     Ok(a)
 }
@@ -387,12 +407,39 @@ fn open_imu(spec: &str) -> Result<Box<dyn Imu>, String> {
     Ok(imu)
 }
 
-struct HwLink<P: Port> {
-    hw: HwSource<P, Box<dyn Imu>>,
+/// A hardware backend: the STS bus (`HwSource`) or the PWM supervisor MCU
+/// (`PwmSource`).
+trait Robot {
+    fn read(&mut self) -> Result<State, String>;
+    fn apply(&mut self, action: &Action) -> Result<(), String>;
+}
+
+impl<P: Port, I: Imu> Robot for HwSource<P, I> {
+    fn read(&mut self) -> Result<State, String> {
+        HwSource::read(self, false).map_err(|e| e.to_string())
+    }
+
+    fn apply(&mut self, action: &Action) -> Result<(), String> {
+        HwSource::apply(self, action).map_err(|e| e.to_string())
+    }
+}
+
+impl<P: Port, I: Imu> Robot for PwmSource<P, I> {
+    fn read(&mut self) -> Result<State, String> {
+        PwmSource::read(self)
+    }
+
+    fn apply(&mut self, action: &Action) -> Result<(), String> {
+        PwmSource::apply(self, action)
+    }
+}
+
+struct HwLink<R: Robot> {
+    hw: R,
     end: Option<Instant>,
 }
 
-impl<P: Port> Link for HwLink<P> {
+impl<R: Robot> Link for HwLink<R> {
     fn next(&mut self) -> Result<Next, String> {
         if self.end.is_some_and(|e| Instant::now() >= e) {
             // Time is up: limp, then report a clean end.
@@ -405,9 +452,9 @@ impl<P: Port> Link for HwLink<P> {
             self.hw.apply(&off).map_err(|e| format!("torque off: {e}"))?;
             return Ok(Next::Closed);
         }
-        match self.hw.read(false) {
+        match self.hw.read() {
             Ok(s) => Ok(Next::State(s)),
-            Err(e) => Ok(Next::Timeout(e.to_string())),
+            Err(e) => Ok(Next::Timeout(e)),
         }
     }
 
@@ -431,12 +478,26 @@ fn sim_port(ids: &[u8]) -> SimPort {
     SimPort::new(bus)
 }
 
+fn end_time(args: &Args) -> Option<Instant> {
+    args.seconds.map(|s| Instant::now() + Duration::from_secs_f64(s))
+}
+
 fn hw_link<P: Port + 'static>(args: &Args, port: P, map: JointMap) -> Result<Box<dyn Link>, String> {
     let imu = open_imu(args.imu.as_deref().expect("checked in parse_args")).map_err(|e| format!("imu: {e}"))?;
     let hw = HwSource::new(Bus::new(port), map, imu).map_err(|e| format!("servo bus: {e}"))?;
     Ok(Box::new(HwLink {
         hw,
-        end: args.seconds.map(|s| Instant::now() + Duration::from_secs_f64(s)),
+        end: end_time(args),
+    }))
+}
+
+fn pwm_link<P: Port + 'static>(args: &Args, port: P, hello: &Hello) -> Result<Box<dyn Link>, String> {
+    let imu = open_imu(args.imu.as_deref().expect("checked in parse_args")).map_err(|e| format!("imu: {e}"))?;
+    let default: Vec<f64> = hello.joints.iter().map(|j| j.default).collect();
+    let hw = PwmSource::new(port, imu, &default, hello.control_dt)?;
+    Ok(Box::new(HwLink {
+        hw,
+        end: end_time(args),
     }))
 }
 
@@ -457,6 +518,17 @@ fn open_link(args: &Args) -> Result<(Hello, Box<dyn Link>), String> {
     let path = args.hello.as_deref().expect("checked in parse_args");
     let mut f = File::open(path).map_err(|e| format!("hello {path:?}: {e}"))?;
     let hello = Hello::read(&mut f).map_err(|e| format!("hello {path:?}: {e}"))?;
+    if args.pwm {
+        let link = match &args.device {
+            Some(dev) => pwm_link(args, open_device(dev).map_err(|e| format!("{dev}: {e}"))?, &hello)?,
+            None => {
+                let lower: Vec<f64> = hello.joints.iter().map(|j| j.lower).collect();
+                let upper: Vec<f64> = hello.joints.iter().map(|j| j.upper).collect();
+                pwm_link(args, SimMcu::new(&lower, &upper)?, &hello)?
+            }
+        };
+        return Ok((hello, link));
+    }
     let path = args.map.as_deref().expect("checked in parse_args");
     let text = std::fs::read_to_string(path).map_err(|e| format!("map {path:?}: {e}"))?;
     let map = JointMap::parse(&text, &BIPED_V1_JOINTS).map_err(|e| format!("map {path:?}: {e}"))?;
@@ -625,7 +697,7 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
 
-    fn link(ids_on_bus: &[u8]) -> HwLink<SimPort> {
+    fn link(ids_on_bus: &[u8]) -> HwLink<HwSource<SimPort, Box<dyn Imu>>> {
         let text = include_str!("../../hardware/calibration/biped_v1_joints.example.txt");
         let map = JointMap::parse(text, &BIPED_V1_JOINTS).unwrap();
         let imu: Box<dyn Imu> = Box::new(UprightImu);
