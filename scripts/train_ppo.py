@@ -284,6 +284,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and (args.model != "biped_v1" or args.joint_feedback != "measured"):
         raise SystemExit("--model / --joint-feedback are biped_v1 options")
+    if not biped_v1 and args.servo_dr:
+        raise SystemExit("--servo-dr is a biped_v1 option")
     if not biped_v1 and args.track_yaw_std2 is not None:
         raise SystemExit("--track-yaw-std2 is a biped_v1 option")
     if not biped_v1 and (args.torque_limit is not None or args.motor_no_load_speed is not None):
@@ -310,6 +312,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     if biped_v1:
         scene, env_cls, act_dim = BIPED_SCENES[args.model], bve.BipedVelocityEnv, bve.ACT_DIM
         kwargs["joint_feedback"] = args.joint_feedback
+        kwargs["servo_dr"] = args.servo_dr
         if args.dr_delay_max is not None:
             kwargs["dr_delay_max"] = args.dr_delay_max
         if args.dr_friction is not None:
@@ -386,6 +389,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "workers": args.workers,
         "actuator": args.actuator,
         "dr": args.dr,
+        "servo_dr": args.servo_dr,
         "init_std": args.init_std,
         "dr_delay_max": args.dr_delay_max,
         "dr_friction": args.dr_friction,
@@ -487,6 +491,10 @@ def main() -> None:
     parser.add_argument(
         "--joint-feedback", choices=bve.JOINT_FEEDBACK, default="measured",
         help="biped_v1 actor joint terms: measured, or commanded targets for PWM servos (G4.5)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--servo-dr", action="store_true",
+        help="biped_v1: PWM servo offset / deadband / stiffness draws per reset (WP4-41)",
     )  # fmt: skip
     parser.add_argument(
         "--rough-floor", type=float, default=0.0,

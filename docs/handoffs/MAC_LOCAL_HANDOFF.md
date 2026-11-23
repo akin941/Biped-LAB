@@ -2552,5 +2552,39 @@ verdict: met. The DS3218MG policy walks through the runtime with commanded-only 
 
 ---
 
+## MAC-49 — biped_ds3218: does the gait survive cheap-servo imperfections? (WP4-41)
+Status: `todo` · Deps: WP4-41 on main (`--servo-dr`), MAC-47 run A (`runs/mac47-a/policy.onnx`, `model_<newest>.pt`)
+
+A PWM hobby servo is not the clean position actuator of the model. `--servo-dr` draws per reset and per joint
+a residual centre offset (±0.03 rad), a deadband (0–0.008 rad: targets closer than this to the held one are
+ignored) and a stiffness scale (0.7–1.3, since the DS3218MG gain is a guess until the bench). The owner
+postponed buying parts (2026-11-23), so this is the next useful check, on the Mac only.
+
+Step 1 (eval only, ~minutes): the MAC-47 run-A policy with and without the imperfections.
+```bash
+P=<mac47>/runs/mac47-a
+E="--model biped_ds3218 --joint-feedback commanded --torque-limit 1.96 --motor-no-load-speed 7.0"
+uv run python scripts/eval_biped.py $P/policy.onnx $E --dr --robustness --envs 8 --seconds 20 \
+    --servo-dr --out runs/mac49/eval_servo_dr.json
+uv run python scripts/eval_biped.py $P/policy.onnx $E --obs-mode runtime --envs 16 --seconds 20 \
+    --servo-dr --out runs/mac49/eval_servo_dr_runtime.json
+```
+If step 1 meets the WP4-40 rows (no fall in nominal / DR cases, vx >= 50 % at 0.15 and 0.25), stop: report it.
+
+Step 2 (only if step 1 misses): fine-tune from run A with the imperfections on, then repeat step 1 on the
+new policy and the MAC-48 seed part (8 starts × 0.15 / 0.25 through the runtime, no `--realtime`).
+```bash
+F="--robot biped_v1 --model biped_ds3218 --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 --torque-limit 1.96 --motor-no-load-speed 7.0"
+uv run python scripts/train_ppo.py $F --iters 800 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac49 --save-every 100 --out runs/mac49/report.json
+```
+**Acceptance (WP4-41):** a DS3218MG policy that meets the WP4-40 rows with `--servo-dr` on (both eval modes),
+and, if step 2 ran, also without it (no regression) and through the runtime (MAC-48 seed rows). Report
+the MAC-25 rows, sizing, slew-limited fraction and the ONNX sha256; commit a summary JSON under
+`docs/experiments/mac49/` (no ONNX, no runs/). No hardware.
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
