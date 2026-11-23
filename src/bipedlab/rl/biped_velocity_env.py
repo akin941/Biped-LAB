@@ -49,6 +49,14 @@ change of those targets over the last period divided by the period, both of whic
 runtime knows without sensors. The observation keeps its 39-float layout; the critic
 keeps the measured values. ``"measured"`` (default) is the bus-servo behaviour.
 
+Servo imperfections (WP4-41, G4.5): ``servo_dr=True`` draws per reset, per joint,
+what a cheap PWM servo gets wrong and the runtime cannot see: a residual centre
+offset after calibration (``SERVO_OFFSET``, spline and trim error), a deadband
+(``SERVO_DEADBAND``: the servo ignores a new target closer than this to the one it
+holds) and a stiffness scale (``SERVO_KP_SCALE``, since the DS3218MG's gain is a
+guess until the bench measures it). It has its own random stream, so the other DR
+draws are unchanged, and works with or without ``dr``. Gear backlash is not modelled.
+
 Each step also reports ``joint_torque``: the absolute actuator force per joint at the
 end of the step, so a training or evaluation run can re-check the knee torque
 requirement of WP4-01 with a learned gait.
@@ -156,6 +164,10 @@ TRUNK_COM = 0.01  # m, uniform per axis
 ARMATURE_SCALE = (0.9, 1.1)
 IMU_MAX_ANGLE_DEG = 6.0
 DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
+# Servo imperfections (WP4-41): per-reset, per-joint draws for cheap PWM servos.
+SERVO_OFFSET = 0.03  # rad, uniform +-: ~1.7 deg residual centre error after trim
+SERVO_DEADBAND = (0.0, 0.008)  # rad: DS3218MG ~3 us deadband = 0.005 rad, with margin
+SERVO_KP_SCALE = (0.7, 1.3)  # the servo's stiffness is not measured yet
 # Upper end of the DR delay draw over training (env steps, IT per PPO iteration).
 DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
@@ -269,6 +281,8 @@ class BipedVelocityEnv:
     # G4.5: "measured" joint angles/speeds (bus servos) or "commanded" targets (PWM
     # servos without feedback); see the module docstring.
     joint_feedback: str = "measured"
+    # WP4-41: per-joint servo offset, deadband and stiffness draws (see the docstring).
+    servo_dr: bool = False
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -306,6 +320,14 @@ class BipedVelocityEnv:
             raise ValueError("motor_no_load_speed must be > 0")
         self.model = m
         self.stall_torque = m.actuator_forcerange[:, 1].copy()
+        self._kp0 = m.actuator_gainprm[:, 0].copy()
+        self.servo_offset = np.zeros((n, ACT_DIM))
+        self.servo_deadband = np.zeros((n, ACT_DIM))
+        self.servo_kp_scale = np.ones((n, ACT_DIM))
+        self.servo_held = np.zeros((n, ACT_DIM))
+        self._servo_rngs = [
+            np.random.default_rng([self.seed, self.first_env + i, 5]) for i in range(n)
+        ]
         self.actuator_dof = m.jnt_dofadr[m.actuator_trnid[:, 0]].astype(int)
         self._ids(m)
         self._steps_taken = 0
@@ -449,6 +471,25 @@ class BipedVelocityEnv:
         m.body_inertia[t] = self._default_inertia * self.mass_scale[i]
         m.dof_armature[self.hinge_dofs] = self._default_armature * self.armature_scale[i]
 
+    def _sample_servo(self, i: int) -> None:
+        rng = self._servo_rngs[i]
+        self.servo_offset[i] = rng.uniform(-SERVO_OFFSET, SERVO_OFFSET, ACT_DIM)
+        self.servo_deadband[i] = rng.uniform(*SERVO_DEADBAND, ACT_DIM)
+        self.servo_kp_scale[i] = rng.uniform(*SERVO_KP_SCALE, ACT_DIM)
+
+    def _servo_ctrl(self, i: int, target: np.ndarray) -> np.ndarray:
+        """What env ``i``'s servos hold for this target (offset, deadband), and their gain."""
+        if not self.servo_dr:
+            return target
+        kp = self._kp0 * self.servo_kp_scale[i]
+        self.model.actuator_gainprm[:, 0] = kp
+        self.model.actuator_biasprm[:, 1] = -kp
+        want = target + self.servo_offset[i]
+        moved = np.abs(want - self.servo_held[i]) > self.servo_deadband[i]
+        self.servo_held[i] = np.where(moved, want, self.servo_held[i])
+        held: np.ndarray = self.servo_held[i].copy()
+        return held
+
     def _push(self) -> None:
         self.push_left -= STEP_DT
         for i in np.flatnonzero(self.push_left < 1e-6):
@@ -517,7 +558,10 @@ class BipedVelocityEnv:
         d.qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
         d.qpos[self.qpos_idx] += rng.uniform(-RESET_JOINT_NOISE, RESET_JOINT_NOISE, ACT_DIM)
         d.qvel[:] = 0.0
-        d.ctrl[:] = self.default_pose
+        if self.servo_dr:
+            self._sample_servo(i)
+            self.servo_held[i] = self.default_pose + self.servo_offset[i]
+        d.ctrl[:] = self._servo_ctrl(i, self.default_pose)
         mujoco.mj_forward(m, d)
         self.episode_steps[i] = 0
         self.last_action[i] = 0.0
@@ -690,7 +734,7 @@ class BipedVelocityEnv:
             if self.rough_floor > 0:
                 self._set_floor_height(bool(self.flat_env[i]))
                 self._wrap_xy(d)
-            d.ctrl[:] = targets[i]
+            d.ctrl[:] = self._servo_ctrl(i, targets[i])
             if self.motor_no_load_speed is None:
                 mujoco.mj_step(self.model, d, nstep=DECIMATION)
             else:

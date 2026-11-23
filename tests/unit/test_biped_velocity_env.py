@@ -470,3 +470,35 @@ def test_commanded_joint_feedback_for_pwm_servos():
         prev = env.last_target.copy()
     with pytest.raises(ValueError, match="joint_feedback"):
         BipedVelocityEnv(num_envs=1, joint_feedback="pwm")
+
+
+def test_servo_imperfections_for_pwm_servos():
+    """WP4-41: per-joint offset, deadband and stiffness draws, on their own stream."""
+    kw = dict(num_envs=2, seed=3, noise=False, scene=bve.DS3218_SCENE, joint_feedback="commanded")
+    env = BipedVelocityEnv(servo_dr=True, **kw)
+    assert np.all(np.abs(env.servo_offset) <= bve.SERVO_OFFSET)
+    assert np.all((env.servo_deadband >= 0) & (env.servo_deadband <= bve.SERVO_DEADBAND[1]))
+    lo, hi = bve.SERVO_KP_SCALE
+    assert np.all((env.servo_kp_scale >= lo) & (env.servo_kp_scale <= hi))
+    assert np.ptp(env.servo_offset) > 0 and np.ptp(env.servo_kp_scale) > 0
+    # The servo holds the offset target and ignores a change inside its deadband.
+    held = env.servo_held[0].copy()
+    np.testing.assert_allclose(held, env.default_pose + env.servo_offset[0])
+    small = env.default_pose + 0.5 * env.servo_deadband[0]
+    np.testing.assert_array_equal(env._servo_ctrl(0, small), held)
+    big = env.default_pose + 0.05
+    np.testing.assert_allclose(env._servo_ctrl(0, big), big + env.servo_offset[0])
+    np.testing.assert_allclose(env.model.actuator_gainprm[:, 0], env._kp0 * env.servo_kp_scale[0])
+    np.testing.assert_allclose(env.model.actuator_biasprm[:, 1], -env.model.actuator_gainprm[:, 0])
+    # It stands on the imperfect servos, and the other DR draws do not move.
+    for _ in range(50):
+        out = env.step(np.zeros((2, bve.ACT_DIM)))
+    assert not out.terminated.any()
+    a = BipedVelocityEnv(dr=True, **kw)
+    b = BipedVelocityEnv(dr=True, servo_dr=True, **kw)
+    np.testing.assert_array_equal(a.foot_friction, b.foot_friction)
+    np.testing.assert_array_equal(a.mass_scale, b.mass_scale)
+    # Off by default: the model's gains are untouched.
+    c = BipedVelocityEnv(**kw)
+    c.step(np.zeros((2, bve.ACT_DIM)))
+    np.testing.assert_array_equal(c.model.actuator_gainprm[:, 0], c._kp0)

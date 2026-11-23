@@ -120,6 +120,7 @@ def run_case(
     obs_mode: str = "train",
     scene: str | Path = bve.DEFAULT_SCENE,
     joint_feedback: str = "measured",
+    servo_dr: bool = False,
 ) -> dict[str, Any]:
     if obs_mode not in OBS_MODES:
         raise ValueError(f"obs_mode must be one of {OBS_MODES}")
@@ -127,6 +128,7 @@ def run_case(
         **OBS_ENV_KWARGS[obs_mode],
         scene=scene,
         joint_feedback=joint_feedback,
+        servo_dr=servo_dr,
         num_envs=num_envs,
         seed=seed,
         episode_s=seconds + 1.0,
@@ -353,6 +355,10 @@ def main() -> None:
         "--joint-feedback", choices=bve.JOINT_FEEDBACK, default="measured",
         help="actor joint terms: measured (bus servos) or commanded targets (PWM, G4.5)",
     )  # fmt: skip
+    parser.add_argument(
+        "--servo-dr", action="store_true",
+        help="every case on PWM servos with offset / deadband / stiffness draws (WP4-41)",
+    )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
     tl = args.torque_limit
@@ -362,6 +368,7 @@ def main() -> None:
         "obs_mode": args.obs_mode,
         "scene": SCENES[args.model],
         "joint_feedback": args.joint_feedback,
+        "servo_dr": args.servo_dr,
     }
     policy = BatchOnnxPolicy(args.policy)
     cases = []
@@ -378,6 +385,7 @@ def main() -> None:
         "policy": str(args.policy),
         "model": args.model,
         "joint_feedback": args.joint_feedback,
+        "servo_dr": args.servo_dr,
         "cases": cases,
         "sizing": sizing_summary(cases),
     }
