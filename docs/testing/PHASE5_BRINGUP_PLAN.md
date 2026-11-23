@@ -59,3 +59,8 @@ bus voltage, e-stop form) is made; servo-specific notes are for the STS3215 cand
    the readback only shows that the servo followed its goal. The STS torque limit register
    (address 48) is from the memory table and is confirmed on the first servo.
 4. IMU driver: depends on the IMU part in the BOM (G4.5).
+5. ~~Stage 7 report~~ done (WP5-05): `scripts/sim_vs_real.py REAL.bplog --torque-limit 1.91
+   --motor-no-load-speed 5.45 --env-label hw -- --controller policy:FILE --torque-fraction F`
+   replays the logged command in the sim and compares yaw rate, tilt, joint tracking, torque
+   demand and faults. Body speed is not on the robot's log: measure it on the floor (tape
+   and stopwatch or a video) and add it to the report by hand.
