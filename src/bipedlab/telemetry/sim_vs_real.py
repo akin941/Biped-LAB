@@ -16,6 +16,7 @@ comparison needs an external measurement (e.g. distance over time on a tape).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -52,7 +53,8 @@ def command_segments(
             end = time[k] if k < len(time) else time[-1] + dt
             mean = command[start:k].mean(axis=0)
             if nonzero(ref):
-                segs.append((float(time[start]), float(end), *map(float, mean)))
+                vx, vy, wz = (float(v) for v in mean)
+                segs.append((float(time[start]), float(end), vx, vy, wz))
             if k < len(time):
                 start, ref = k, command[k]
     return segs
@@ -84,7 +86,7 @@ def metrics(arrays: dict[str, np.ndarray], header: dict[str, Any]) -> dict[str, 
     latched = int(np.bitwise_or.reduce(bits & FAULT_MASK)) if len(bits) else 0
     events = {k: v for k, v in runtime_log.bit_counts(bits).items() if v}
 
-    def per_joint(v: np.ndarray, f) -> list[float] | None:
+    def per_joint(v: np.ndarray, f: Callable[[np.ndarray], np.ndarray]) -> list[float] | None:
         return [float(x) for x in f(v)] if len(v) else None
 
     return {
