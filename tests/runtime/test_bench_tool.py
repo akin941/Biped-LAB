@@ -59,3 +59,30 @@ def test_bad_usage_and_bad_map_are_refused(tmp_path):
     assert r.returncode == 2 and "twice" in r.stderr
     r = bench("scan", "--device", tmp_path / "missing-tty")
     assert r.returncode == 2 and "missing-tty" in r.stderr
+
+
+HELLO = MAP.with_name("biped_v1_sts3215.hello")
+
+
+def test_offset_is_written_into_a_copy_of_the_map(tmp_path):
+    m = tmp_path / "map.txt"
+    m.write_text(MAP.read_text())
+    r = bench("offset", "--sim", "--map", m, "--joint", "left_knee", "--write")
+    assert r.returncode == 0, r.stderr
+    (row,) = lines(r.stdout)
+    assert row["id"] == 4 and row["written"] is True and row["within_limit"] is True
+    assert "left_knee              4   +1  +0.0000" in m.read_text()
+    assert bench("offset", "--sim", "--map", m).returncode == 2  # no joint
+
+
+def test_move_drives_one_joint_inside_its_range(tmp_path):
+    common = ["--sim", "--map", MAP, "--hello", HELLO, "--joint", "left_knee"]
+    r = bench("move", *common, "--to", "0.3", "--torque-limit", "0.2", "--seconds", "0.2")
+    assert r.returncode == 0, r.stderr
+    (row,) = lines(r.stdout)
+    assert row["towards_target"] is True and abs(row["end_rad"] - 0.3) < 0.002
+    r = bench("move", *common, "--to", "3", "--torque-limit", "0.2")
+    assert r.returncode == 2 and "outside the joint range" in r.stderr
+    r = bench("move", *common, "--to", "0.3", "--torque-limit", "0.8")
+    assert r.returncode == 2 and "torque limit" in r.stderr
+    assert bench("move", *common, "--to", "0.3").returncode == 2

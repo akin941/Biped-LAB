@@ -1,23 +1,37 @@
-//! `biped-bench`: read-only bench tools for Phase 5 stage 2 (WP5-02).
+//! `biped-bench`: bench tools for Phase 5 stages 2-3 (WP5-02, WP5-04).
 //!
 //! ```text
 //! biped-bench scan  (--device DEV | --sim) [--max-id 20]
 //! biped-bench read  (--device DEV | --sim) --map FILE
 //! biped-bench check (--device DEV | --sim) --map FILE [--seconds 60] [--hz 50]
+//! biped-bench offset (--device DEV | --sim) --map FILE --joint NAME [--write]
+//! biped-bench move  (--device DEV | --sim) --map FILE --hello FILE --joint NAME
+//!                   --to SIM_RAD --torque-limit F [--seconds 2]
 //! ```
 //!
 //! `scan` pings ids 0..=max-id and prints the ones that answer. `read` prints
 //! each joint's servo angle, sim angle, voltage, temperature and error bits.
 //! `check` reads every joint at the control rate for a while and prints the bus
 //! counters: stage 2 passes with no timeouts or checksum errors over 1 min.
-//! Nothing here writes a register or switches torque on. Set the device first,
+//! `scan`, `read` and `check` write no register.
+//!
+//! Stage 3 (single-joint calibration; needs the owner's approval to power on):
+//! `offset` reads one limp servo while the joint is held at its sim zero and
+//! prints the new offset; `--write` puts it into the map file (refused beyond
+//! +-0.8 rad). `move` sets the servo's torque limit to F (at most 0.5), drives
+//! one joint to a sim angle inside its model range, samples it for `--seconds`
+//! and switches torque off again. `towards_target` says the servo followed its
+//! goal; whether the joint turned the sim way (the sign) is checked by eye.
+//! Set the device first,
 //! e.g. `stty -F /dev/ttyUSB0 1000000 raw -echo`. `--sim` runs against the
 //! simulated bus (CI / demo). Output is one JSON object per line.
 
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use biped_runtime::jointmap::{JointMap, BIPED_V1_JOINTS};
+use biped_runtime::calib;
+use biped_runtime::jointmap::{set_offset, JointMap, BIPED_V1_JOINTS, MAX_OFFSET};
+use biped_runtime::protocol::Hello;
 use biped_runtime::sts::{self, addr};
 use biped_runtime::stsbus::{open_device, Bus, BusStats, Port, SimPort};
 
@@ -29,17 +43,34 @@ struct Args {
     max_id: u8,
     seconds: f64,
     hz: f64,
+    joint: Option<String>,
+    write: bool,
+    hello: Option<String>,
+    to: Option<f64>,
+    torque_limit: Option<f64>,
 }
 
 fn parse(argv: &[String]) -> Result<Args, String> {
     let mut a = Args {
-        cmd: argv.first().cloned().ok_or("missing command: scan, read or check")?,
+        cmd: argv
+            .first()
+            .cloned()
+            .ok_or("missing command: scan, read, check, offset or move")?,
         device: None,
         sim: false,
         map: None,
         max_id: 20,
-        seconds: 60.0,
+        seconds: if argv.first().map(String::as_str) == Some("move") {
+            2.0
+        } else {
+            60.0
+        },
         hz: 50.0,
+        joint: None,
+        write: false,
+        hello: None,
+        to: None,
+        torque_limit: None,
     };
     let mut it = argv[1..].iter();
     while let Some(flag) = it.next() {
@@ -50,6 +81,11 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--map" => a.map = Some(value()?),
             "--max-id" => a.max_id = value()?.parse().map_err(|_| "--max-id must be 0..=253")?,
             "--seconds" => a.seconds = value()?.parse().map_err(|_| "--seconds must be a number")?,
+            "--joint" => a.joint = Some(value()?),
+            "--write" => a.write = true,
+            "--hello" => a.hello = Some(value()?),
+            "--to" => a.to = Some(value()?.parse().map_err(|_| "--to must be a number")?),
+            "--torque-limit" => a.torque_limit = Some(value()?.parse().map_err(|_| "--torque-limit must be a number")?),
             "--hz" => a.hz = value()?.parse().map_err(|_| "--hz must be a number")?,
             _ => return Err(format!("unknown flag {flag}")),
         }
@@ -133,7 +169,53 @@ fn run<P: Port>(a: &Args, mut bus: Bus<P>) -> Result<bool, String> {
             );
             Ok(pass)
         }
-        other => Err(format!("unknown command {other}: scan, read or check")),
+        "offset" => {
+            let map = load_map(a)?;
+            let joint = a.joint.as_deref().ok_or("--joint NAME is needed")?;
+            let o = calib::measure_offset(&mut bus, &map, joint)?;
+            let mut written = false;
+            if a.write {
+                let path = a.map.as_deref().expect("load_map checked it");
+                let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+                let new = set_offset(&text, joint, o.offset, &BIPED_V1_JOINTS)?;
+                std::fs::write(path, new).map_err(|e| format!("{path}: {e}"))?;
+                written = true;
+            }
+            println!(
+                "{{\"joint\":\"{joint}\",\"id\":{},\"offset_rad\":{:.4},\"previous_rad\":{:.4},\"within_limit\":{},\"written\":{written}}}",
+                o.id,
+                o.offset,
+                o.previous,
+                o.offset.abs() <= MAX_OFFSET
+            );
+            Ok(o.offset.abs() <= MAX_OFFSET)
+        }
+        "move" => {
+            let map = load_map(a)?;
+            let path = a.hello.as_deref().ok_or("--hello FILE is needed")?;
+            let mut f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+            let hello = Hello::read(&mut f).map_err(|e| format!("{path}: {e}"))?;
+            let spec = calib::MoveSpec {
+                joint: a.joint.as_deref().ok_or("--joint NAME is needed")?,
+                target: a.to.ok_or("--to SIM_RAD is needed")?,
+                torque: a.torque_limit.ok_or("--torque-limit F is needed")?,
+                hold: Duration::from_secs_f64(a.seconds),
+                sample_period: Duration::from_secs_f64(1.0 / a.hz),
+            };
+            let m = calib::move_joint(&mut bus, &map, &hello, &spec)?;
+            let towards = m.moved_towards_target(0.5 * (m.target - m.start).abs());
+            println!(
+                "{{\"joint\":\"{}\",\"id\":{},\"start_rad\":{:.4},\"target_rad\":{:.4},\"end_rad\":{:.4},\"samples\":{},\"towards_target\":{towards}}}",
+                spec.joint,
+                m.id,
+                m.start,
+                m.target,
+                m.end(),
+                m.samples.len()
+            );
+            Ok(towards)
+        }
+        other => Err(format!("unknown command {other}: scan, read, check, offset or move")),
     }
 }
 

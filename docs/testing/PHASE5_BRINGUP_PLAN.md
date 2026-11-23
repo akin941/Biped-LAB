@@ -52,6 +52,10 @@ bus voltage, e-stop form) is made; servo-specific notes are for the STS3215 cand
    --seconds 30 --log run.bplog` is the stage 4 run; `--hw-sim` runs the same path in CI.
 3. Bench tools: ~~scan, read every joint, 1-minute bus check~~ done (WP5-02, `biped-bench`,
    read-only, e.g. `biped-bench check --device /dev/ttyUSB0 --map MAP --seconds 60` is the
-   stage 2 pass test). Still missing: move one joint by a small step with the torque capped,
-   and record the calibration offset into the joint-map file (stage 3).
+   stage 2 pass test). Stage 3 tools done too (WP5-04): `biped-bench offset --joint NAME
+   --write` (servo limp, joint held at its sim zero) and `biped-bench move --joint NAME --to
+   0.1 --torque-limit 0.2 --hello HELLO` (one joint, model range only, torque off at the
+   end). The sign is checked by eye: the joint must turn the way it turns in the sim viewer;
+   the readback only shows that the servo followed its goal. The STS torque limit register
+   (address 48) is from the memory table and is confirmed on the first servo.
 4. IMU driver: depends on the IMU part in the BOM (G4.5).
