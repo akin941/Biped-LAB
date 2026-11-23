@@ -4,7 +4,7 @@
 //! biped-runtime --connect 127.0.0.1:PORT
 //!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
-//!               [--torque-fraction F] [--action-scale 0.5] [--log FILE]
+//!               [--torque-fraction F] [--action-scale 0.5] [--no-joint-vel-lag] [--log FILE]
 //!               [--command-udp 127.0.0.1:PORT [--command-key KEY_FILE]]
 //! ```
 //!
@@ -42,6 +42,7 @@ struct Args {
     realtime: bool,
     torque_fraction: Option<f64>,
     action_scale: f64,
+    joint_vel_lag: bool,
     log: Option<String>,
     command_udp: Option<String>,
     command_key: Option<String>,
@@ -64,6 +65,7 @@ fn parse_args() -> Result<Args, String> {
         realtime: false,
         torque_fraction: None,
         action_scale: DEFAULT_ACTION_SCALE,
+        joint_vel_lag: true,
         log: None,
         command_udp: None,
         command_key: None,
@@ -91,6 +93,7 @@ fn parse_args() -> Result<Args, String> {
                 a.state_timeout = Duration::from_millis(ms.max(1));
             }
             "--realtime" => a.realtime = true,
+            "--no-joint-vel-lag" => a.joint_vel_lag = false,
             "--torque-fraction" => {
                 let f = value()?.parse::<f64>().map_err(|e| e.to_string())?;
                 if !(f > 0.0 && f <= 1.0) {
@@ -114,7 +117,12 @@ fn parse_args() -> Result<Args, String> {
     Ok(a)
 }
 
-fn make_controller(spec: &str, hello: &Hello, action_scale: f64) -> Result<Box<dyn Controller>, String> {
+fn make_controller(
+    spec: &str,
+    hello: &Hello,
+    action_scale: f64,
+    joint_vel_lag: bool,
+) -> Result<Box<dyn Controller>, String> {
     let stand = Stand::new(hello);
     let (kind, rest) = spec.split_once(':').unwrap_or((spec, ""));
     Ok(match kind {
@@ -122,7 +130,7 @@ fn make_controller(spec: &str, hello: &Hello, action_scale: f64) -> Result<Box<d
         "policy" => {
             let buf = std::fs::read(rest).map_err(|e| format!("policy {rest:?}: {e}"))?;
             let mlp = Mlp::from_bytes(&buf).map_err(|e| format!("policy {rest:?}: {e}"))?;
-            Box::new(Policy::new(mlp, hello, action_scale)?)
+            Box::new(Policy::new(mlp, hello, action_scale)?.with_joint_vel_lag(joint_vel_lag))
         }
         "nan-at" => {
             let v = floats(rest, 1)?;
@@ -235,7 +243,7 @@ fn run(args: &Args) -> Result<ExitCode, String> {
         .map_err(|e| e.to_string())?;
     let n = hello.joints.len();
     let dt = hello.control_dt;
-    let mut controller = make_controller(&args.controller, &hello, args.action_scale)?;
+    let mut controller = make_controller(&args.controller, &hello, args.action_scale, args.joint_vel_lag)?;
     let mut gate = CommandGate::new(GateLimits::default());
     let mut sup = Supervisor::new(
         &hello,

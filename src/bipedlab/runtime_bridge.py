@@ -138,7 +138,9 @@ def policy_observation(
 
     Mirrors ``runtime/src/policy.rs`` and the clean actor terms of
     ``BipedVelocityEnv``: gyro | projected gravity | qpos - stand | qvel |
-    last action | command, as float32.
+    last action | command, as float32. WP4-37: the runtime passes the previous
+    period's joint velocities as ``qvel`` (the training lag) unless started with
+    ``--no-joint-vel-lag``.
     """
     parts = [gyro, projected_gravity(quat), np.subtract(qpos, stand), qvel, last_action, command]
     return np.concatenate([np.asarray(p, dtype=np.float64) for p in parts]).astype(np.float32)

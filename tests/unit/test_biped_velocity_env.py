@@ -432,3 +432,16 @@ def test_joint_vel_lag_switch():
             assert err <= half + 1e-5
             prev = current.copy()
         assert np.abs(r.obs[0, sl] - other).max() > half
+
+
+def test_clean_observation_with_joint_vel_lag():
+    """WP4-37: noise off with the lag on is the runtime's observation."""
+    sl = slice(16, 26)
+    env = BipedVelocityEnv(num_envs=1, seed=3, noise=False, joint_vel_lag=True)
+    prev = env.critic_obs[0, sl].copy()
+    rng = np.random.default_rng(1)
+    for _ in range(3):
+        r = env.step(rng.uniform(-0.3, 0.3, size=(1, 10)).astype(np.float32))
+        np.testing.assert_allclose(r.obs[0, sl], prev, atol=1e-6)
+        np.testing.assert_allclose(r.obs[0, :16], r.critic_obs[0, :16], atol=1e-6)
+        prev = r.critic_obs[0, sl].copy()

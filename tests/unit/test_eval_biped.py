@@ -99,4 +99,4 @@ def test_obs_mode_is_recorded_and_checked():
     case = eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 2.0, 0, False, obs_mode="runtime")
     assert case["obs_mode"] == "runtime"
     with pytest.raises(ValueError):
-        eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 2.0, 0, False, obs_mode="clean")
+        eval_biped.run_case(None, (0.15, 0.0, 0.0), 1, 2.0, 0, False, obs_mode="bogus")

@@ -51,8 +51,16 @@ TWISTS = [(0.15, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.8)]
 ROBUST_TWIST = TWISTS[0]
 # Actor observation (WP4-37): "train" = the training noise, gyro/gravity lag and
 # one-period-old joint velocities; "no-vel-lag" = the same with current joint
-# velocities; "runtime" = the clean observation runtime/src/policy.rs builds.
-OBS_MODES = ("train", "no-vel-lag", "runtime")
+# velocities; "clean" = no noise or lag, current joint velocities (the runtime before
+# WP4-37, MAC-45's "runtime"); "runtime" = no noise, one-period-old joint velocities
+# (runtime/src/policy.rs since WP4-37).
+OBS_MODES = ("train", "no-vel-lag", "clean", "runtime")
+OBS_ENV_KWARGS: dict[str, dict[str, Any]] = {
+    "train": {"noise": True, "joint_vel_lag": None},
+    "no-vel-lag": {"noise": True, "joint_vel_lag": False},
+    "clean": {"noise": False, "joint_vel_lag": None},
+    "runtime": {"noise": False, "joint_vel_lag": True},
+}
 ROBUST_FRICTION = (0.5, 1.5)  # foot friction outside the DR range (0.7, 1.3)
 PUSH_AT_S = 4.0
 PUSH_DV = 0.3  # m/s in the trunk's heading frame, 1.5x the DR push
@@ -113,8 +121,7 @@ def run_case(
     if obs_mode not in OBS_MODES:
         raise ValueError(f"obs_mode must be one of {OBS_MODES}")
     env = bve.BipedVelocityEnv(
-        noise=obs_mode != "runtime",
-        joint_vel_lag=obs_mode == "train",
+        **OBS_ENV_KWARGS[obs_mode],
         num_envs=num_envs,
         seed=seed,
         episode_s=seconds + 1.0,
