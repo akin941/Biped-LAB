@@ -62,6 +62,19 @@ CANDIDATES = [
     Candidate("STS3215 (7.4 V)", 7.4, 19.5 * 0.0981, (math.pi / 3) / 0.192, 2.5, 0.055,
               (4.0, 7.4), "USD 33.97 (robotshop.com, incl. US tariffs)",
               "Feetech STS3215 datasheet (translated, core-electronics.com.au)"),
+    # Low-budget PWM hobby servos (G4.5, 2026-11-23, owner's budget): no position
+    # feedback. Numbers are the common seller datasheets at 6 V, not checked against a
+    # manufacturer page; stall currents are seller figures too. Prices: robotsepeti.com
+    # showed these in stock but its prices were not readable from the cloud.
+    Candidate("DS3218MG (6 V)", 6.0, 20.0 * 0.0981, (math.pi / 3) / 0.15, 2.5, 0.060,
+              (4.8, 6.8), "robotsepeti.com, in stock; price not read (est. ~600 TL)",
+              "DSServo DS3218MG seller datasheet (5 V 19 kg*cm 0.16 s; 6.8 V 21.5, 0.14)"),
+    Candidate("MG996R (6 V)", 6.0, 11.0 * 0.0981, (math.pi / 3) / 0.14, 2.5, 0.055,
+              (4.8, 7.2), "robotsepeti.com, in stock; price not read (est. ~300 TL)",
+              "Tower Pro MG996R seller datasheet"),
+    Candidate("MG90S (6 V)", 6.0, 2.2 * 0.0981, (math.pi / 3) / 0.08, 0.7, 0.0134,
+              (4.8, 6.0), "robotistan.com 190.65 TL incl. VAT (sold out 2026-11-23)",
+              "Tower Pro MG90S seller datasheet"),
 ]  # fmt: skip
 
 

@@ -43,6 +43,8 @@ STEPS_PER_ENV = 24
 # explores 0.25 rad per joint; 1.0 (Microduck's value at scale 1.0) made the
 # action-rate penalty of pure noise outweigh standing and the policy learned to jitter.
 BIPED_INIT_STD = 0.5
+# --robot biped_v1 --model: the committed scenes (G4.5 adds the DS3218MG build).
+BIPED_SCENES = {"biped_v1": bve.DEFAULT_SCENE, "biped_ds3218": bve.DS3218_SCENE}
 
 
 class Recorder:
@@ -280,6 +282,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--track-ang-ref-speed is a Microduck option")
     if biped_v1 and args.forward_min_vx is not None:
         raise SystemExit("--forward-min-vx is a Microduck option")
+    if not biped_v1 and (args.model != "biped_v1" or args.joint_feedback != "measured"):
+        raise SystemExit("--model / --joint-feedback are biped_v1 options")
     if not biped_v1 and args.track_yaw_std2 is not None:
         raise SystemExit("--track-yaw-std2 is a biped_v1 option")
     if not biped_v1 and (args.torque_limit is not None or args.motor_no_load_speed is not None):
@@ -304,7 +308,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"seed": args.seed, "common_step": common_step, "dr": args.dr}
     env_cls: type
     if biped_v1:
-        scene, env_cls, act_dim = bve.DEFAULT_SCENE, bve.BipedVelocityEnv, bve.ACT_DIM
+        scene, env_cls, act_dim = BIPED_SCENES[args.model], bve.BipedVelocityEnv, bve.ACT_DIM
+        kwargs["joint_feedback"] = args.joint_feedback
         if args.dr_delay_max is not None:
             kwargs["dr_delay_max"] = args.dr_delay_max
         if args.dr_friction is not None:
@@ -474,6 +479,14 @@ def main() -> None:
     parser.add_argument(
         "--motor-no-load-speed", type=float, default=None,
         help="biped_v1 DC-motor no-load speed in rad/s: torque-speed curve on (WP4-28)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--model", choices=sorted(BIPED_SCENES), default="biped_v1",
+        help="with --robot biped_v1: the model, biped_v1 or the DS3218MG build (G4.5)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--joint-feedback", choices=bve.JOINT_FEEDBACK, default="measured",
+        help="biped_v1 actor joint terms: measured, or commanded targets for PWM servos (G4.5)",
     )  # fmt: skip
     parser.add_argument(
         "--rough-floor", type=float, default=0.0,

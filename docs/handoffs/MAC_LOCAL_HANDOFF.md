@@ -2441,5 +2441,45 @@ verdict: WP4-38 met. Terrain candidate k3_6900 (ONNX sha256 2e94457133cef85e2348
 
 ---
 
+## MAC-47 — biped_ds3218: learn to walk with the owner's low-budget servos (WP4-40, G4.5)
+Status: `awaiting-mac` · Deps: WP4-39 on main; MAC-37 B checkpoint (`runs/mac37-b/model_<newest>.pt`)
+
+The owner picked ten DSServo DS3218MG PWM hobby servos (G4.5, 2026-11-23). Two things change from
+biped_v1: the robot is ~1.04 kg instead of 0.51 kg (`simulation/custom-biped/biped_ds3218.xml`, same
+joints and stand pose), and the servos report nothing back, so the actor must use the targets it sent
+(`--joint-feedback commanded`) instead of measured joint angles and speeds. Servo at 6 V: 1.96 N·m stall,
+7.0 rad/s no-load (seller datasheet; gains and friction in the model are guesses until bench ID).
+
+Two runs, same flags, `--workers <best>` as in MAC-37:
+```bash
+F="--robot biped_v1 --model biped_ds3218 --joint-feedback commanded --dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 --torque-limit 1.96 --motor-no-load-speed 7.0"
+# A: fine-tune the MAC-37 STS3215 policy (warm start; its joint inputs change meaning, the rest carries over)
+uv run python scripts/train_ppo.py $F --iters 1500 --workers <best> \
+    --resume <mac37>/runs/mac37-b/model_<newest>.pt --run-dir runs/mac47-a --save-every 100 \
+    --out runs/mac47-a/report.json
+# B: from scratch, only if A does not walk (same 4000 iterations as MAC-25)
+uv run python scripts/train_ppo.py $F --iters 4000 --workers <best> --run-dir runs/mac47-b \
+    --save-every 100 --out runs/mac47-b/report.json
+E="--model biped_ds3218 --joint-feedback commanded --torque-limit 1.96 --motor-no-load-speed 7.0"
+uv run python scripts/eval_biped.py runs/mac47-<a|b>/policy.onnx $E --dr --robustness --envs 8 \
+    --seconds 20 --out runs/mac47-<a|b>/eval.json
+uv run python scripts/eval_biped.py runs/mac47-<a|b>/policy.onnx $E --obs-mode runtime --envs 16 \
+    --seconds 20 --out runs/mac47-<a|b>/eval_runtime.json
+```
+Report per run: the MAC-25 rows (falls, vx at 0.15 / 0.25 against the command, wz at 0.8, 40 ms
+latency row), the `sizing` block (max torque and p95 speed per joint against 1.96 N·m / 7.0 rad/s, and
+`at_torque_limit`), and the slew-limited fraction. Commit a summary JSON under `docs/experiments/mac47/`
+(no ONNX, no runs/).
+
+**Acceptance (WP4-40):** one run with no fall in the nominal and DR cases, vx >= 50 % of the command at
+0.15 and 0.25, and no joint whose worst walking max torque is above 1.96 / 1.5 = 1.3 N·m (some margin left
+for the heavier real build). If neither run walks, report where it stops (stands only, falls, torque
+clip) so the cloud can adjust the model or the gait range; that is a valid result, not a failure of the task.
+
+Result (env: mac-m5): `pending`
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)

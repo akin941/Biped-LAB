@@ -445,3 +445,28 @@ def test_clean_observation_with_joint_vel_lag():
         np.testing.assert_allclose(r.obs[0, sl], prev, atol=1e-6)
         np.testing.assert_allclose(r.obs[0, :16], r.critic_obs[0, :16], atol=1e-6)
         prev = r.critic_obs[0, sl].copy()
+
+
+def test_commanded_joint_feedback_for_pwm_servos():
+    """G4.5: without servo feedback the actor sees the sent targets and their rate."""
+    env = BipedVelocityEnv(
+        scene=bve.DS3218_SCENE, num_envs=2, seed=4, noise=False, joint_feedback="commanded"
+    )
+    np.testing.assert_allclose(env.obs[:, S["joint_pos"]], 0.0, atol=1e-6)
+    np.testing.assert_allclose(env.obs[:, S["joint_vel"]], 0.0, atol=1e-6)
+    prev = env.last_target.copy()
+    for a in actions(3, 2, seed=5):
+        r = env.step(a.astype(np.float32))
+        assert not r.terminated.any()
+        np.testing.assert_allclose(
+            r.obs[:, S["joint_pos"]], env.last_target - env.default_pose, atol=1e-6
+        )
+        np.testing.assert_allclose(
+            r.obs[:, S["joint_vel"]], (env.last_target - prev) / bve.STEP_DT, atol=1e-4
+        )
+        # The critic keeps the measured joint state.
+        measured = np.array([d.qpos[env.qpos_idx] for d in env.datas]) - env.default_pose
+        np.testing.assert_allclose(r.critic_obs[:, S["joint_pos"]], measured, atol=1e-6)
+        prev = env.last_target.copy()
+    with pytest.raises(ValueError, match="joint_feedback"):
+        BipedVelocityEnv(num_envs=1, joint_feedback="pwm")
