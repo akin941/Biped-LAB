@@ -69,6 +69,10 @@ gate item has evidence in the named environment.
   - G4.4 Rust runtime drives the sim through a socket bridge at 50 Hz with the safety
     supervisor model — `gha-linux` + `mac-m5`
   - G4.5 BOM draft and actuator selection with cost — owner decision
+  - Status (2026-11-23): G4.2, G4.3, G4.4 met; G4.1 calcs done, owner review pending; G4.5
+    owner decision (servo on hold). Reference policy k3_6900 walks through the runtime with the
+    STS3215 model from 8 starts (MAC-46); its quiet realtime run is pending. Turkish summary:
+    `docs/learning/06-faz4-durumu.md`.
 - **Owner gate:** explicit approval required before any purchase.
 
 ## Phase 5 — Physical prototype

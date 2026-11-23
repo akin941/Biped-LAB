@@ -44,6 +44,7 @@ uv run mjpython -m bipedlab.cli view microduck           # 3B pencere (yalnızca
 ## Belgeler
 
 - [Temel kavramlar (Türkçe)](docs/learning/01-temel-kavramlar.md): MuJoCo, PPO, ONNX, Rust neden var?
+- [Faz 4 durum özeti (Türkçe)](docs/learning/06-faz4-durumu.md): hangi kapı geçti, senden ne bekleniyor
 - [Faz 0 raporu (Türkçe)](docs/reports/PHASE0_RAPOR.md)
 - [Araştırma özeti](docs/research/SUMMARY.md) ve ayrıntılı raporlar
 - [Mimari](docs/architecture/ARCHITECTURE.md), [teknoloji kararları](docs/architecture/TECH_DECISION_MATRIX.md), [ADR'ler](docs/decisions/README.md)
