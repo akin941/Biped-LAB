@@ -487,7 +487,8 @@ class BipedVelocityEnv:
         want = target + self.servo_offset[i]
         moved = np.abs(want - self.servo_held[i]) > self.servo_deadband[i]
         self.servo_held[i] = np.where(moved, want, self.servo_held[i])
-        return self.servo_held[i]
+        held: np.ndarray = self.servo_held[i].copy()
+        return held
 
     def _push(self) -> None:
         self.push_left -= STEP_DT
