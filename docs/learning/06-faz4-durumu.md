@@ -20,7 +20,8 @@ için kanıt değildir. Hiçbir şey satın alınmadı.
   (Mac, MAC-46).
 - Bundan önce program, politikaya eklem hızlarını eğitimden farklı (bir adım
   erken) veriyordu; robot hep sola dönüyordu. Bu düzeltildi (WP4-37/38).
-- Kalan tek simülasyon adımı: aynı politikanın Mac boşken gerçek zamanlı koşusu.
+- Gerçek zamanlı koşu da geçti (Mac, Mac yüklüyken): düşme yok, hata yok, 1000
+  döngünün hiçbiri gecikmedi; dönme en fazla 0.041 rad/s.
 
 ## Servo konusunda bilinenler
 - `04-servo-secenekleri.md` eski hesaba dayanıyor. Kendi yürüyüşümüzden
