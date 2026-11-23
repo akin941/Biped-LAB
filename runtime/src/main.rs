@@ -521,11 +521,7 @@ fn open_link(args: &Args) -> Result<(Hello, Box<dyn Link>), String> {
     if args.pwm {
         let link = match &args.device {
             Some(dev) => pwm_link(args, open_device(dev).map_err(|e| format!("{dev}: {e}"))?, &hello)?,
-            None => {
-                let lower: Vec<f64> = hello.joints.iter().map(|j| j.lower).collect();
-                let upper: Vec<f64> = hello.joints.iter().map(|j| j.upper).collect();
-                pwm_link(args, SimMcu::new(&lower, &upper)?, &hello)?
-            }
+            None => pwm_link(args, SimMcu::ds3218(), &hello)?,
         };
         return Ok((hello, link));
     }

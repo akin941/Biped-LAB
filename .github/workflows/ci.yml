@@ -110,6 +110,12 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
           cargo build --locked --target thumbv6m-none-eabi
+      - name: Supervisor RP2040 firmware binary (WP5-10), lint and release build
+        working-directory: firmware/supervisor-rp2040
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --release -- -D warnings
+          cargo build --locked --release
       - name: Runtime drives the sim (G4.4 tests)
         env:
           BIPEDLAB_REQUIRE_RUNTIME: "1"

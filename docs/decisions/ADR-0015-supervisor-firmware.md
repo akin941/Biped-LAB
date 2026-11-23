@@ -47,3 +47,6 @@ The Pi side of the link is `runtime/src/pwmlink.rs` (`biped-runtime --servos pwm
 WP5-09), which uses this crate's frame code directly, so both ends share one
 definition. The runtime's over-temperature check cannot fire on this build (no
 sensor), and its joint terms are the commanded targets.
+The RP2040 binary is `firmware/supervisor-rp2040` (WP5-10). Its third-party crates
+are reviewed in `docs/hardware/rp2040_crate_review.md`. The joint table, including
+the knee's centre offset, is in `supervisor_core::joints`.

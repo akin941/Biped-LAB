@@ -1,0 +1,29 @@
+[package]
+name = "supervisor-rp2040"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+description = "RP2040 firmware of the safety supervisor for the DS3218MG build (ADR-0015, WP5-10): UART, 50 Hz servo PWM, battery ADC around supervisor-core"
+publish = false
+
+# Third-party crates, reviewed in docs/hardware/rp2040_crate_review.md. Exact
+# versions; Cargo.lock is committed.
+[dependencies]
+supervisor-core = { path = "../supervisor-core" }
+rp2040-hal = { version = "=0.12.0", features = ["rt", "critical-section-impl"] }
+rp2040-boot2 = "=0.3.0"
+cortex-m-rt = "=0.7.7"
+embedded-hal = "=1.0.0"
+embedded-hal-nb = "=1.0.0"
+panic-halt = "=1.0.0"
+
+[profile.release]
+opt-level = "s"
+debug = 2
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+panic = "abort"

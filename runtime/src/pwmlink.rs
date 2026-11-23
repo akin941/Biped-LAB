@@ -206,7 +206,7 @@ impl<P: Port, I: Imu> PwmSource<P, I> {
 }
 
 /// The supervisor MCU in software: `supervisor_core::Supervisor` behind a
-/// port, with DS3218MG pulse mapping over the hello's joint ranges. Its clock
+/// port, with a joint table (the firmware's own with `SimMcu::ds3218`). Its clock
 /// advances `ms_per_frame` per targets frame received, so runs are
 /// reproducible; `battery_v` and `faults` (one per frame) are test inputs.
 pub struct SimMcu {
@@ -222,15 +222,13 @@ pub struct SimMcu {
 }
 
 impl SimMcu {
-    pub fn new(lower: &[f64], upper: &[f64]) -> Result<Self, String> {
-        if lower.len() != N_JOINTS || upper.len() != N_JOINTS {
-            return Err(format!("the PWM supervisor drives {N_JOINTS} joints"));
-        }
-        let mut joints = [JointPwm::ds3218(0.0, 0.0); N_JOINTS];
-        for (j, (lo, hi)) in joints.iter_mut().zip(lower.iter().zip(upper)) {
-            *j = JointPwm::ds3218(*lo as f32, *hi as f32);
-        }
-        Ok(SimMcu {
+    /// The firmware's joint table for the DS3218MG build (WP5-10).
+    pub fn ds3218() -> Self {
+        SimMcu::new(supervisor_core::joints::biped_ds3218())
+    }
+
+    pub fn new(joints: [JointPwm; N_JOINTS]) -> Self {
+        SimMcu {
             sup: Supervisor::new(joints, Limits::default()),
             // Powered up a while ago: its start-up watchdog has latched.
             now_ms: 1000,
@@ -240,7 +238,7 @@ impl SimMcu {
             frames: 0,
             reader: Reader::default(),
             pending: Vec::new(),
-        })
+        }
     }
 }
 
@@ -295,11 +293,12 @@ mod tests {
     use crate::hwstate::UprightImu;
     use crate::safety::FAULT_TILT;
 
-    const LOWER: [f64; N_JOINTS] = [-1.0; N_JOINTS];
-    const UPPER: [f64; N_JOINTS] = [1.0; N_JOINTS];
+    fn mcu() -> SimMcu {
+        SimMcu::new([JointPwm::ds3218(-1.0, 1.0); N_JOINTS])
+    }
 
     fn source() -> PwmSource<SimMcu, UprightImu> {
-        let mcu = SimMcu::new(&LOWER, &UPPER).unwrap();
+        let mcu = mcu();
         PwmSource::new(mcu, UprightImu, &[0.1; N_JOINTS], 0.02).unwrap()
     }
 
@@ -386,7 +385,7 @@ mod tests {
 
     #[test]
     fn a_low_battery_fails_the_start() {
-        let mut mcu = SimMcu::new(&LOWER, &UPPER).unwrap();
+        let mut mcu = mcu();
         mcu.battery_v = 6.0;
         let e = PwmSource::new(mcu, UprightImu, &[0.0; N_JOINTS], 0.02).err().unwrap();
         assert!(e.contains("latched") && e.contains("6.00 V"), "{e}");
@@ -414,8 +413,17 @@ mod tests {
         let mut hw = source();
         assert!(hw.apply(&action(true, vec![0.0; 9], 0)).is_err());
         assert!(hw.apply(&action(true, vec![f64::NAN; N_JOINTS], 0)).is_err());
-        assert!(SimMcu::new(&[0.0; 9], &[0.0; 9]).is_err());
-        let mcu = SimMcu::new(&LOWER, &UPPER).unwrap();
-        assert!(PwmSource::new(mcu, UprightImu, &[0.0; 4], 0.02).is_err());
+        assert!(PwmSource::new(mcu(), UprightImu, &[0.0; 4], 0.02).is_err());
+    }
+
+    #[test]
+    fn the_firmware_table_holds_the_knee_at_mid_range() {
+        let mut hw = PwmSource::new(SimMcu::ds3218(), UprightImu, &[0.0; N_JOINTS], 0.02).unwrap();
+        let mut t = vec![0.0; N_JOINTS];
+        t[3] = supervisor_core::joints::KNEE_CENTER as f64;
+        t[8] = t[3];
+        hw.apply(&action(true, t, 0)).unwrap();
+        let p = hw.last_status.unwrap().pulses_us;
+        assert_eq!((p[0], p[3], p[8]), (1500, 1500, 1500));
     }
 }
