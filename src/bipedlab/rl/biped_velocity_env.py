@@ -219,10 +219,11 @@ class BipedVelocityEnv:
     first_env: int = 0
     episode_s: float = EPISODE_S
     noise: bool = True
-    # With ``noise``, the actor's joint velocities are one period old (as in Microduck).
-    # WP4-37: False keeps the noise but feeds the current joint velocities, which is
-    # what the runtime sends; ``noise=False`` gives the runtime's clean observation.
-    joint_vel_lag: bool = True
+    # One-period-old joint velocities in the actor observation (as in Microduck).
+    # None follows ``noise`` (the training behaviour). WP4-37 / MAC-45: the runtime fed
+    # current ones and every policy yawed; it now feeds the lagged ones like training,
+    # so ``noise=False, joint_vel_lag=True`` is the runtime's observation.
+    joint_vel_lag: bool | None = None
     common_step: int = 0
     dr: bool = False
     target_slew: float | None = TARGET_SLEW
@@ -570,7 +571,7 @@ class BipedVelocityEnv:
         clean = [s["gyro"], s["gravity"], joint_rel, s["joint_vel"], self.last_action[envs], cmd]
         gyro = np.where(self.lag[envs, 0:1], self.prev_gyro[envs], s["gyro"])
         gravity = np.where(self.lag[envs, 1:2], self.prev_gravity[envs], s["gravity"])
-        lagged = self.noise and self.joint_vel_lag
+        lagged = self.noise if self.joint_vel_lag is None else self.joint_vel_lag
         joint_vel = self.prev_joint_vel[envs] if lagged else s["joint_vel"]
         actor_joint = joint_rel
         if self.dr:

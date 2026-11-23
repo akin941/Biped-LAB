@@ -51,6 +51,10 @@ pub struct Policy {
     action_scale: f64,
     last_action: Vec<f32>,
     obs: Vec<f32>,
+    /// WP4-37: feed the joint velocities of the previous period, as the policy saw them in
+    /// training (BipedVelocityEnv's one-period lag). The first period uses the current ones.
+    joint_vel_lag: bool,
+    prev_qvel: Option<Vec<f64>>,
     /// Periods whose action had a non-finite entry.
     pub nonfinite_actions: u64,
 }
@@ -74,8 +78,16 @@ impl Policy {
             action_scale,
             last_action: vec![0.0; n],
             obs: Vec::with_capacity(obs_dim),
+            joint_vel_lag: true,
+            prev_qvel: None,
             nonfinite_actions: 0,
         })
+    }
+
+    /// Turns the one-period joint-velocity lag (on by default) on or off.
+    pub fn with_joint_vel_lag(mut self, lag: bool) -> Self {
+        self.joint_vel_lag = lag;
+        self
     }
 
     /// The observation of the last call to `targets`.
@@ -89,9 +101,14 @@ impl Policy {
         o.extend(state.gyro.iter().map(|&v| v as f32));
         o.extend(projected_gravity(state.quat).iter().map(|&v| v as f32));
         o.extend(state.qpos.iter().zip(&self.stand).map(|(q, s)| (q - s) as f32));
-        o.extend(state.qvel.iter().map(|&v| v as f32));
+        let qvel = match (&self.prev_qvel, self.joint_vel_lag) {
+            (Some(prev), true) => prev,
+            _ => &state.qvel,
+        };
+        o.extend(qvel.iter().map(|&v| v as f32));
         o.extend_from_slice(&self.last_action);
         o.extend([cmd.vx as f32, cmd.vy as f32, cmd.wz as f32]);
+        self.prev_qvel = Some(state.qvel.clone());
     }
 }
 
@@ -184,7 +201,7 @@ mod tests {
         let h = hello(n);
         // Outputs: action0 = joint_pos0 term, action1 = command wz.
         let mlp = picker(3 * n + 9, &[6, 3 * n + 8], 1.0);
-        let mut p = Policy::new(mlp, &h, 0.5).unwrap();
+        let mut p = Policy::new(mlp, &h, 0.5).unwrap().with_joint_vel_lag(false);
         let cmd = Command {
             vx: 0.2,
             vy: 0.0,
@@ -227,5 +244,27 @@ mod tests {
         assert_eq!(p.nonfinite_actions, 1);
         p.targets(&state(n), Command::default());
         assert_eq!(p.observation()[3 * n + 6], 0.0);
+    }
+
+    #[test]
+    fn joint_velocities_lag_one_period_by_default() {
+        let n = 2;
+        let h = hello(n);
+        let vel = 3 * 2; // gyro 3 | gravity 3 | joint pos n | joint vel n
+        let mut p = Policy::new(picker(3 * n + 9, &[0, 1], 1.0), &h, 0.5).unwrap();
+        let mut s = state(n);
+        p.targets(&s, Command::default());
+        assert_eq!(&p.observation()[vel + n..vel + 2 * n], &[0.5, 0.5]); // first: current
+        s.qvel = vec![-1.0, 2.0];
+        p.targets(&s, Command::default());
+        assert_eq!(&p.observation()[vel + n..vel + 2 * n], &[0.5, 0.5]); // previous period
+        p.targets(&s, Command::default());
+        assert_eq!(&p.observation()[vel + n..vel + 2 * n], &[-1.0, 2.0]);
+        let mut q = Policy::new(picker(3 * n + 9, &[0, 1], 1.0), &h, 0.5)
+            .unwrap()
+            .with_joint_vel_lag(false);
+        q.targets(&state(n), Command::default());
+        q.targets(&s, Command::default());
+        assert_eq!(&q.observation()[vel + n..vel + 2 * n], &[-1.0, 2.0]);
     }
 }

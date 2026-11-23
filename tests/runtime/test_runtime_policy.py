@@ -46,11 +46,17 @@ def small_policy(seed: int, gain: float = 0.05) -> me.Mlp:
     return me.Mlp(OBS, ops)
 
 
-def replay(mlp: me.Mlp, trace: list[dict], stand: np.ndarray) -> np.ndarray:
+def replay(
+    mlp: me.Mlp, trace: list[dict], stand: np.ndarray, joint_vel_lag: bool = True
+) -> np.ndarray:
+    """WP4-37: by default the runtime feeds the previous period's joint velocities."""
     last = np.zeros(ACT, dtype=np.float32)
     out = []
+    prev = trace[0]["qvel"]
     for f in trace:
-        obs = rb.policy_observation(f["gyro"], f["quat"], f["qpos"], f["qvel"], stand, last)
+        qvel = prev if joint_vel_lag else f["qvel"]
+        prev = f["qvel"]
+        obs = rb.policy_observation(f["gyro"], f["quat"], f["qpos"], qvel, stand, last)
         last = mlp.forward(obs)
         out.append(stand + SCALE * last.astype(np.float64))
     return np.array(out)
@@ -72,6 +78,24 @@ def test_runtime_policy_matches_the_python_reference(tmp_path):
     np.testing.assert_allclose(got, want, atol=1e-5, rtol=0)
     # The policy did move the joints, so the comparison is not trivially the stand pose.
     assert np.abs(got - rb.SimBridge().default).max() > 1e-3
+    # ... and the lag matters: the current-velocity replay does not match.
+    other = replay(mlp, trace, rb.SimBridge().default, joint_vel_lag=False)
+    assert np.abs(got - other).max() > 1e-5
+
+
+def test_no_joint_vel_lag_flag_feeds_current_velocities(tmp_path):
+    mlp = small_policy(seed=0)
+    path = mlp.save(tmp_path / "policy.bpml")
+    r = rb.run_with_runtime(
+        BINARY,
+        ["--controller", f"policy:{path}", "--no-joint-vel-lag"],
+        rb.BridgeConfig(seconds=3.0, record=True),
+    )
+    assert r["exit_code"] == 0, r["stderr"]
+    trace = r["sim"]["trace"]
+    got = np.array([f["targets"] for f in trace])
+    want = replay(mlp, trace, rb.SimBridge().default, joint_vel_lag=False)
+    np.testing.assert_allclose(got, want, atol=1e-5, rtol=0)
 
 
 def test_supervisor_still_filters_policy_targets(tmp_path):

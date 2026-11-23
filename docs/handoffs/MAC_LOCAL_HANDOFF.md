@@ -2261,7 +2261,7 @@ verdict: not met. Safety and timing are clean on a quiet Mac (no fall, no fault,
 ---
 
 ## MAC-44 — biped_v1: score the MAC-42 averages through the runtime from several starts (WP4-36)
-Status: `seed part met by k3_7450 (mac-m5, 2026-11-20); realtime run pending (waiting for a quiet Mac)` · Deps: MAC-42 averages in `runs/mac42/`, MAC-43 runtime build
+Status: `seed part met by k3_7450 (mac-m5, 2026-11-20); realtime part superseded by MAC-46 (the runtime observation changed, WP4-38)` · Deps: MAC-42 averages in `runs/mac42/`, MAC-43 runtime build
 
 MAC-43 ran the k3_6900 average from the exact keyframe only: one deterministic trajectory, wz
 +0.132 at 0.25 m/s, while the Python eval over 16 noisy resets gives -0.005. `runtime_sim.py
@@ -2365,6 +2365,40 @@ reading: runtime mode matches the MAC-44 runtime wz within 0.024 in all 8 rows (
   training and runtime see the same observation, either feed the runtime the same lagged joint
   velocities (and noise-free equivalents) or train without the lag, then re-score with --obs-mode runtime.
 ```
+
+---
+
+## MAC-46 — biped_v1: re-score the MAC-42 averages with the runtime's lagged joint velocities (WP4-38)
+Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`; replaces the MAC-44 realtime part
+
+MAC-45 showed the runtime's +wz comes from feeding current joint velocities to a policy trained on
+one-period-old ones. The runtime now feeds the previous period's joint velocities by default
+(`--no-joint-vel-lag` restores the old behaviour). Rebuild the runtime from a clean origin/main worktree;
+no `--realtime` until the last step, so VM load does not matter.
+
+For each of k3_6900, k3_7450, k5_6950, k5_7250 (reuse the MAC-44 `policy.bpml` exports):
+```bash
+(cd runtime && cargo build --locked --release)
+P=<mac42>/runs/mac42/<cand>
+for v in 0.15 0.25; do for s in 0 1 2 3 4 5 6 7; do
+  uv run python scripts/runtime_sim.py --seconds 20 --env-label mac-m5 --init-seed $s \
+      --torque-limit 1.91 --motor-no-load-speed 5.45 \
+      --out runs/mac46/<cand>/v${v}_s$s.json --require-clean-exit -- \
+      --controller policy:$P/policy.bpml --command 0:20:$v:0:0
+done; done
+uv run python scripts/eval_biped.py $P/policy.onnx --envs 16 --seconds 20 \
+    --torque-limit 1.91 --motor-no-load-speed 5.45 --obs-mode runtime --out runs/mac46/<cand>/eval_runtime.json
+```
+Report per candidate and command: falls, latched faults, mean and min/max of `vx_body_mean` and
+`wz_mean` over the 8 starts, next to the MAC-44 numbers and the new `--obs-mode runtime` eval. Commit a
+summary JSON under `docs/experiments/mac46/`.
+
+**Acceptance (WP4-38):** as WP4-36, one candidate with no fall and no latched fault on any start,
+|mean `wz_mean`| <= 0.08 and mean `vx_body_mean` >= 50 % of the command, at both 0.15 and 0.25; pick
+the smallest worst-case |wz|, preferring k3_6900 (its neighbours also passed MAC-42). Then, on a quiet
+Mac (MAC-43 wait script, at most 4 h), one `--realtime` run of it from `--init-seed 0` at both commands:
+MAC-38 rows (no fall, no fault, 1000 periods, <= 10 misses, vx >= 50 %). Name it (candidate, ONNX sha256).
+If the Mac never gets quiet, report the seed part and leave the realtime row pending.
 
 ---
 
