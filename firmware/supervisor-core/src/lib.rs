@@ -20,6 +20,7 @@
 #![cfg_attr(not(test), no_std)]
 
 pub mod frame;
+pub mod joints;
 pub mod servo;
 
 use servo::JointPwm;
