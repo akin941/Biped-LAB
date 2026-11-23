@@ -116,3 +116,55 @@ def test_wrong_size_policy_is_refused(tmp_path):
     r = rb.run_with_runtime(BINARY, ["--controller", f"policy:{path}"], rb.BridgeConfig())
     assert r["exit_code"] == 2 and "error" in r["sim"]
     assert "policy is 61 -> 14, the robot needs 39 -> 10" in r["stderr"]
+
+
+def replay_commanded(mlp: me.Mlp, trace: list[dict], stand: np.ndarray) -> np.ndarray:
+    """G4.5: joint terms are the targets sent last period and their rate."""
+    last = np.zeros(ACT, dtype=np.float32)
+    sent, prev = stand.copy(), stand.copy()
+    out = []
+    for f in trace:
+        rate = (sent - prev) / rb.BridgeConfig().control_dt
+        obs = rb.policy_observation(f["gyro"], f["quat"], sent, rate, stand, last)
+        last = mlp.forward(obs)
+        out.append(stand + SCALE * last.astype(np.float64))
+        prev, sent = sent, np.asarray(f["targets"], dtype=np.float64)
+    return np.array(out)
+
+
+def test_commanded_joint_feedback_matches_the_python_reference(tmp_path):
+    """WP5-06: ``--joint-feedback commanded`` feeds back the targets the robot was sent."""
+    import mujoco
+
+    from bipedlab.rl import biped_velocity_env as bve
+
+    mlp = small_policy(seed=1)
+    path = mlp.save(tmp_path / "policy.bpml")
+    model = mujoco.MjModel.from_xml_path(str(bve.DS3218_SCENE))
+    r = rb.run_with_runtime(
+        BINARY,
+        ["--controller", f"policy:{path}", "--joint-feedback", "commanded"],
+        rb.BridgeConfig(seconds=3.0, record=True),
+        model=model,
+    )
+    assert r["exit_code"] == 0, r["stderr"]
+    sim = r["sim"]
+    assert sim["steps"] == 150 and r["runtime"]["latched"] == 0
+    trace = sim["trace"]
+    stand = model.key_ctrl[0].copy()
+    got = np.array([f["targets"] for f in trace])
+    np.testing.assert_allclose(got, replay_commanded(mlp, trace, stand), atol=1e-5, rtol=0)
+    assert np.abs(got - stand).max() > 1e-3
+    # The measured-state replay gives other targets, so the flag took effect.
+    assert np.abs(got - replay(mlp, trace, stand)).max() > 1e-5
+
+
+def test_bad_joint_feedback_is_refused():
+    import subprocess
+
+    r = subprocess.run(
+        [str(BINARY), "--connect", "127.0.0.1:9", "--joint-feedback", "pwm"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )  # fmt: skip
+    assert r.returncode == 2
+    assert "joint feedback" in r.stderr

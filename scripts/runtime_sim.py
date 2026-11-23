@@ -8,6 +8,9 @@ Usage:
 
 A trained biped_v1 policy (WP4-10): ``-- --controller policy:policy.bpml`` after
 ``scripts/export_mlp.py policy.onnx --out policy.bpml``.
+
+The DS3218MG build (G4.5): ``--model biped_ds3218 -- --controller policy:P.bpml
+--joint-feedback commanded`` (PWM servos report nothing back, see WP4-39).
 """
 
 from __future__ import annotations
@@ -16,7 +19,12 @@ import argparse
 import json
 from pathlib import Path
 
+import mujoco
+
 from bipedlab import runtime_bridge as rb
+from bipedlab.rl import biped_velocity_env as bve
+
+MODELS = {"biped_v1": bve.DEFAULT_SCENE, "biped_ds3218": bve.DS3218_SCENE}
 
 
 def main() -> None:
@@ -38,6 +46,10 @@ def main() -> None:
     parser.add_argument(
         "--init-seed", type=int, default=None,
         help="perturbed start (joint noise, heading, lift) as the env reset (WP4-36)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--model", choices=sorted(MODELS), default="biped_v1",
+        help="sim model: biped_v1 or the DS3218MG build biped_ds3218 (G4.5)",
     )  # fmt: skip
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
@@ -63,7 +75,9 @@ def main() -> None:
     if args.log:
         args.log.parent.mkdir(parents=True, exist_ok=True)
         extra += ["--log", str(args.log)]
-    result = rb.run_with_runtime(args.binary, extra, cfg)
+    model = mujoco.MjModel.from_xml_path(str(MODELS[args.model]))
+    result = rb.run_with_runtime(args.binary, extra, cfg, model=model)
+    result["model"] = args.model
     if args.log and args.log.exists():
         from bipedlab.design import biped
         from bipedlab.telemetry import report, runtime_log

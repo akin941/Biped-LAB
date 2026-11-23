@@ -8,7 +8,14 @@
 //! last action (n) | command vx, vy, wz (3)                        -> 3n + 9 floats
 //! ```
 //!
-//! runs the MLP (ADR-0013), and returns `stand + action_scale * action`. The
+//! runs the MLP (ADR-0013), and returns `stand + action_scale * action`.
+//!
+//! With `JointFeedback::Commanded` (G4.5, PWM hobby servos that report nothing)
+//! the joint terms are the targets the runtime sent last period (after the safety
+//! supervisor, relative to the stand pose) and their change over one period
+//! divided by the period, as `BipedVelocityEnv(joint_feedback="commanded")`. The
+//! measured `qpos` / `qvel` are not used; before the first period they are the
+//! stand pose and zero, as at an env reset. The
 //! policy only proposes targets: the safety supervisor still filters every one
 //! (ADR-0006). A non-finite action is passed on as NaN targets, which the
 //! supervisor replaces with the last safe targets, and is not fed back as the
@@ -45,6 +52,26 @@ pub fn projected_gravity(q: [f64; 4]) -> [f64; 3] {
     ]
 }
 
+/// Where the actor's joint terms come from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JointFeedback {
+    /// Measured joint angles and speeds (bus servos).
+    Measured,
+    /// The targets sent last period and their rate (PWM servos, G4.5).
+    Commanded,
+}
+
+impl std::str::FromStr for JointFeedback {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "measured" => Ok(JointFeedback::Measured),
+            "commanded" => Ok(JointFeedback::Commanded),
+            _ => Err(format!("joint feedback must be measured or commanded, not {s:?}")),
+        }
+    }
+}
+
 pub struct Policy {
     mlp: Mlp,
     stand: Vec<f64>,
@@ -55,6 +82,11 @@ pub struct Policy {
     /// training (BipedVelocityEnv's one-period lag). The first period uses the current ones.
     joint_vel_lag: bool,
     prev_qvel: Option<Vec<f64>>,
+    feedback: JointFeedback,
+    control_dt: f64,
+    /// Targets sent last period and the period before (Commanded feedback).
+    sent: Vec<f64>,
+    prev_sent: Vec<f64>,
     /// Periods whose action had a non-finite entry.
     pub nonfinite_actions: u64,
 }
@@ -72,16 +104,30 @@ impl Policy {
         if !(action_scale.is_finite() && action_scale > 0.0) {
             return Err("action scale must be positive and finite".into());
         }
+        if !(hello.control_dt.is_finite() && hello.control_dt > 0.0) {
+            return Err("control period must be positive and finite".into());
+        }
+        let stand: Vec<f64> = hello.joints.iter().map(|j| j.default).collect();
         Ok(Policy {
             mlp,
-            stand: hello.joints.iter().map(|j| j.default).collect(),
+            sent: stand.clone(),
+            prev_sent: stand.clone(),
+            stand,
             action_scale,
             last_action: vec![0.0; n],
             obs: Vec::with_capacity(obs_dim),
             joint_vel_lag: true,
             prev_qvel: None,
+            feedback: JointFeedback::Measured,
+            control_dt: hello.control_dt,
             nonfinite_actions: 0,
         })
+    }
+
+    /// Selects measured (default) or commanded joint terms.
+    pub fn with_joint_feedback(mut self, feedback: JointFeedback) -> Self {
+        self.feedback = feedback;
+        self
     }
 
     /// Turns the one-period joint-velocity lag (on by default) on or off.
@@ -100,12 +146,22 @@ impl Policy {
         o.clear();
         o.extend(state.gyro.iter().map(|&v| v as f32));
         o.extend(projected_gravity(state.quat).iter().map(|&v| v as f32));
-        o.extend(state.qpos.iter().zip(&self.stand).map(|(q, s)| (q - s) as f32));
-        let qvel = match (&self.prev_qvel, self.joint_vel_lag) {
-            (Some(prev), true) => prev,
-            _ => &state.qvel,
-        };
-        o.extend(qvel.iter().map(|&v| v as f32));
+        match self.feedback {
+            JointFeedback::Measured => {
+                o.extend(state.qpos.iter().zip(&self.stand).map(|(q, s)| (q - s) as f32));
+                let qvel = match (&self.prev_qvel, self.joint_vel_lag) {
+                    (Some(prev), true) => prev,
+                    _ => &state.qvel,
+                };
+                o.extend(qvel.iter().map(|&v| v as f32));
+            }
+            JointFeedback::Commanded => {
+                o.extend(self.sent.iter().zip(&self.stand).map(|(t, s)| (t - s) as f32));
+                let dt = self.control_dt;
+                let rate = self.sent.iter().zip(&self.prev_sent);
+                o.extend(rate.map(|(t, p)| ((t - p) / dt) as f32));
+            }
+        }
         o.extend_from_slice(&self.last_action);
         o.extend([cmd.vx as f32, cmd.vy as f32, cmd.wz as f32]);
         self.prev_qvel = Some(state.qvel.clone());
@@ -128,6 +184,13 @@ impl Controller for Policy {
             .collect();
         self.last_action = action;
         targets
+    }
+
+    fn sent(&mut self, targets: &[f64]) {
+        if targets.len() == self.sent.len() && targets.iter().all(|t| t.is_finite()) {
+            std::mem::swap(&mut self.prev_sent, &mut self.sent);
+            self.sent.copy_from_slice(targets);
+        }
     }
 }
 
@@ -266,5 +329,32 @@ mod tests {
         q.targets(&state(n), Command::default());
         q.targets(&s, Command::default());
         assert_eq!(&q.observation()[vel + n..vel + 2 * n], &[-1.0, 2.0]);
+    }
+
+    #[test]
+    fn commanded_feedback_uses_the_sent_targets() {
+        let n = 2;
+        let h = hello(n); // stand 0.0, 0.1; control_dt 0.02
+        let mut p = Policy::new(picker(3 * n + 9, &[0, 1], 1.0), &h, 0.5)
+            .unwrap()
+            .with_joint_feedback(JointFeedback::Commanded);
+        let s = state(n); // measured qpos / qvel must not appear
+        p.targets(&s, Command::default());
+        assert_eq!(&p.observation()[6..10], &[0.0, 0.0, 0.0, 0.0]); // as at an env reset
+        p.sent(&[0.02, 0.06]);
+        p.targets(&s, Command::default());
+        let o = p.observation();
+        assert!((o[6] - 0.02).abs() < 1e-6 && (o[7] + 0.04).abs() < 1e-6);
+        assert!((o[8] - 1.0).abs() < 1e-5 && (o[9] + 2.0).abs() < 1e-5);
+        p.sent(&[0.02, 0.06]);
+        p.targets(&s, Command::default());
+        assert_eq!(&p.observation()[8..10], &[0.0, 0.0]);
+        // Non-finite or wrong-size targets are not taken.
+        p.sent(&[f64::NAN, 0.0]);
+        p.sent(&[0.0]);
+        p.targets(&s, Command::default());
+        assert!((p.observation()[6] - 0.02).abs() < 1e-6);
+        assert_eq!("commanded".parse::<JointFeedback>(), Ok(JointFeedback::Commanded));
+        assert!("pwm".parse::<JointFeedback>().is_err());
     }
 }
