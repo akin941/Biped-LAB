@@ -2369,7 +2369,7 @@ reading: runtime mode matches the MAC-44 runtime wz within 0.024 in all 8 rows (
 ---
 
 ## MAC-46 — biped_v1: re-score the MAC-42 averages with the runtime's lagged joint velocities (WP4-38)
-Status: `queued` · Deps: MAC-42 averages in `runs/mac42/`; replaces the MAC-44 realtime part
+Status: `seed part met (mac-m5, 2026-11-23): k3_6900; realtime row pending (waiting for a quiet Mac)` · Deps: MAC-42 averages in `runs/mac42/`; replaces the MAC-44 realtime part
 
 MAC-45 showed the runtime's +wz comes from feeding current joint velocities to a policy trained on
 one-period-old ones. The runtime now feeds the previous period's joint velocities by default
@@ -2399,6 +2399,34 @@ the smallest worst-case |wz|, preferring k3_6900 (its neighbours also passed MAC
 Mac (MAC-43 wait script, at most 4 h), one `--realtime` run of it from `--init-seed 0` at both commands:
 MAC-38 rows (no fall, no fault, 1000 periods, <= 10 misses, vx >= 50 %). Name it (candidate, ONNX sha256).
 If the Mac never gets quiet, report the seed part and leave the realtime row pending.
+
+Result (env: mac-m5, 2026-11-23, revision 1ded258): seed part MET, chosen k3_6900; realtime PENDING
+```
+run: runtime rebuilt at 1ded258 (lagged joint velocities by default), runtime_sim.py --init-seed 0..7, no
+  --realtime, STS3215 curve, MAC-44 policy.bpml exports; plus eval_biped --obs-mode runtime (16 envs x 20 s).
+  64 runs: no fall, no latched fault, 1000 periods each.
+per candidate and command (8 starts: mean vx (of cmd) [min..max]; mean wz [min..max]; MAC-44 mean wz;
+  eval --obs-mode runtime vx / wz):
+  k3_6900 0.15  0.163 (109 %) [0.163..0.164]  -0.044 [-0.056..-0.029]  MAC-44 +0.076  eval 0.164 / -0.063
+          0.25  0.239 ( 96 %) [0.237..0.240]  +0.009 [-0.009..+0.031]  MAC-44 +0.088  eval 0.238 / -0.002
+          -> PASS, worst |wz| 0.056
+  k3_7450 0.15  0.181 (121 %) [0.180..0.182]  -0.074 [-0.081..-0.063]  MAC-44 +0.021  eval 0.182 / -0.080
+          0.25  0.260 (104 %) [0.258..0.262]  +0.045 [+0.008..+0.093]  MAC-44 +0.051  eval 0.259 / +0.035
+          -> PASS, worst |wz| 0.093
+  k5_6950 0.15  0.168 (112 %) [0.167..0.170]  -0.013 [-0.023..-0.004]  MAC-44 +0.089  eval 0.169 / -0.028
+          0.25  0.247 ( 99 %) [0.245..0.250]  +0.047 [+0.013..+0.073]  MAC-44 +0.106  eval 0.248 / +0.045
+          -> PASS, worst |wz| 0.073
+  k5_7250 0.15  0.174 (116 %) [0.173..0.176]  +0.037 [+0.011..+0.057]  MAC-44 +0.084  eval 0.174 / +0.033
+          0.25  0.257 (103 %) [0.256..0.259]  +0.104 [+0.075..+0.125]  MAC-44 +0.224  eval 0.257 / +0.103
+          -> fails (|mean wz| 0.104 at 0.25)
+chosen: k3_6900 (smallest worst-case |wz| 0.056, and its neighbours passed MAC-42), ONNX sha256
+  2e94457133cef85e234858e483a1a2dbe1c9f83d223ac306f032aff023807db3
+reading: with lagged joint velocities the runtime matches the Python env again: runtime mean wz is within
+  ~0.02 of eval --obs-mode runtime (and of the MAC-42 train-mode eval) for every candidate and command, and
+  the positive bias of MAC-44 is gone (k3_6900 at 0.25: +0.088 -> +0.009). WP4-38 fixes the mismatch.
+realtime (k3_6900, --init-seed 0, both commands, quiet Mac): pending; wait script running since 06:35Z
+  (at most 4 h, VM sampled during the runs).
+```
 
 ---
 
