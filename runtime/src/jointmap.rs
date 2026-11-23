@@ -15,6 +15,20 @@
 //! joint held at its sim zero, the servo angle read is the offset. Nothing here
 //! talks to a device; the servo codecs (`sts`, `dxl`) take the mapped angles.
 
+/// Actuator order of `simulation/custom-biped/biped_v1.xml`.
+pub const BIPED_V1_JOINTS: [&str; 10] = [
+    "left_hip_yaw",
+    "left_hip_roll",
+    "left_hip_pitch",
+    "left_knee",
+    "left_ankle_pitch",
+    "right_hip_yaw",
+    "right_hip_roll",
+    "right_hip_pitch",
+    "right_knee",
+    "right_ankle_pitch",
+];
+
 /// Largest accepted calibration offset (rad); a bigger one means a wrong horn
 /// spline position or a wrong id, not a calibration.
 pub const MAX_OFFSET: f64 = 0.8;
@@ -151,20 +165,8 @@ right_knee     9   1  -0.02
 
     #[test]
     fn example_file_matches_the_model() {
-        let names = [
-            "left_hip_yaw",
-            "left_hip_roll",
-            "left_hip_pitch",
-            "left_knee",
-            "left_ankle_pitch",
-            "right_hip_yaw",
-            "right_hip_roll",
-            "right_hip_pitch",
-            "right_knee",
-            "right_ankle_pitch",
-        ];
         let text = include_str!("../../hardware/calibration/biped_v1_joints.example.txt");
-        let m = JointMap::parse(text, &names).unwrap();
+        let m = JointMap::parse(text, &BIPED_V1_JOINTS).unwrap();
         assert_eq!(m.ids(), (1..=10).collect::<Vec<u8>>());
     }
 
