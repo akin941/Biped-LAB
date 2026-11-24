@@ -2553,7 +2553,7 @@ verdict: met. The DS3218MG policy walks through the runtime with commanded-only 
 ---
 
 ## MAC-49 — biped_ds3218: does the gait survive cheap-servo imperfections? (WP4-41)
-Status: `todo` · Deps: WP4-41 on main (`--servo-dr`), MAC-47 run A (`runs/mac47-a/policy.onnx`, `model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): met at step 1 (MAC-47 run A survives --servo-dr); step 2 not needed` · Deps: WP4-41 on main (`--servo-dr`), MAC-47 run A (`runs/mac47-a/policy.onnx`, `model_<newest>.pt`)
 
 A PWM hobby servo is not the clean position actuator of the model. `--servo-dr` draws per reset and per joint
 a residual centre offset (±0.03 rad), a deadband (0–0.008 rad: targets closer than this to the held one are
@@ -2583,6 +2583,27 @@ uv run python scripts/train_ppo.py $F --iters 800 --workers <best> --resume $P/m
 and, if step 2 ran, also without it (no regression) and through the runtime (MAC-48 seed rows). Report
 the MAC-25 rows, sizing, slew-limited fraction and the ONNX sha256; commit a summary JSON under
 `docs/experiments/mac49/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision c3c1002): MET at step 1, step 2 not run
+```
+policy: MAC-47 run A, ONNX sha256 d9a1d6ae1c82b4fc3dab53e4d9f2f5dd07d2231788f3867fc2bc3f100e4bdb5c
+step 1, --servo-dr on (offset +-0.03 rad, deadband 0-0.008 rad, stiffness 0.7-1.3):
+  eval --dr --robustness (8 envs x 20 s): 0 falls in every case
+    0.15 / 0.25 DR off: vx 0.163 (109 %) / 0.245 (98 %), wz -0.000 / +0.017
+    0.15 / 0.25 DR on:  vx 0.139 (93 %) / 0.212 (85 %), wz -0.021 / -0.004
+    zero command wz +0.079 / +0.033; turn 0.8 wz 1.017 / 0.840
+    friction 0.5 / 1.5 vx 0.156 / 0.166; pushes 0.163 / 0.163; latency 20 / 40 / 60 ms 0.136 / 0.116 / 0.100
+      (91 / 77 / 67 % of 0.15)
+  eval --obs-mode runtime (16 envs x 20 s): 0 falls; 0.15 / 0.25 vx 0.164 / 0.248, wz -0.002 / +0.031; turn 0.8 1.033
+  sizing (DR-robustness eval; walking max torque / RMS / p95 speed; servo 1.96 N.m / 7.0 rad/s):
+    hip_yaw 0.390 / 0.115 / 1.99; hip_roll 1.101 / 0.356 / 2.15; hip_pitch 1.079 / 0.377 / 5.03;
+    knee 0.951 / 0.273 / 5.13; ankle_pitch 0.878 / 0.250 / 4.35; at_torque_limit false everywhere
+  slew-limited fraction: 0.000 at 0.15, 0.020 / 0.011 at 0.25 (DR off / on), 0.021 at 60 ms latency
+verdict: met. The MAC-47 policy keeps the WP4-40 rows with cheap-servo imperfections on, in both eval modes:
+  no fall, vx >= 85 % of the command, worst walking torque 1.10 N.m (bar 1.3). Against MAC-47 without them:
+  vx drops ~2-4 %, ankle and knee torque rise (0.76 -> 0.88, 0.83 -> 0.95 N.m), and the 40 ms latency row
+  falls from 81 to 77 % (not a WP4-40 row). No fine-tune needed. No hardware.
+```
 
 ---
 
