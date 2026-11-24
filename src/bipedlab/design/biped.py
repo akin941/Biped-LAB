@@ -156,7 +156,25 @@ BIPED_DS3218B = replace(
     trunk_size=(0.080, 0.110, 0.070),  # 10 mm flatter: stays under G4.2's 30 cm
 )
 
-VARIANTS = {"biped_v1": BipedParams(), "biped_ds3218": BIPED_DS3218, "biped_ds3218b": BIPED_DS3218B}
+# Mass check for the off-the-shelf frame (WP5-15): MG995/MG996 aluminium brackets weigh
+# ~25-30 g per joint (hardware/bom/frame_ds3218b.md), more than biped_ds3218b budgets.
+# Same geometry with heavier brackets, links and feet: ~1.17 kg instead of 1.04 kg.
+# Only for evaluating / fine-tuning against the heavier build until real parts are weighed.
+BIPED_DS3218B_HEAVY = replace(
+    BIPED_DS3218B,
+    name="biped_ds3218b_heavy",
+    bracket_mass=0.025,
+    thigh_mass=0.035,
+    shin_mass=0.035,
+    foot_mass=0.035,
+)
+
+VARIANTS = {
+    "biped_v1": BipedParams(),
+    "biped_ds3218": BIPED_DS3218,
+    "biped_ds3218b": BIPED_DS3218B,
+    "biped_ds3218b_heavy": BIPED_DS3218B_HEAVY,
+}
 
 
 def crouch_pose(knee: float) -> dict[str, float]:

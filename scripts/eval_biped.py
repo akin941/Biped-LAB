@@ -48,6 +48,7 @@ SCENES = {
     "biped_v1": bve.DEFAULT_SCENE,
     "biped_ds3218": bve.DS3218_SCENE,
     "biped_ds3218b": bve.DS3218B_SCENE,
+    "biped_ds3218b_heavy": bve.DS3218B_HEAVY_SCENE,
 }
 SETTLE_S = 2.0
 TWISTS = [(0.15, 0.0, 0.0), (0.25, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.8)]

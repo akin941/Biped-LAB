@@ -141,3 +141,18 @@ def test_ds3218b_variant_is_committed_and_stands():
     assert not (model.geom_contype[floor] & model.geom_conaffinity[servo])
     result = sim_rollout.rollout(model, data, keyframe="STAND", duration_s=3.0)
     assert result.finite and not result.fell
+
+
+def test_ds3218b_heavy_only_adds_frame_mass():
+    """WP5-15: off-the-shelf bracket masses on the biped_ds3218b geometry, ~1.17 kg."""
+    p = biped.BIPED_DS3218B_HEAVY
+    path = REPO_ROOT / "simulation/custom-biped/biped_ds3218b_heavy.xml"
+    assert path.read_text() == biped.to_mjcf(p)
+    model, data = build(p)
+    ref, ref_data = build(biped.BIPED_DS3218B)
+    np.testing.assert_allclose(model.jnt_range, ref.jnt_range)
+    np.testing.assert_allclose(data.qpos, ref_data.qpos)
+    assert model.body_subtreemass[1] == pytest.approx(budget(p), abs=1e-9)
+    assert 1.15 <= budget(p) <= 1.20
+    result = sim_rollout.rollout(model, data, keyframe="STAND", duration_s=3.0)
+    assert result.finite and not result.fell

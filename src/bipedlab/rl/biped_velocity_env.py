@@ -80,6 +80,8 @@ DEFAULT_SCENE = REPO_ROOT / "simulation/custom-biped/biped_v1.xml"
 DS3218_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218.xml"
 # Buildable U-bracket layout of the same servos (WP5-13); needs its own policy (MAC-50).
 DS3218B_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218b.xml"
+# The same layout with off-the-shelf bracket masses, ~1.17 kg (WP5-15, MAC-51).
+DS3218B_HEAVY_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218b_heavy.xml"
 JOINT_FEEDBACK = ("measured", "commanded")
 
 PHYSICS_DT = 0.005
