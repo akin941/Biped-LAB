@@ -2909,7 +2909,7 @@ verdict: not met. MAC-54 passes every hardening row except 10 mm terrain, includ
 ---
 
 ## MAC-56 — uneven floor without losing straight walking: gentler rough-floor fine-tune (WP5-20)
-Status: `todo` · Deps: MAC-55 (`runs/mac54/model_9600.pt`, MAC-54 flags)
+Status: `done (mac-m5, 2026-11-24): not met — 10 mm fixed, but 0.25 |wz| 0.16-0.20 and hip roll 1.21 N.m; MAC-54 stays reference` · Deps: MAC-55 (`runs/mac54/model_9600.pt`, MAC-54 flags)
 
 MAC-55 step 2 (rough 10 mm, 40 % flat, 800 it at once) fixed 10 mm terrain but pulled straight walking to
 +0.10…+0.15 rad/s and hip roll to 1.224 N·m, as MAC-40d did. Try the gentler mix: ramp the roughness in over 600
@@ -2932,6 +2932,33 @@ the MAC-48 runtime seed rows on heavy, all on `runs/mac56/policy.onnx`. If the f
 joint ≤ 1.15 N·m, |wz| ≤ 0.08 straight). If met, it becomes the reference (give the ONNX sha256); if not, MAC-54
 stays the reference and the first hardware is limited to floors within 5 mm. Summary JSON under
 `docs/experiments/mac56/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 9757744 on claude/project-thread-vt5dcm): NOT met
+```
+train: fine-tune of mac54/model_9600 with the MAC-56 flags, 1500 it (9600 -> 11100), --workers 8; 3753 s (63 min)
+  training falls/it (100-it means) 0.34 -> 0.74 (it 400) -> 1.00-1.34 once the 10 mm ramp is full; reward/step 0.111 -> 0.096
+final checkpoint (it 1500), heavy, --servo-dr --supply-dr:
+  falls / vx: nominal 0.15 / 0.25 0/8 0.178 / 0.252; DR 0/8 0.156 / 0.231; friction 0.5 / 1.5 0/8 0.172 / 0.186;
+    push fwd / side 0/8 0.179 / 0.177; latency 20 / 40 / 60 ms 0/8 0.155 / 0.140 / 0.121;
+    terrain 5 mm 0/8 0.177, 10 mm 0/8 0.157 (fixed), 20 mm 7/8 0.028 (reported only); runtime mode 0/16 everywhere
+  turn in place 0.8: 0.750 (DR on 0.625; runtime 0.731)
+  straight wz: 0.15 +0.008 (DR +0.010, runtime +0.010) OK; 0.25 -0.159 (DR -0.132, runtime -0.177) FAILS;
+    zero command +0.142 (DR +0.090, runtime +0.134)
+  torque (DR / runtime): hip_yaw 0.527 / 0.461; hip_roll 1.210 / 1.161 (FAILS 1.15); hip_pitch 0.952 / 0.888;
+    knee 0.927 / 0.915; ankle 0.837 / 0.680 N.m
+  runtime seed rows (heavy, 8 starts): no fall, no fault, 1000 periods, no torque clamp; 0.15 vx 0.183 wz +0.020
+    (-0.001...+0.035); 0.25 vx 0.249 wz -0.204 (-0.247...-0.176)
+  ONNX sha256 23adf211344e709c30fba22e8d551edeedf5f8f8ad3de09c56e39c3a03bed3c3 (does not pass; not a reference)
+it 1000 (model_10600): terrain 10 mm 2/8 FAILS; straight wz -0.16...-0.23 (runtime seeds 0.15 -0.106, 0.25 -0.151);
+  hip_roll 1.157 / 1.054. sha256 def4d477885a6701ebdee34b75ac842aec48e178af036288b6dbe5937209c4fd
+it 1200 (model_10800): no falls (10 mm 0/8); straight wz -0.11...-0.23 (runtime seeds 0.15 -0.167, 0.25 -0.185);
+  hip_roll 1.242 / 1.171. sha256 231522e9a6e9e9ac5eb2240ffc32ad9eaff80ed7455c1ffb6701dfb5dfd6e488
+best: the final checkpoint (only one with 0.15 straight and 10 mm both clean), still fails 0.25 |wz| and hip roll.
+verdict: not met. The gentler mix (ramp 600 it, 70 % flat, 1500 it) again fixes 10 mm terrain but does not keep
+  straight walking: the drift now flips sign with speed and checkpoint (MAC-55 step 2: +0.10...+0.15; here -0.13...-0.23
+  at 0.25 and on the 1000/1200 checkpoints at every speed), and hip roll stays above 1.15 N.m. MAC-54 stays the reference;
+  the first hardware is limited to floors within 5 mm. No hardware.
+```
 
 ---
 
