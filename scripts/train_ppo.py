@@ -289,6 +289,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--forward-min-vx is a Microduck option")
     if not biped_v1 and (args.model != "biped_v1" or args.joint_feedback != "measured"):
         raise SystemExit("--model / --joint-feedback are biped_v1 options")
+    if not biped_v1 and args.supply_dr:
+        raise SystemExit("--supply-dr is a biped_v1 option")
     if not biped_v1 and args.torque_soft is not None:
         raise SystemExit("--torque-soft is a biped_v1 option")
     if not biped_v1 and args.servo_dr:
@@ -322,6 +324,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         kwargs["servo_dr"] = args.servo_dr
         if args.torque_soft is not None:
             kwargs["torque_soft"] = args.torque_soft
+        kwargs["supply_dr"] = args.supply_dr
         if args.dr_delay_max is not None:
             kwargs["dr_delay_max"] = args.dr_delay_max
         if args.dr_friction is not None:
@@ -400,6 +403,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "dr": args.dr,
         "servo_dr": args.servo_dr,
         "torque_soft": args.torque_soft,
+        "supply_dr": args.supply_dr,
         "init_std": args.init_std,
         "dr_delay_max": args.dr_delay_max,
         "dr_friction": args.dr_friction,
@@ -509,6 +513,10 @@ def main() -> None:
     parser.add_argument(
         "--torque-soft", type=float, default=None,
         help="biped_v1: penalise joint torque above this many N*m (WP5-16)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--supply-dr", action="store_true",
+        help="biped_v1: per-reset supply sag on stall torque and speed (WP5-17)",
     )  # fmt: skip
     parser.add_argument(
         "--rough-floor", type=float, default=0.0,

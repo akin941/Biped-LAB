@@ -173,6 +173,9 @@ DR_ACTION_DELAY_MAX = 2  # control periods (0-40 ms), drawn per reset
 SERVO_OFFSET = 0.03  # rad, uniform +-: ~1.7 deg residual centre error after trim
 SERVO_DEADBAND = (0.0, 0.008)  # rad: DS3218MG ~3 us deadband = 0.005 rad, with margin
 SERVO_KP_SCALE = (0.7, 1.3)  # the servo's stiffness is not measured yet
+# Supply sag (WP5-17): DS3218MG is rated 19 kg*cm at 5 V and 21.5 at 6.8 V, so a 6 V UBEC
+# sagging to ~5 V under ten loaded servos costs ~5-10 %; 0.85 leaves margin for a tired pack.
+SUPPLY_SCALE = (0.85, 1.0)
 # Upper end of the DR delay draw over training (env steps, IT per PPO iteration).
 DR_DELAY_STAGES = [(0, 0), (1000 * IT, 1), (1500 * IT, 2)]
 
@@ -291,6 +294,10 @@ class BipedVelocityEnv:
     # WP5-16: joint torque above this (N*m) is penalised ("torque_over", squared
     # excess), so a fine-tune can buy margin under the sizing bar; None = off.
     torque_soft: float | None = None
+    # WP5-17: per-reset supply sag. A hobby-servo build feeds all ten servos from one
+    # UBEC / LiPo; under load the voltage drops and stall torque and no-load speed drop
+    # with it (both scaled by one draw from SUPPLY_SCALE per env and reset).
+    supply_dr: bool = False
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -333,6 +340,11 @@ class BipedVelocityEnv:
         self.servo_deadband = np.zeros((n, ACT_DIM))
         self.servo_kp_scale = np.ones((n, ACT_DIM))
         self.servo_held = np.zeros((n, ACT_DIM))
+        self.supply_scale = np.ones(n)
+        self._supply_rngs = [
+            np.random.default_rng([self.seed, self.first_env + i, 6]) for i in range(n)
+        ]
+        self._supply_k = 1.0
         self._servo_rngs = [
             np.random.default_rng([self.seed, self.first_env + i, 5]) for i in range(n)
         ]
@@ -569,6 +581,8 @@ class BipedVelocityEnv:
         if self.servo_dr:
             self._sample_servo(i)
             self.servo_held[i] = self.default_pose + self.servo_offset[i]
+        if self.supply_dr:
+            self.supply_scale[i] = self._supply_rngs[i].uniform(*SUPPLY_SCALE)
         d.ctrl[:] = self._servo_ctrl(i, self.default_pose)
         mujoco.mj_forward(m, d)
         self.episode_steps[i] = 0
@@ -711,11 +725,21 @@ class BipedVelocityEnv:
         weights["action_rate_l2"] = stage_value(ACTION_RATE_STAGES, self.common_step)
         return {k: (weights[k] * v * STEP_DT).astype(np.float32) for k, v in values.items()}
 
+    def _apply_supply(self, i: int) -> None:
+        """Env ``i``'s supply scale on stall torque (and, via _motor_limits, speed)."""
+        if not self.supply_dr:
+            return
+        self._supply_k = float(self.supply_scale[i])
+        stall = self.stall_torque * self._supply_k
+        self.model.actuator_forcerange[:, 0] = -stall
+        self.model.actuator_forcerange[:, 1] = stall
+
     def _motor_limits(self, d: mujoco.MjData) -> None:
         """Set this physics step's force range from the joint speeds (WP4-28)."""
         assert self.motor_no_load_speed is not None
+        k = self._supply_k if self.supply_dr else 1.0
         lo, hi = actuators.motor_force_range(
-            self.stall_torque, d.qvel[self.actuator_dof], self.motor_no_load_speed
+            self.stall_torque * k, d.qvel[self.actuator_dof], self.motor_no_load_speed * k
         )
         self.model.actuator_forcerange[:, 0] = lo
         self.model.actuator_forcerange[:, 1] = hi
@@ -746,6 +770,7 @@ class BipedVelocityEnv:
                 self._set_floor_height(bool(self.flat_env[i]))
                 self._wrap_xy(d)
             d.ctrl[:] = self._servo_ctrl(i, targets[i])
+            self._apply_supply(i)
             if self.motor_no_load_speed is None:
                 mujoco.mj_step(self.model, d, nstep=DECIMATION)
             else:
