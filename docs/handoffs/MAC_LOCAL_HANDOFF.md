@@ -2663,6 +2663,31 @@ verdict: met. On the buildable layout, with servo imperfections on, the fine-tun
   on this layout. No hardware.
 ```
 
+## MAC-51 — biped_ds3218b_heavy: does the MAC-50 gait carry the real bracket mass? (WP5-15)
+Status: `todo` · Deps: WP5-15 on main (`--model biped_ds3218b_heavy`), MAC-50 (`runs/mac50/policy.onnx`, `model_<newest>.pt`)
+
+Off-the-shelf MG995/MG996 aluminium brackets weigh ~25-30 g per joint (`hardware/bom/frame_ds3218b.md`).
+biped_ds3218b_heavy is biped_ds3218b with heavier brackets, links and feet: 1.17 kg instead of 1.04 kg, same
+geometry and Hello. MAC-50's worst walking torque was 1.246 N.m (hip roll, bar 1.3), so the margin is thin.
+
+Step 1 (eval only): the MAC-50 policy on the heavy model, as MAC-50 step 2 (with `--servo-dr`, both eval modes).
+```bash
+P=<mac50>/runs/mac50
+E="--model biped_ds3218b_heavy --joint-feedback commanded --torque-limit 1.96 --motor-no-load-speed 7.0"
+uv run python scripts/eval_biped.py $P/policy.onnx $E --dr --robustness --envs 8 --seconds 20 \
+    --servo-dr --out runs/mac51/eval_heavy.json
+uv run python scripts/eval_biped.py $P/policy.onnx $E --obs-mode runtime --envs 16 --seconds 20 \
+    --servo-dr --out runs/mac51/eval_heavy_runtime.json
+```
+Step 2 (only if step 1 misses the rows, or any joint's walking max torque is above 1.3 N.m): fine-tune MAC-50 on
+`--model biped_ds3218b_heavy` with `--dr --servo-dr` (MAC-50 flags, 800 iterations, run dir runs/mac51), then
+repeat step 1 on it, on biped_ds3218b (no regression), and the MAC-48 seed rows through the runtime.
+
+**Acceptance (WP5-15):** a policy that meets the WP4-40 rows on biped_ds3218b_heavy with `--servo-dr` in both
+eval modes. Report the torque per joint against 1.3 / 1.96 N.m: if hip roll stays above 1.3 even after
+step 2, say so plainly (the frame then needs lighter parts or printed brackets). Summary JSON under
+`docs/experiments/mac51/` (no ONNX, no runs/). No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)
