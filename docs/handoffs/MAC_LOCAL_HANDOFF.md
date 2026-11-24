@@ -2606,7 +2606,7 @@ verdict: met. The MAC-47 policy keeps the WP4-40 rows with cheap-servo imperfect
 ```
 
 ## MAC-50 — biped_ds3218b: walk on the buildable DS3218MG layout (WP5-13)
-Status: `todo` · Deps: WP5-13 on main (`--model biped_ds3218b`), MAC-47 run A (`runs/mac47-a/model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): met by the step-1 fine-tune (no from-scratch fallback)` · Deps: WP5-13 on main (`--model biped_ds3218b`), MAC-47 run A (`runs/mac47-a/model_<newest>.pt`)
 
 `scripts/check_clearance.py` (cloud) shows biped_ds3218 cannot be built: it keeps the 18 g servo hip, where
 the hip-roll and hip-pitch servo boxes overlap by 20 mm. biped_ds3218b places the same ten DS3218MG as
@@ -2634,6 +2634,34 @@ seed part through the runtime (8 starts x 0.15 / 0.25, `runtime_sim.py --model b
 0.15 and 0.25, worst walking torque <= 1.3 N.m) with `--servo-dr` on in both eval modes, and the MAC-48 seed
 rows through the runtime. Report the MAC-25 rows, sizing, slew-limited fraction and ONNX sha256; commit a
 summary JSON under `docs/experiments/mac50/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 7f46f2e on claude/project-thread-vt5dcm): MET
+```
+step 1: the fine-tune above from mac47-a/model_6500.pt, --workers 8; 2267 s (38 min); reward/step 0.084 ->
+  0.105; training falls/it (150-it means) 37.0 (the new hip geometry at first) -> 1.76 -> 0.3-0.75 from it 150
+  on. The from-scratch fallback was not needed.
+step 2 (0 falls in every case of every eval; vx at 0.15 / 0.25; wz):
+  --servo-dr, --dr --robustness (8 envs): DR off 0.166 (111 %) / 0.248 (99 %), wz +0.006 / +0.023;
+    DR on 0.142 (95 %) / 0.219 (88 %), wz -0.008 / +0.014; turn 0.8 0.791 / 0.698; latency 20 / 40 / 60 ms
+    0.144 / 0.127 / 0.112 (96 / 85 / 75 %); friction and pushes 0 falls
+  --servo-dr, --obs-mode runtime (16 envs): 0.172 / 0.257, wz -0.002 / +0.017; turn 0.8 0.805
+  without --servo-dr, --dr --robustness: DR off 0.174 / 0.256, DR on 0.150 / 0.228; 40 ms 0.135 (90 %)
+  without --servo-dr, --obs-mode runtime: 0.174 / 0.259, wz +0.004 / +0.013
+  sizing (--servo-dr, DR robustness eval; walking max torque / RMS / p95 speed; 1.96 N.m / 7.0 rad/s):
+    hip_yaw 0.421 / 0.103 / 1.82; hip_roll 1.246 / 0.367 / 2.14; hip_pitch 1.094 / 0.401 / 5.08;
+    knee 0.972 / 0.299 / 5.16; ankle_pitch 0.841 / 0.245 / 4.40; at_torque_limit false everywhere
+    (other evals: hip roll 0.89-1.12, the rest within the same range)
+  slew-limited fraction: 0.000 at 0.15, 0.006-0.015 at 0.25, <= 0.003 at latency
+  runtime seed rows (8 starts, runtime_sim --model biped_ds3218b, no --realtime): 16 runs, no fall, no
+    latched fault, 1000 periods; 0.15 vx 0.174 [0.174..0.175], wz +0.005 [-0.000..+0.014]; 0.25 vx 0.259
+    [0.259..0.259], wz +0.012 [+0.006..+0.019]; max torque demand 1.56 / 2.03 N.m, torque_clamp 0
+policy.onnx sha256: a8fee4a15563889df7733ed4cb2f9ba255b20cebde368572471e882435ef7ea9
+  (policy.bpml 6a2d13501c0d8ec2b1126607d6f80c4c0bdae61066fa37d27437848eebb72245, rust vs onnxruntime 1.3e-6)
+verdict: met. On the buildable layout, with servo imperfections on, the fine-tuned policy has no fall in any
+  case, vx >= 88 % of the command, and a worst walking torque of 1.246 N.m (hip roll, just under the 1.3 bar). Without the
+  imperfections it does not regress, and the runtime seed rows match the Python eval. Hip roll has the least margin
+  on this layout. No hardware.
+```
 
 ---
 
