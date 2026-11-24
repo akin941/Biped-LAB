@@ -122,3 +122,27 @@ def test_low_torque_mode_bounds_torque_demand():
     sim, rt = r["sim"], r["runtime"]
     assert rt["events"]["torque_clamp"] > 0
     assert sim["max_torque_demand"] <= 0.3 + 1e-9
+
+
+def test_sit_controller_crouches_without_tripping_the_supervisor():
+    import mujoco
+
+    from bipedlab import REPO_ROOT
+
+    heavy = mujoco.MjModel.from_xml_path(
+        str(REPO_ROOT / "simulation/custom-biped/biped_ds3218b_heavy.xml")
+    )
+    cfg = rb.BridgeConfig(seconds=4.0, record=True)
+    r = rb.run_with_runtime(BINARY, ["--controller", "sit:1.0:1.0:2.0"], cfg, model=heavy)
+    sim = r["sim"]
+    assert r["runtime"]["latched"] == 0 and sim["bits_seen"] == 0 and not sim["fell"]
+    before = next(s for s in sim["trace"] if s["time"] >= 0.9)
+    end = sim["trace"][-1]
+    assert before["qpos"][3] < 0.7  # still standing at 0.9 s
+    assert list(end["targets"][2:5]) == pytest.approx([-1.0, 2.0, -1.0])
+    assert end["qpos"][3] == pytest.approx(2.0, abs=0.05)
+
+
+def test_sit_controller_refuses_a_knee_outside_the_range():
+    r = run(["--controller", "sit:1.0:1.0:3.0"], seconds=1.0)
+    assert r["exit_code"] == 2

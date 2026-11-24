@@ -5,7 +5,7 @@
 //!                | (--device DEV | --hw-sim) --hello FILE [--servos sts|pwm]
 //!                  [--map FILE (sts)] --imu upright|mpu6050:I2C_DEV[:MOUNT]|mpu6050:sim
 //!                  --torque-fraction F [--seconds S])
-//!               [--controller stand|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
+//!               [--controller stand|sit:AT:SECONDS:KNEE|policy:MLP_FILE|nan-at:T|jump-at:T:JOINT:DELTA]
 //!               [--command START:END:VX:VY:WZ]... [--state-timeout-ms 500] [--realtime]
 //!               [--torque-fraction F] [--action-scale 0.5] [--no-joint-vel-lag]
 //!               [--joint-feedback measured|commanded] [--log FILE]
@@ -43,7 +43,7 @@ use std::time::{Duration, Instant};
 
 use biped_runtime::auth::random_u64;
 use biped_runtime::channel::{load_key, ChannelStats, CommandChannel};
-use biped_runtime::controller::{Controller, FaultInjector, Injected, Stand};
+use biped_runtime::controller::{Controller, FaultInjector, Injected, Sit, Stand};
 use biped_runtime::gate::{Command, CommandGate, GateLimits};
 use biped_runtime::hwstate::{HwSource, Imu, UprightImu};
 use biped_runtime::jointmap::{JointMap, BIPED_V1_JOINTS};
@@ -223,6 +223,10 @@ fn make_controller(
     let (kind, rest) = spec.split_once(':').unwrap_or((spec, ""));
     Ok(match kind {
         "stand" => Box::new(stand),
+        "sit" => {
+            let v = floats(rest, 3)?;
+            Box::new(Sit::new(hello, v[0], v[1], v[2])?)
+        }
         "policy" => {
             let buf = std::fs::read(rest).map_err(|e| format!("policy {rest:?}: {e}"))?;
             let mlp = Mlp::from_bytes(&buf).map_err(|e| format!("policy {rest:?}: {e}"))?;
