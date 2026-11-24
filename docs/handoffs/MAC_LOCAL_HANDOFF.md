@@ -2757,6 +2757,28 @@ verdict: met. Every joint's walking max is <= 1.008 N.m on the heavy model (hip 
   fine-tune with --track-yaw-std2 tighter (or mirror loss 1.0) may recover the yaw. No hardware.
 ```
 
+## MAC-53 — win back straight walking on the MAC-52 policy (WP5-16)
+Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+
+MAC-52 bought the torque margin (every joint <= 1.008 N.m on the heavy model) but the gait now drifts in yaw:
+wz -0.091 at 0.15 m/s and -0.150 with a zero command (MAC-51: -0.003 / -0.015). The MAC-25 row |wz| <= 0.08
+at 0.15 fails. Short fine-tune with tighter yaw tracking and a stronger mirror loss, torque penalty kept.
+
+```bash
+P=<mac52>/runs/mac52
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.1 --symmetry loss --mirror-loss-coeff 1.0 --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --torque-soft 1.0"
+uv run python scripts/train_ppo.py $F --iters 500 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac53 --save-every 100 --out runs/mac53/report.json
+```
+Then the MAC-52 evals (heavy both modes with `--servo-dr`, biped_ds3218b, MAC-48 runtime seed rows on heavy).
+
+**Acceptance (WP5-16):** MAC-52's rows (no falls, vx >= 50 %, every joint <= 1.15 N.m) and |wz| <= 0.08 at
+0.15 and 0.25 and with a zero command, in both eval modes. If yaw does not come back within 500 iterations,
+report it; MAC-50 stays the yaw reference and MAC-52 the torque-margin candidate. Summary JSON under
+`docs/experiments/mac53/` (no ONNX, no runs/). No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)
