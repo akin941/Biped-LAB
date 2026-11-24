@@ -2705,6 +2705,30 @@ verdict: met. The MAC-50 policy carries the real bracket mass (+0.13 kg) without
   only 0.045 N.m below the bar, so any further mass at the hips or trunk will push it over. No hardware.
 ```
 
+## MAC-52 — buy torque margin at the hip roll (WP5-16)
+Status: `todo` · Deps: WP5-16 on main (`--torque-soft`), MAC-50 (`runs/mac50/model_<newest>.pt`)
+
+MAC-51: the MAC-50 policy carries the heavy frame (1.17 kg) but hip roll peaks at 1.255 N.m, 0.045 under the
+1.3 N.m bar (2/3 of the DS3218MG's 1.96 stall). Any extra mass at the hip or trunk (wiring, a bigger
+battery) would cross it. `--torque-soft T` adds a reward term (weight -20) on the squared torque above T N.m.
+
+Step 1: fine-tune MAC-50 on the heavy model with the penalty.
+```bash
+P=<mac50>/runs/mac50
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --torque-soft 1.0"
+uv run python scripts/train_ppo.py $F --iters 800 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac52 --save-every 100 --out runs/mac52/report.json
+```
+Step 2: evaluate as MAC-51 (heavy, `--servo-dr`, both modes), on biped_ds3218b (no regression), and the MAC-48
+seed rows through the runtime on `--model biped_ds3218b_heavy`.
+
+**Acceptance (WP5-16):** the WP4-40 rows on biped_ds3218b_heavy with `--servo-dr` in both eval modes, with every
+joint's walking max torque <= 1.15 N.m (>= 0.15 N.m under the bar), and the runtime seed rows clean. If vx
+drops below 50 % or falls appear, report the trade-off (torque vs speed) and keep MAC-50 as the reference.
+Summary JSON under `docs/experiments/mac52/` (no ONNX, no runs/). No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)

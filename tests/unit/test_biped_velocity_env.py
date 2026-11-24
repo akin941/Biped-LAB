@@ -502,3 +502,21 @@ def test_servo_imperfections_for_pwm_servos():
     c = BipedVelocityEnv(**kw)
     c.step(np.zeros((2, bve.ACT_DIM)))
     np.testing.assert_array_equal(c.model.actuator_gainprm[:, 0], c._kp0)
+
+
+def test_torque_soft_penalises_only_the_excess():
+    """WP5-16: off by default; with torque_soft the term is the squared excess over it."""
+    kw = dict(num_envs=2, seed=1, noise=False, scene=bve.DS3218B_SCENE, joint_feedback="commanded")
+    act = np.zeros((2, bve.ACT_DIM), dtype=np.float32)
+    act[:, :] = 0.8
+    plain = BipedVelocityEnv(**kw)
+    assert "torque_over" not in plain.step(act).terms
+    env = BipedVelocityEnv(**kw, torque_soft=0.1)
+    out = env.step(act)
+    torque = np.abs(np.array([d.actuator_force for d in env.datas]))
+    excess = np.clip(torque - 0.1, 0.0, None)
+    expected = bve.WEIGHTS["torque_over"] * np.sum(excess**2, axis=1) * bve.STEP_DT
+    np.testing.assert_allclose(out.terms["torque_over"], expected, rtol=1e-5)
+    assert np.all(out.terms["torque_over"] <= 0.0) and np.any(out.terms["torque_over"] < 0.0)
+    high = BipedVelocityEnv(**kw, torque_soft=100.0)
+    np.testing.assert_array_equal(high.step(act).terms["torque_over"], 0.0)

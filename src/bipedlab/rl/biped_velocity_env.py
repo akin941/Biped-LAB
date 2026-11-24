@@ -148,6 +148,7 @@ WEIGHTS = {
     "foot_slip": -0.1,
     "feet_collision": -1.0,
     "action_slew": -1.0,  # (rad of wanted target step cut off by the slew limit)^2
+    "torque_over": -20.0,  # (N*m above torque_soft)^2, only with torque_soft (WP5-16)
 }
 TRACK_LIN_STD2 = 0.05
 TRACK_ANG_STD2 = 0.5
@@ -287,6 +288,9 @@ class BipedVelocityEnv:
     joint_feedback: str = "measured"
     # WP4-41: per-joint servo offset, deadband and stiffness draws (see the docstring).
     servo_dr: bool = False
+    # WP5-16: joint torque above this (N*m) is penalised ("torque_over", squared
+    # excess), so a fine-tune can buy margin under the sizing bar; None = off.
+    torque_soft: float | None = None
     model: mujoco.MjModel = field(init=False, repr=False)
     datas: list[mujoco.MjData] = field(init=False, repr=False)
 
@@ -700,6 +704,9 @@ class BipedVelocityEnv:
             "feet_collision": s["feet_touch"],
             "action_slew": np.sum(np.square(cut), axis=1),
         }
+        if self.torque_soft is not None:
+            excess = np.clip(s["torque"] - self.torque_soft, 0.0, None)
+            values["torque_over"] = np.sum(np.square(excess), axis=1)
         weights = dict(WEIGHTS)
         weights["action_rate_l2"] = stage_value(ACTION_RATE_STAGES, self.common_step)
         return {k: (weights[k] * v * STEP_DT).astype(np.float32) for k, v in values.items()}
