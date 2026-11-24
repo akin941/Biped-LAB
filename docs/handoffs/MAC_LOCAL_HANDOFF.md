@@ -2664,7 +2664,7 @@ verdict: met. On the buildable layout, with servo imperfections on, the fine-tun
 ```
 
 ## MAC-51 — biped_ds3218b_heavy: does the MAC-50 gait carry the real bracket mass? (WP5-15)
-Status: `todo` · Deps: WP5-15 on main (`--model biped_ds3218b_heavy`), MAC-50 (`runs/mac50/policy.onnx`, `model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): met at step 1 (MAC-50 policy carries the heavy brackets); step 2 not needed` · Deps: WP5-15 on main (`--model biped_ds3218b_heavy`), MAC-50 (`runs/mac50/policy.onnx`, `model_<newest>.pt`)
 
 Off-the-shelf MG995/MG996 aluminium brackets weigh ~25-30 g per joint (`hardware/bom/frame_ds3218b.md`).
 biped_ds3218b_heavy is biped_ds3218b with heavier brackets, links and feet: 1.17 kg instead of 1.04 kg, same
@@ -2687,6 +2687,23 @@ repeat step 1 on it, on biped_ds3218b (no regression), and the MAC-48 seed rows 
 eval modes. Report the torque per joint against 1.3 / 1.96 N.m: if hip roll stays above 1.3 even after
 step 2, say so plainly (the frame then needs lighter parts or printed brackets). Summary JSON under
 `docs/experiments/mac51/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision d099f27 on claude/project-thread-vt5dcm): MET at step 1
+```
+policy: MAC-50, ONNX sha256 a8fee4a15563889df7733ed4cb2f9ba255b20cebde368572471e882435ef7ea9 (unchanged)
+step 1, biped_ds3218b_heavy (1.17 kg), --servo-dr on; 0 falls in every case of both evals:
+  --dr --robustness (8 envs x 20 s): DR off vx 0.170 (113 %) / 0.255 (102 %), wz -0.003 / +0.022;
+    DR on 0.144 (96 %) / 0.222 (89 %), wz -0.012 / +0.023; turn 0.8 0.807 / 0.706; friction 0.5 / 1.5 0.165 / 0.174;
+    pushes 0.171 / 0.169; latency 20 / 40 / 60 ms 0.147 / 0.129 / 0.112 (98 / 86 / 75 %)
+  --obs-mode runtime (16 envs x 20 s): vx 0.176 / 0.264, wz -0.007 / +0.023; turn 0.8 0.814
+  torque per joint (walking max, DR eval / runtime eval; bar 1.3, stall 1.96 N.m) and p95 speed (no-load 7.0):
+    hip_yaw 0.422 / 0.443 N.m, 1.79 rad/s; hip_roll 1.255 / 1.241, 2.15; hip_pitch 1.123 / 1.084, 5.07;
+    knee 0.935 / 0.918, 5.16; ankle_pitch 0.846 / 0.801, 4.42; at_torque_limit false everywhere
+  slew-limited fraction: 0.000 at 0.15, 0.006-0.016 at 0.25, <= 0.006 at latency
+verdict: met. The MAC-50 policy carries the real bracket mass (+0.13 kg) without retraining: no fall, vx >= 89 %
+  of the command, every joint <= 1.3 N.m. Hip roll is the tightest at 1.255 N.m (MAC-50 on biped_ds3218b: 1.246),
+  only 0.045 N.m below the bar, so any further mass at the hips or trunk will push it over. No hardware.
+```
 
 ---
 
