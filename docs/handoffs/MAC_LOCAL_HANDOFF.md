@@ -2806,7 +2806,7 @@ verdict: not met. The yaw drift did not come back. At the zero command it double
 ```
 
 ## MAC-54 — yaw back on the torque-margin policy, softer kernel (WP5-16)
-Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): MET (torque margin and straight walking together)` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
 
 MAC-53 (yaw std2 0.1) made the drift worse (zero command -0.29 rad/s), as MAC-19 did on biped_v1: a tight kernel
 leaves no gradient for large yaw errors. Use the MAC-21/25 recipe instead: the default kernel (std2 0.25) with
@@ -2824,6 +2824,31 @@ Then the MAC-52 evals. **Acceptance:** as MAC-53 (no falls, vx >= 50 %, every jo
 at 0.15 / 0.25 / zero command in both modes and the runtime seed rows). If it misses, stop the WP5-16 tuning:
 MAC-50 stays the reference policy and the torque margin goes on the hardware list (lighter brackets). Summary
 JSON under `docs/experiments/mac54/`. No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 09de825 on claude/project-thread-vt5dcm): MET
+```
+run: fine-tune from mac52/model_8800.pt with the command above, --workers 8; 1614 s (27 min); reward/step 0.109 ->
+  0.115; training falls/it 0.15-0.22
+evals (--servo-dr on; 0 falls in every case; vx at 0.15 / 0.25; wz at 0.15 / 0.25 / zero command):
+  heavy --dr --robustness, DR off: vx 0.164 (109 %) / 0.242 (97 %); wz -0.014 / +0.033 / -0.055
+                           DR on:  vx 0.143 (95 %) / 0.216 (86 %); wz -0.023 / +0.008 / -0.049
+  heavy --obs-mode runtime:        vx 0.169 / 0.249;                 wz -0.030 / +0.025 / -0.057
+  biped_ds3218b DR off / DR on:    vx 0.159 / 0.234, 0.141 / 0.212;  wz -0.009 / +0.040 / -0.052, -0.027 / +0.007 / -0.056
+  biped_ds3218b runtime mode:      vx 0.165 / 0.243;                 wz -0.022 / +0.030 / -0.059
+  turn 0.8: 0.889 (heavy), 0.886 (runtime mode); 40 ms latency 91 % (heavy), 89 % (ds3218b)
+  torque per joint (walking max; heavy DR / heavy runtime / ds3218b DR; target 1.15, bar 1.3, stall 1.96 N.m)
+  and p95 speed (heavy DR; no-load 7.0 rad/s):
+    hip_yaw 0.422 / 0.405 / 0.437, 1.99; hip_roll 1.050 / 1.018 / 1.005, 1.61; hip_pitch 1.079 / 1.034 / 1.038, 5.09;
+    knee 1.001 / 0.857 / 0.984, 5.18; ankle_pitch 0.838 / 0.745 / 0.803, 4.34; at_torque_limit false everywhere
+  runtime seed rows (heavy, 8 starts): 16 runs, no fall, no latched fault, 1000 periods; 0.15 vx 0.170, wz -0.018
+    [-0.022..-0.010]; 0.25 vx 0.252, wz +0.039 [+0.034..+0.046]; max torque demand 1.42 / 2.04 N.m, torque_clamp 0
+policy.onnx sha256: e5720fca62fc5750660962384f6ce16c9ec80555818c6ef1b552963d30cffcb1
+  (policy.bpml 4a32b010888a47cdaa05ff54d63eb957612e03f43a36c89305f5c22fc3dd3b98)
+verdict: met. The softer kernel with mirror loss 1.0 brings straight walking back on the torque-margin policy:
+  |wz| <= 0.059 everywhere (MAC-52 zero command -0.150, MAC-53 -0.29), with every joint <= 1.079 N.m
+  (>= 0.22 N.m under the 1.3 bar), no fall, vx >= 86 %, turn 0.8 -> 0.89, and clean runtime seed rows. This
+  policy is the new heavy-frame reference (supersedes MAC-50 for the 1.17 kg build). No hardware.
+```
 
 ---
 
