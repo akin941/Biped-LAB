@@ -2851,7 +2851,7 @@ verdict: met. The softer kernel with mirror loss 1.0 brings straight walking bac
 ```
 
 ## MAC-55 — hardening the MAC-54 reference: supply sag, uneven floor, pushes, turning (WP5-17)
-Status: `todo` · Deps: WP5-17 on main (`--supply-dr`), MAC-54 (`runs/mac54/policy.onnx`, `model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): NOT met (step 1 fails 10 mm terrain; step 2 fixes it but breaks yaw and hip-roll torque); MAC-54 stays the reference` · Deps: WP5-17 on main (`--supply-dr`), MAC-54 (`runs/mac54/policy.onnx`, `model_<newest>.pt`)
 
 Sim-only checks of the DS3218MG reference policy on the 1.17 kg model while parts wait. `--supply-dr` draws a
 supply scale U(0.85, 1.0) per env and reset and applies it to stall torque and no-load speed (one UBEC / LiPo
@@ -2877,6 +2877,34 @@ MAC-41), 800 iterations into runs/mac55, then repeat step 1 and the MAC-48 runti
 **Acceptance (WP5-17):** no falls in nominal / DR / pushes / 5 and 10 mm terrain with `--supply-dr`, vx >= 50 %,
 every joint <= 1.15 N.m, |wz| <= 0.08 straight; 20 mm terrain is reported, not required. Summary JSON under
 `docs/experiments/mac55/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 1b20ae1 on claude/project-thread-vt5dcm): NOT met
+```
+step 1 (MAC-54 policy, heavy, --servo-dr --supply-dr; --dr --robustness --terrain 8 envs; runtime mode 16 envs):
+  falls / vx: nominal 0.15 / 0.25 0/8 0.161 / 0.245; DR 0/8 0.141 / 0.216; friction 0.5 / 1.5 0/8 0.158 / 0.166;
+    push fwd / side 0/8 0.161 / 0.161; latency 20 / 40 / 60 ms 0/8 0.146 / 0.132 / 0.118;
+    terrain 5 mm 0/8 0.159, 10 mm 5/8 (FAILS) 0.107, 20 mm 8/8 (reported only)
+  turn in place 0.8: 0.891 (DR on 0.748; runtime 0.882); straight |wz| <= 0.059 (runtime: -0.036 / +0.005, zero -0.059)
+  torque (walking max, DR / runtime): hip_yaw 0.418 / 0.387; hip_roll 1.021 / 0.952; hip_pitch 1.066 / 1.042;
+    knee 0.873 / 0.807; ankle 0.826 / 0.711 N.m (all <= 1.15)
+step 2 (10 mm failed): fine-tune from mac54/model_9600.pt with the MAC-54 flags + --supply-dr --rough-floor 0.01
+  --rough-floor-flat-fraction 0.4, 800 it, --workers 8; 2919 s (49 min); training falls/it 2.83 -> 1.41-1.47;
+  reward/step 0.100 -> 0.093
+  falls / vx: nominal 0/8 0.178 / 0.258; DR 0/8 0.159 / 0.234; friction 0/8 0.173 / 0.189; pushes 0/8 0.179 / 0.178;
+    latency 20 / 40 ms 0/8 0.160 / 0.148, 60 ms 1/8 0.125; terrain 5 mm 0/8 0.180, 10 mm 0/8 0.161 (fixed),
+    20 mm 6/8 0.051
+  turn in place 0.8: 0.827 (DR on 0.762; runtime 0.821)
+  straight wz: DR off +0.135 / +0.144, DR on +0.140 / +0.104, zero +0.132; runtime +0.128 / +0.078, zero +0.139
+    (FAILS |wz| <= 0.08)
+  torque (DR / runtime): hip_yaw 0.540 / 0.509; hip_roll 1.224 / 1.160 (FAILS 1.15); hip_pitch 0.944 / 0.892;
+    knee 0.933 / 0.849; ankle 0.916 / 0.787 N.m
+  runtime seed rows (heavy, 8 starts): no fall, no fault, 1000 periods; 0.15 vx 0.185 wz +0.154; 0.25 vx 0.272 wz +0.101
+  step-2 ONNX sha256 a7716ebab5f76426f409475311ba351f14a31c44a9d16f1df6c308829057f7ab (does not pass; not a reference)
+verdict: not met. MAC-54 passes every hardening row except 10 mm terrain, including the supply sag. The rough-floor
+  fine-tune fixes 10 mm (and improves 20 mm) but gives up straight walking (+0.10...+0.15 rad/s) and the hip-roll
+  margin (1.224 N.m), as MAC-40d did on biped_v1. MAC-54 stays the reference. For uneven floors: a longer run with a
+  larger flat share and mirror loss, or accept 5 mm as the indoor floor limit for the first hardware. No hardware.
+```
 
 ---
 
