@@ -2850,6 +2850,34 @@ verdict: met. The softer kernel with mirror loss 1.0 brings straight walking bac
   policy is the new heavy-frame reference (supersedes MAC-50 for the 1.17 kg build). No hardware.
 ```
 
+## MAC-55 — hardening the MAC-54 reference: supply sag, uneven floor, pushes, turning (WP5-17)
+Status: `todo` · Deps: WP5-17 on main (`--supply-dr`), MAC-54 (`runs/mac54/policy.onnx`, `model_<newest>.pt`)
+
+Sim-only checks of the DS3218MG reference policy on the 1.17 kg model while parts wait. `--supply-dr` draws a
+supply scale U(0.85, 1.0) per env and reset and applies it to stall torque and no-load speed (one UBEC / LiPo
+sagging under ten loaded servos).
+
+Step 1 (eval only), everything with `--servo-dr --supply-dr`:
+```bash
+P=<mac54>/runs/mac54
+E="--model biped_ds3218b_heavy --joint-feedback commanded --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --servo-dr --supply-dr"
+uv run python scripts/eval_biped.py $P/policy.onnx $E --dr --robustness --terrain --envs 8 --seconds 20 \
+    --out runs/mac55/eval_hard.json
+uv run python scripts/eval_biped.py $P/policy.onnx $E --obs-mode runtime --envs 16 --seconds 20 \
+    --out runs/mac55/eval_hard_runtime.json
+```
+Rows to report: falls and vx per case (nominal, DR, friction, pushes 0.3 m/s forward / sideways, latency,
+terrain 5 / 10 / 20 mm), turning in place (0.8 rad/s command), torque per joint.
+
+Step 2 (only if a nominal, DR, push or 5 / 10 mm terrain case falls, or vx < 50 %): fine-tune MAC-54 with the MAC-54
+flags plus `--supply-dr` (and `--rough-floor 0.01 --rough-floor-flat-fraction 0.4` if terrain failed, as
+MAC-41), 800 iterations into runs/mac55, then repeat step 1 and the MAC-48 runtime seed rows on heavy.
+
+**Acceptance (WP5-17):** no falls in nominal / DR / pushes / 5 and 10 mm terrain with `--supply-dr`, vx >= 50 %,
+every joint <= 1.15 N.m, |wz| <= 0.08 straight; 20 mm terrain is reported, not required. Summary JSON under
+`docs/experiments/mac55/` (no ONNX, no runs/). No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)

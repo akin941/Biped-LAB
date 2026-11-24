@@ -520,3 +520,24 @@ def test_torque_soft_penalises_only_the_excess():
     assert np.all(out.terms["torque_over"] <= 0.0) and np.any(out.terms["torque_over"] < 0.0)
     high = BipedVelocityEnv(**kw, torque_soft=100.0)
     np.testing.assert_array_equal(high.step(act).terms["torque_over"], 0.0)
+
+
+def test_supply_dr_scales_stall_torque_and_speed():
+    """WP5-17: one supply draw per env and reset scales the force range; off by default."""
+    kw = dict(num_envs=3, seed=2, noise=False, scene=bve.DS3218B_SCENE, joint_feedback="commanded")
+    plain = BipedVelocityEnv(**kw)
+    np.testing.assert_array_equal(plain.supply_scale, 1.0)
+    env = BipedVelocityEnv(**kw, supply_dr=True)
+    lo, hi = bve.SUPPLY_SCALE
+    assert np.all((env.supply_scale >= lo) & (env.supply_scale <= hi))
+    assert len(set(env.supply_scale.round(6))) == 3
+    act = np.full((3, bve.ACT_DIM), 2.0, dtype=np.float32)
+    env.step(act)
+    # The last env stepped leaves its scale on the shared model.
+    np.testing.assert_allclose(
+        env.model.actuator_forcerange[:, 1], env.stall_torque * env.supply_scale[-1]
+    )
+    torque = np.abs(np.array([d.actuator_force for d in env.datas]))
+    assert np.all(torque <= env.stall_torque * env.supply_scale[:, None] + 1e-9)
+    again = BipedVelocityEnv(**kw, supply_dr=True)
+    np.testing.assert_array_equal(again.supply_scale, env.supply_scale)
