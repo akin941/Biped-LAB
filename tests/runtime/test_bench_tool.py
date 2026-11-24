@@ -86,3 +86,25 @@ def test_move_drives_one_joint_inside_its_range(tmp_path):
     r = bench("move", *common, "--to", "0.3", "--torque-limit", "0.8")
     assert r.returncode == 2 and "torque limit" in r.stderr
     assert bench("move", *common, "--to", "0.3").returncode == 2
+
+
+HELLO_DS3218 = Path(__file__).resolve().parents[2] / "hardware/calibration/biped_ds3218.hello"
+
+
+def test_pwm_hold_drives_one_joint_through_the_simulated_supervisor():
+    from bipedlab import pwm_calib
+
+    r = bench("pwm-hold", "--sim", "--hello", HELLO_DS3218, "--joint", "left_knee",
+              "--to", "1.5", "--seconds", "1")  # fmt: skip
+    assert r.returncode == 0, r.stderr
+    (row,) = lines(r.stdout)
+    assert row["estop"] is False and row["frames"] >= 20 and row["bad_frames"] == 0
+    # The supervisor ramped all the way to the nominal pulse (same as pwm_calib's plan).
+    assert row["pulse_us"] == pwm_calib.firmware_joints()[3].pulse_us(1.5)
+
+
+def test_pwm_hold_refuses_targets_outside_the_range():
+    for joint, to in (("left_knee", "2.5"), ("left_hip_roll", "-0.6"), ("nose", "0")):
+        r = bench("pwm-hold", "--sim", "--hello", HELLO_DS3218, "--joint", joint,
+                  "--to", to, "--seconds", "0.1")  # fmt: skip
+        assert r.returncode == 2, (joint, r.stdout)
