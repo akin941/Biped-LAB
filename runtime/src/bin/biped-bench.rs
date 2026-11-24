@@ -7,6 +7,8 @@
 //! biped-bench offset (--device DEV | --sim) --map FILE --joint NAME [--write]
 //! biped-bench move  (--device DEV | --sim) --map FILE --hello FILE --joint NAME
 //!                   --to SIM_RAD --torque-limit F [--seconds 2]
+//! biped-bench pwm-hold (--device DEV | --sim) --hello FILE --joint NAME --to SIM_RAD
+//!                   [--seconds 10]
 //! ```
 //!
 //! `scan` pings ids 0..=max-id and prints the ones that answer. `read` prints
@@ -22,6 +24,14 @@
 //! one joint to a sim angle inside its model range, samples it for `--seconds`
 //! and switches torque off again. `towards_target` says the servo followed its
 //! goal; whether the joint turned the sim way (the sign) is checked by eye.
+//!
+//! `pwm-hold` is stage 3 for the DS3218MG build (WP5-18): through the RP2040
+//! supervisor (`pwmlink`) it holds every joint at the hello's stand pose and
+//! one joint at a sim angle inside its range for `--seconds`, then switches
+//! torque off, also on every error path. The supervisor ramps the pulse at its
+//! slew limit. Measure the real angle during the hold and write it into the
+//! CSV of `scripts/pwm_calibration.py`. The device is the UART to the
+//! supervisor (115200); `--sim` runs the firmware's own logic (`SimMcu`).
 //! Set the device first,
 //! e.g. `stty -F /dev/ttyUSB0 1000000 raw -echo`. `--sim` runs against the
 //! simulated bus (CI / demo). Output is one JSON object per line.
@@ -30,10 +40,14 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use biped_runtime::calib;
+use biped_runtime::hwstate::UprightImu;
 use biped_runtime::jointmap::{set_offset, JointMap, BIPED_V1_JOINTS, MAX_OFFSET};
+use biped_runtime::protocol::Action;
 use biped_runtime::protocol::Hello;
+use biped_runtime::pwmlink::{PwmSource, SimMcu};
 use biped_runtime::sts::{self, addr};
 use biped_runtime::stsbus::{open_device, Bus, BusStats, Port, SimPort};
+use supervisor_core::frame::Status;
 
 struct Args {
     cmd: String,
@@ -55,15 +69,15 @@ fn parse(argv: &[String]) -> Result<Args, String> {
         cmd: argv
             .first()
             .cloned()
-            .ok_or("missing command: scan, read, check, offset or move")?,
+            .ok_or("missing command: scan, read, check, offset, move or pwm-hold")?,
         device: None,
         sim: false,
         map: None,
         max_id: 20,
-        seconds: if argv.first().map(String::as_str) == Some("move") {
-            2.0
-        } else {
-            60.0
+        seconds: match argv.first().map(String::as_str) {
+            Some("move") => 2.0,
+            Some("pwm-hold") => 10.0,
+            _ => 60.0,
         },
         hz: 50.0,
         joint: None,
@@ -192,9 +206,7 @@ fn run<P: Port>(a: &Args, mut bus: Bus<P>) -> Result<bool, String> {
         }
         "move" => {
             let map = load_map(a)?;
-            let path = a.hello.as_deref().ok_or("--hello FILE is needed")?;
-            let mut f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
-            let hello = Hello::read(&mut f).map_err(|e| format!("{path}: {e}"))?;
+            let hello = load_hello(a)?;
             let spec = calib::MoveSpec {
                 joint: a.joint.as_deref().ok_or("--joint NAME is needed")?,
                 target: a.to.ok_or("--to SIM_RAD is needed")?,
@@ -215,13 +227,98 @@ fn run<P: Port>(a: &Args, mut bus: Bus<P>) -> Result<bool, String> {
             );
             Ok(towards)
         }
-        other => Err(format!("unknown command {other}: scan, read, check, offset or move")),
+        other => Err(format!(
+            "unknown command {other}: scan, read, check, offset, move or pwm-hold"
+        )),
     }
+}
+
+fn load_hello(a: &Args) -> Result<Hello, String> {
+    let path = a.hello.as_deref().ok_or("--hello FILE is needed")?;
+    let mut f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    Hello::read(&mut f).map_err(|e| format!("{path}: {e}"))
+}
+
+/// `pwm-hold`: one joint at a sim angle through the PWM supervisor, the rest at
+/// the stand pose, then torque off.
+fn pwm_hold<P: Port>(a: &Args, port: P) -> Result<bool, String> {
+    let hello = load_hello(a)?;
+    let joint = a.joint.as_deref().ok_or("--joint NAME is needed")?;
+    let k = BIPED_V1_JOINTS
+        .iter()
+        .position(|n| *n == joint)
+        .ok_or(format!("unknown joint {joint}"))?;
+    let to = a.to.ok_or("--to SIM_RAD is needed")?;
+    let spec = hello.joints.get(k).ok_or("the hello file has too few joints")?;
+    if !(to.is_finite() && spec.lower <= to && to <= spec.upper) {
+        return Err(format!(
+            "--to {to} is outside {joint}'s range {}..{}",
+            spec.lower, spec.upper
+        ));
+    }
+    let mut targets: Vec<f64> = hello.joints.iter().map(|j| j.default).collect();
+    let mut hw = PwmSource::new(port, UprightImu, &targets, hello.control_dt)?;
+    targets[k] = to;
+    let held = hold(&mut hw, &targets, hello.control_dt, a.seconds);
+    // Torque off whatever happened during the hold.
+    let off = hw
+        .apply(&Action {
+            step: 0,
+            torque_enable: false,
+            fault_bits: 0,
+            targets: Vec::new(),
+        })
+        .and_then(|_| hw.read().map(|_| ()));
+    let (frames, estop, last_on) = held?;
+    off?;
+    let status = last_on.ok_or("no status from the supervisor MCU")?;
+    let pulse = status.pulses_us[k];
+    println!(
+        "{{\"joint\":\"{joint}\",\"target_rad\":{to:.4},\"pulse_us\":{pulse},\"frames\":{frames},\"estop\":{estop},\"battery_v\":{:.2},\"bad_frames\":{}}}",
+        status.battery_mv as f64 / 1000.0,
+        hw.bad_frames
+    );
+    Ok(!estop && pulse > 0)
+}
+
+fn hold<P: Port>(
+    hw: &mut PwmSource<P, UprightImu>,
+    targets: &[f64],
+    dt: f64,
+    seconds: f64,
+) -> Result<(u64, bool, Option<Status>), String> {
+    let period = Duration::from_secs_f64(dt);
+    let end = Instant::now() + Duration::from_secs_f64(seconds);
+    let mut next = Instant::now();
+    let mut frames = 0u64;
+    let mut last_on = None;
+    while Instant::now() < end {
+        let state = hw.read()?;
+        if state.estop {
+            return Ok((frames, true, last_on));
+        }
+        hw.apply(&Action {
+            step: state.step,
+            torque_enable: true,
+            fault_bits: 0,
+            targets: targets.to_vec(),
+        })?;
+        last_on = hw.last_status;
+        frames += 1;
+        next += period;
+        std::thread::sleep(next.saturating_duration_since(Instant::now()));
+    }
+    Ok((frames, false, last_on))
 }
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let result = parse(&argv).and_then(|a| match &a.device {
+        Some(dev) if a.cmd == "pwm-hold" => {
+            let port = open_device(dev).map_err(|e| format!("{dev}: {e}"))?;
+            pwm_hold(&a, port)
+        }
+        None if a.cmd == "pwm-hold" => pwm_hold(&a, SimMcu::ds3218()),
         Some(dev) => {
             let port = open_device(dev).map_err(|e| format!("{dev}: {e}"))?;
             run(&a, Bus::new(port))
