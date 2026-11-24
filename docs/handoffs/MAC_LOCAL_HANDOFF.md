@@ -2908,5 +2908,32 @@ verdict: not met. MAC-54 passes every hardening row except 10 mm terrain, includ
 
 ---
 
+## MAC-56 — uneven floor without losing straight walking: gentler rough-floor fine-tune (WP5-20)
+Status: `todo` · Deps: MAC-55 (`runs/mac54/model_9600.pt`, MAC-54 flags)
+
+MAC-55 step 2 (rough 10 mm, 40 % flat, 800 it at once) fixed 10 mm terrain but pulled straight walking to
++0.10…+0.15 rad/s and hip roll to 1.224 N·m, as MAC-40d did. Try the gentler mix: ramp the roughness in over 600
+iterations and keep 70 % of episodes flat, over a longer run, so the flat-floor gait stays the anchor.
+
+```bash
+P=<mac54>/runs/mac54
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --supply-dr --envs 256 \
+   --seed 0 --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 --torque-limit 1.96 \
+   --motor-no-load-speed 7.0 --torque-soft 1.0 --rough-floor 0.01 --rough-floor-ramp-it 600 \
+   --rough-floor-flat-fraction 0.7"
+uv run python scripts/train_ppo.py $F --iters 1500 --workers 8 --resume $P/model_9600.pt \
+    --run-dir runs/mac56 --save-every 100 --out runs/mac56/report.json
+```
+Then the MAC-55 step 1 evals (`--servo-dr --supply-dr`, `--dr --robustness --terrain`, runtime mode 16 envs) and
+the MAC-48 runtime seed rows on heavy, all on `runs/mac56/policy.onnx`. If the final checkpoint fails only on
+|wz| or hip roll, also evaluate the 1000- and 1200-iteration checkpoints (export each to ONNX) and report the best.
+
+**Acceptance (WP5-20):** the MAC-55 bars (no falls nominal / DR / pushes / 5 and 10 mm terrain, vx ≥ 50 %, every
+joint ≤ 1.15 N·m, |wz| ≤ 0.08 straight). If met, it becomes the reference (give the ONNX sha256); if not, MAC-54
+stays the reference and the first hardware is limited to floors within 5 mm. Summary JSON under
+`docs/experiments/mac56/` (no ONNX, no runs/). No hardware.
+
+---
+
 ## Later Mac tasks (not ready yet)
 - MAC-05 live telemetry overlay (after WP2-01)
