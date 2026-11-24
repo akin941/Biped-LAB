@@ -2909,7 +2909,11 @@ verdict: not met. MAC-54 passes every hardening row except 10 mm terrain, includ
 ---
 
 ## MAC-56 — uneven floor without losing straight walking: gentler rough-floor fine-tune (WP5-20)
+<<<<<<< HEAD
 Status: `done (mac-m5, 2026-11-24): not met — 10 mm fixed, but 0.25 |wz| 0.16-0.20 and hip roll 1.21 N.m; MAC-54 stays reference` · Deps: MAC-55 (`runs/mac54/model_9600.pt`, MAC-54 flags)
+=======
+Status: `todo` · Deps: MAC-55 (`runs/mac54/model_9600.pt`, MAC-54 flags)
+>>>>>>> origin/main
 
 MAC-55 step 2 (rough 10 mm, 40 % flat, 800 it at once) fixed 10 mm terrain but pulled straight walking to
 +0.10…+0.15 rad/s and hip roll to 1.224 N·m, as MAC-40d did. Try the gentler mix: ramp the roughness in over 600
@@ -2933,6 +2937,7 @@ joint ≤ 1.15 N·m, |wz| ≤ 0.08 straight). If met, it becomes the reference (
 stays the reference and the first hardware is limited to floors within 5 mm. Summary JSON under
 `docs/experiments/mac56/` (no ONNX, no runs/). No hardware.
 
+<<<<<<< HEAD
 Result (env: mac-m5, 2026-11-24, revision 9757744 on claude/project-thread-vt5dcm): NOT met
 ```
 train: fine-tune of mac54/model_9600 with the MAC-56 flags, 1500 it (9600 -> 11100), --workers 8; 3753 s (63 min)
@@ -2960,6 +2965,8 @@ verdict: not met. The gentler mix (ramp 600 it, 70 % flat, 1500 it) again fixes 
   the first hardware is limited to floors within 5 mm. No hardware.
 ```
 
+=======
+>>>>>>> origin/main
 ---
 
 ## Later Mac tasks (not ready yet)
