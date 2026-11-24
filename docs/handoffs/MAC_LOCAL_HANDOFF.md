@@ -2706,7 +2706,7 @@ verdict: met. The MAC-50 policy carries the real bracket mass (+0.13 kg) without
 ```
 
 ## MAC-52 — buy torque margin at the hip roll (WP5-16)
-Status: `todo` · Deps: WP5-16 on main (`--torque-soft`), MAC-50 (`runs/mac50/model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): met (every joint <= 1.01 N.m); flat yaw drift grew, see result` · Deps: WP5-16 on main (`--torque-soft`), MAC-50 (`runs/mac50/model_<newest>.pt`)
 
 MAC-51: the MAC-50 policy carries the heavy frame (1.17 kg) but hip roll peaks at 1.255 N.m, 0.045 under the
 1.3 N.m bar (2/3 of the DS3218MG's 1.96 stall). Any extra mass at the hip or trunk (wiring, a bigger
@@ -2728,6 +2728,56 @@ seed rows through the runtime on `--model biped_ds3218b_heavy`.
 joint's walking max torque <= 1.15 N.m (>= 0.15 N.m under the bar), and the runtime seed rows clean. If vx
 drops below 50 % or falls appear, report the trade-off (torque vs speed) and keep MAC-50 as the reference.
 Summary JSON under `docs/experiments/mac52/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 1218150 on claude/project-thread-vt5dcm): MET (with a yaw side effect)
+```
+step 1: fine-tune from mac50/model_8000.pt with the command above, --workers 8; 1268 s (21 min); reward/step
+  0.104 -> 0.109; training falls/it (100-it means) 0.17-0.41; torque_over term -0.0015 -> -0.0005
+step 2 (--servo-dr on; 0 falls in every case of every eval):
+  heavy, --dr --robustness (8 envs): DR off vx 0.165 (110 %) / 0.249 (100 %), wz -0.091 / -0.066;
+    DR on 0.143 (95 %) / 0.219 (88 %), wz -0.081 / -0.056; zero command wz -0.150 / -0.105; turn 0.8 0.768 / 0.687;
+    latency 20 / 40 / 60 ms 0.146 / 0.131 / 0.117 (97 / 87 / 78 %)
+  heavy, --obs-mode runtime (16 envs): 0.172 / 0.257, wz -0.102 / -0.063; zero -0.149; turn 0.8 0.771
+  biped_ds3218b, --dr --robustness: DR off 0.162 / 0.244, DR on 0.141 / 0.216; runtime mode 0.168 / 0.252 (no regression in vx)
+  torque per joint (walking max; heavy DR eval / heavy runtime eval / ds3218b DR eval; target <= 1.15, bar 1.3, stall 1.96 N.m):
+    hip_yaw 0.528 / 0.464 / 0.515; hip_roll 1.008 / 0.975 / 0.931; hip_pitch 0.999 / 0.994 / 0.975;
+    knee 0.931 / 0.871 / 0.906; ankle_pitch 0.771 / 0.778 / 0.751; at_torque_limit false everywhere
+  p95 speed (heavy DR eval; no-load 7.0 rad/s): hip_yaw 2.33, hip_roll 1.96, hip_pitch 5.07, knee 5.18, ankle 4.26
+  slew-limited fraction <= 0.001
+  runtime seed rows (heavy, 8 starts, no --realtime): 16 runs, no fall, no latched fault, 1000 periods;
+    0.15 vx 0.173, wz -0.058 [-0.063..-0.051]; 0.25 vx 0.259, wz -0.012 [-0.019..-0.005]; max torque demand
+    1.49 / 1.87 N.m (MAC-50 runtime: 1.56 / 2.03), torque_clamp 0
+policy.onnx sha256: d899479472aa1f9521f3f865a28deeae9a6568b1396e29920bc1ee8a90837c80
+  (policy.bpml 17e8b295087ee79654302dea3be78943819d6ad5bd0859e5a0c3b1355dd3dda9, rust vs onnxruntime 1.2e-6)
+verdict: met. Every joint's walking max is <= 1.008 N.m on the heavy model (hip roll 1.255 -> 1.008, >= 0.29 N.m
+  under the bar), with no fall, vx >= 88 % and clean runtime seed rows. Side effect: the walking yaw moved from
+  ~0 to -0.06...-0.10 rad/s at 0.15 / 0.25 and -0.15 at the zero command (MAC-51: -0.003 / +0.022, -0.015).
+  The WP4-40 rows do not include yaw, but the MAC-25 |wz| <= 0.08 row would fail at 0.15 (-0.091 DR off,
+  -0.102 runtime mode). Keep MAC-50 as the yaw reference; this policy is the torque-margin candidate. A short
+  fine-tune with --track-yaw-std2 tighter (or mirror loss 1.0) may recover the yaw. No hardware.
+```
+
+## MAC-53 — win back straight walking on the MAC-52 policy (WP5-16)
+Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+
+MAC-52 bought the torque margin (every joint <= 1.008 N.m on the heavy model) but the gait now drifts in yaw:
+wz -0.091 at 0.15 m/s and -0.150 with a zero command (MAC-51: -0.003 / -0.015). The MAC-25 row |wz| <= 0.08
+at 0.15 fails. Short fine-tune with tighter yaw tracking and a stronger mirror loss, torque penalty kept.
+
+```bash
+P=<mac52>/runs/mac52
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.1 --symmetry loss --mirror-loss-coeff 1.0 --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --torque-soft 1.0"
+uv run python scripts/train_ppo.py $F --iters 500 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac53 --save-every 100 --out runs/mac53/report.json
+```
+Then the MAC-52 evals (heavy both modes with `--servo-dr`, biped_ds3218b, MAC-48 runtime seed rows on heavy).
+
+**Acceptance (WP5-16):** MAC-52's rows (no falls, vx >= 50 %, every joint <= 1.15 N.m) and |wz| <= 0.08 at
+0.15 and 0.25 and with a zero command, in both eval modes. If yaw does not come back within 500 iterations,
+report it; MAC-50 stays the yaw reference and MAC-52 the torque-margin candidate. Summary JSON under
+`docs/experiments/mac53/` (no ONNX, no runs/). No hardware.
 
 ---
 
