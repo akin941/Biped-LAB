@@ -2758,7 +2758,7 @@ verdict: met. Every joint's walking max is <= 1.008 N.m on the heavy model (hip 
 ```
 
 ## MAC-53 — win back straight walking on the MAC-52 policy (WP5-16)
-Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+Status: `done (mac-m5, 2026-11-24): NOT met (yaw worse; MAC-50 stays the yaw reference, MAC-52 the torque candidate)` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
 
 MAC-52 bought the torque margin (every joint <= 1.008 N.m on the heavy model) but the gait now drifts in yaw:
 wz -0.091 at 0.15 m/s and -0.150 with a zero command (MAC-51: -0.003 / -0.015). The MAC-25 row |wz| <= 0.08
@@ -2778,6 +2778,52 @@ Then the MAC-52 evals (heavy both modes with `--servo-dr`, biped_ds3218b, MAC-48
 0.15 and 0.25 and with a zero command, in both eval modes. If yaw does not come back within 500 iterations,
 report it; MAC-50 stays the yaw reference and MAC-52 the torque-margin candidate. Summary JSON under
 `docs/experiments/mac53/` (no ONNX, no runs/). No hardware.
+
+Result (env: mac-m5, 2026-11-24, revision 368cb79 on claude/project-thread-vt5dcm): NOT met, yaw got worse
+```
+run: fine-tune from mac52/model_8800.pt with the command above, --workers 8; 978 s (16 min); reward/step 0.106 ->
+  0.107; training falls/it 0.23-0.29; track_angular_velocity term flat at ~0.005
+evals (--servo-dr on; 0 falls in every case; vx at 0.15 / 0.25; wz at 0.15 / 0.25 / zero command):
+  heavy --dr --robustness, DR off: vx 0.164 (109 %) / 0.241 (96 %); wz -0.111 / -0.038 / -0.290
+                           DR on:  vx 0.141 (94 %) / 0.216 (86 %); wz -0.078 / -0.001 / -0.202
+  heavy --obs-mode runtime:        vx 0.170 / 0.250;                 wz -0.148 / -0.054 / -0.300
+  biped_ds3218b DR off / on / runtime: wz at 0.15 -0.124 / -0.088 / -0.153, zero -0.302 / -0.212 / -0.309
+  turn 0.8: 0.656 (heavy DR off), 0.584 (DR on)
+  MAC-52 for comparison (heavy DR off / runtime): wz -0.091 / -0.102 at 0.15, -0.150 / -0.149 at zero
+  torque per joint (walking max, heavy DR / heavy runtime / ds3218b DR; target 1.15 N.m):
+    hip_yaw 0.424 / 0.338 / 0.392; hip_roll 1.158 / 0.945 / 0.979; hip_pitch 1.072 / 1.060 / 1.053;
+    knee 0.986 / 0.888 / 0.930; ankle_pitch 0.781 / 0.742 / 0.719 (hip roll 1.158 in the heavy DR eval, just
+    over 1.15)
+  runtime seed rows (heavy, 8 starts): no fall, no fault, 1000 periods; 0.15 vx 0.168, wz -0.112 (FAILS 0.08);
+    0.25 vx 0.248, wz +0.031
+policy.onnx sha256: 5acc2cf37ffb68de2ff8fe705aadd24678865d5e84df996b6ff89ed67a946d25
+verdict: not met. The yaw drift did not come back. At the zero command it doubled (-0.15 -> -0.29...-0.31)
+  and at 0.15 it grew to -0.11...-0.15, while hip roll went back above 1.15 in one eval. Like biped_v1
+  in MAC-19, a tight yaw kernel (std2 0.1) gives almost no gradient at large yaw errors, so the policy spins in
+  place instead. MAC-50 stays the yaw reference, and MAC-52 the torque-margin candidate. Next (cloud): train
+  MAC-52 with a milder kernel (std2 0.25, as MAC-21/25 on biped_v1) plus mirror loss 1.0, or relax the torque
+  penalty on hip yaw only. No hardware.
+```
+
+## MAC-54 — yaw back on the torque-margin policy, softer kernel (WP5-16)
+Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+
+MAC-53 (yaw std2 0.1) made the drift worse (zero command -0.29 rad/s), as MAC-19 did on biped_v1: a tight kernel
+leaves no gradient for large yaw errors. Use the MAC-21/25 recipe instead: the default kernel (std2 0.25) with
+the stronger mirror loss, from MAC-52, torque penalty kept.
+
+```bash
+P=<mac52>/runs/mac52
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --torque-soft 1.0"
+uv run python scripts/train_ppo.py $F --iters 800 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac54 --save-every 100 --out runs/mac54/report.json
+```
+Then the MAC-52 evals. **Acceptance:** as MAC-53 (no falls, vx >= 50 %, every joint <= 1.15 N.m, |wz| <= 0.08
+at 0.15 / 0.25 / zero command in both modes and the runtime seed rows). If it misses, stop the WP5-16 tuning:
+MAC-50 stays the reference policy and the torque margin goes on the hardware list (lighter brackets). Summary
+JSON under `docs/experiments/mac54/`. No hardware.
 
 ---
 
