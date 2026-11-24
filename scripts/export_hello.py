@@ -21,7 +21,11 @@ import mujoco
 from bipedlab import runtime_bridge as rb
 from bipedlab.rl import biped_velocity_env as bve
 
-MODELS = {"biped_v1": bve.DEFAULT_SCENE, "biped_ds3218": bve.DS3218_SCENE}
+MODELS = {
+    "biped_v1": bve.DEFAULT_SCENE,
+    "biped_ds3218": bve.DS3218_SCENE,
+    "biped_ds3218b": bve.DS3218B_SCENE,
+}
 
 
 def hello_bytes(torque_limit: float | None, model: str = "biped_v1") -> bytes:

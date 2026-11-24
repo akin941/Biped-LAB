@@ -20,7 +20,7 @@ knee or ankle angle swings the part below it backwards; a bent knee is positive.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +84,18 @@ class BipedParams:
     )
     stand_knee: float = 0.6  # knee bend of the STAND keyframe (rad)
     timestep: float = 0.005
+    # Servo boxes: "lumped" centres each servo on the joint it drives, as ``servo.size``
+    # (a mass budget, not a build). "u_bracket" places them as a U-bracket build holds
+    # them (WP5-13): the servo is centred on its joint along the axis (the bracket wraps
+    # both faces), its height (``size[2]``) lies along the joint axis, its length
+    # (``size[1]``) along the leg, with the shaft ``shaft_from_end`` from the end nearest
+    # the joint; hip-yaw servos stand in the trunk with ``bracket_gap`` below them.
+    servo_layout: str = "lumped"
+    shaft_from_end: float = 0.010
+    bracket_gap: float = 0.005
+    # Servo boxes collide with the other leg's servos and feet (not the floor), so a
+    # policy cannot cross its legs through each other (WP5-13).
+    leg_collisions: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -126,7 +138,25 @@ BIPED_DS3218 = BipedParams(
     foot_mass=0.025,
 )
 
-VARIANTS = {"biped_v1": BipedParams(), "biped_ds3218": BIPED_DS3218}
+# Buildable DS3218MG layout (WP5-13, 2026-11-24). biped_ds3218 keeps the 18 g servo
+# kinematics, where three 40 mm servos share 30 mm of hip: the hip-roll and hip-pitch
+# servo boxes overlap by 20 mm, so it cannot be built. Here the servos sit as U-brackets
+# hold them (``servo_layout="u_bracket"``) and the hip grows until every pair of servo
+# boxes clears by at least 3 mm in the stand pose and at each joint's range ends
+# when only one leg moves (``scripts/check_clearance.py``). Same ranges, legs and stand pose; the hip pitch axis is
+# 50 mm lower and the legs collide with each other, so the policy must be retrained
+# (MAC-50).
+BIPED_DS3218B = replace(
+    BIPED_DS3218,
+    name="biped_ds3218b",
+    servo_layout="u_bracket",
+    yaw_to_roll=0.030,
+    roll_to_pitch=0.050,
+    leg_collisions=True,
+    trunk_size=(0.080, 0.110, 0.070),  # 10 mm flatter: stays under G4.2's 30 cm
+)
+
+VARIANTS = {"biped_v1": BipedParams(), "biped_ds3218": BIPED_DS3218, "biped_ds3218b": BIPED_DS3218B}
 
 
 def crouch_pose(knee: float) -> dict[str, float]:
@@ -158,6 +188,34 @@ def _box(name: str, size: tuple[float, float, float], pos: tuple[float, ...], ma
     )
 
 
+def servo_box(
+    p: BipedParams, axis: str, joint_z: float
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Full size and centre of a leg servo box for a joint on axis ``x`` or ``y``."""
+    sv = p.servo
+    if p.servo_layout == "lumped":
+        return sv.size, (0.0, 0.0, joint_z)
+    if p.servo_layout != "u_bracket":
+        raise ValueError(f"unknown servo_layout {p.servo_layout!r}")
+    w, length, h = sv.size
+    size = (h, w, length) if axis == "x" else (w, h, length)
+    # Body above the shaft (towards the parent): centre length/2 - shaft_from_end up.
+    return size, (0.0, 0.0, joint_z + length / 2 - p.shaft_from_end)
+
+
+def yaw_servo_box(
+    p: BipedParams, side: str
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Full size and centre of a hip-yaw servo box in the trunk frame."""
+    sv = p.servo
+    y = (1.0 if side == "left" else -1.0) * p.hip_spacing / 2
+    if p.servo_layout == "lumped":
+        return sv.size, (0.0, y, -p.trunk_to_hip + sv.size[2] / 2)
+    w, length, h = sv.size
+    # Length along x so the two yaw servos sit side by side without touching.
+    return (length, w, h), (0.0, y, -p.trunk_to_hip + p.bracket_gap + h / 2)
+
+
 def _leg(p: BipedParams, side: str) -> str:
     s = 1.0 if side == "left" else -1.0
     sv, w = p.servo, p.link_width
@@ -172,6 +230,11 @@ def _leg(p: BipedParams, side: str) -> str:
     def g(name: str) -> str:
         return f"{side}_{name}"
 
+    def servo(name: str, axis: str, joint_z: float) -> str:
+        """Servo box of the joint at ``joint_z`` (in the parent body's frame)."""
+        size, pos = servo_box(p, axis, joint_z)
+        return _box(g(name), size, pos, sv.mass, "servo")
+
     foot_z = -(p.ankle_height - p.foot_size[2] / 2)  # foot box centre; sole at -ankle_height
     return f"""
       <body name="{side}_hip_yaw_link" pos="0 {s * p.hip_spacing / 2:.6g} {-p.trunk_to_hip:.6g}">
@@ -181,7 +244,7 @@ def _leg(p: BipedParams, side: str) -> str:
             g("hip_yaw_bracket"), (w, w, p.yaw_to_roll), (0, 0, -p.yaw_to_roll / 2), p.bracket_mass
         )
     }
-        {_box(g("hip_roll_servo"), sv.size, (0, 0, -p.yaw_to_roll), sv.mass, "servo")}
+        {servo("hip_roll_servo", "x", -p.yaw_to_roll)}
         <body name="{side}_hip_roll_link" pos="0 0 {-p.yaw_to_roll:.6g}">
           {joint("hip_roll", "1 0 0")}
           {
@@ -192,15 +255,15 @@ def _leg(p: BipedParams, side: str) -> str:
             p.bracket_mass,
         )
     }
-          {_box(g("hip_pitch_servo"), sv.size, (0, 0, -p.roll_to_pitch), sv.mass, "servo")}
+          {servo("hip_pitch_servo", "y", -p.roll_to_pitch)}
           <body name="{side}_thigh" pos="0 0 {-p.roll_to_pitch:.6g}">
             {joint("hip_pitch", "0 1 0")}
             {_box(g("thigh"), (w, w, p.thigh), (0, 0, -p.thigh / 2), p.thigh_mass)}
-            {_box(g("knee_servo"), sv.size, (0, 0, -p.thigh), sv.mass, "servo")}
+            {servo("knee_servo", "y", -p.thigh)}
             <body name="{side}_shin" pos="0 0 {-p.thigh:.6g}">
               {joint("knee", "0 1 0")}
               {_box(g("shin"), (w, w, p.shin), (0, 0, -p.shin / 2), p.shin_mass)}
-              {_box(g("ankle_servo"), sv.size, (0, 0, -p.shin), sv.mass, "servo")}
+              {servo("ankle_servo", "y", -p.shin)}
               <body name="{side}_foot" pos="0 0 {-p.shin:.6g}">
                 {joint("ankle_pitch", "0 1 0")}
                 {_box(g("foot"), p.foot_size, (p.foot_forward, 0, foot_z), p.foot_mass, "foot")}
@@ -222,7 +285,9 @@ def to_mjcf(p: BipedParams | None = None) -> str:
     leg_q = [pose[j] for j in LEG_JOINTS]
     # Right-leg yaw/roll are mirrored; the crouch has them at zero so order is enough.
     stand_q = leg_q * 2
-    yaw_servo_z = -p.trunk_to_hip + sv.size[2] / 2
+    yaw_l, yaw_r = yaw_servo_box(p, "left"), yaw_servo_box(p, "right")
+    servo_contact = ' contype="2" conaffinity="2"' if p.leg_collisions else ""
+    foot_affinity = 3 if p.leg_collisions else 1
     actuators = "\n".join(
         f'    <position name="{side}_{j}" joint="{side}_{j}"/>'
         for side in SIDES
@@ -244,10 +309,10 @@ def to_mjcf(p: BipedParams | None = None) -> str:
     <position kp="{sv.kp:.6g}" kv="{sv.kv:.6g}" forcerange="{-sv.torque_limit:.6g} {sv.torque_limit:.6g}"/>
     <geom contype="0" conaffinity="0" rgba="0.75 0.75 0.78 1"/>
     <default class="servo">
-      <geom rgba="0.15 0.15 0.15 1"/>
+      <geom{servo_contact} rgba="0.15 0.15 0.15 1"/>
     </default>
     <default class="foot">
-      <geom contype="1" conaffinity="1" priority="1" friction="{p.foot_friction:.6g} 0.005 0.0001" rgba="0.2 0.3 0.6 1"/>
+      <geom contype="1" conaffinity="{foot_affinity}" priority="1" friction="{p.foot_friction:.6g} 0.005 0.0001" rgba="0.2 0.3 0.6 1"/>
     </default>
   </default>
 
@@ -260,8 +325,8 @@ def to_mjcf(p: BipedParams | None = None) -> str:
       {_box("trunk", (tx, ty, tz), (0, 0, 0), p.trunk_structure_mass)}
       {_box("electronics", (tx * 0.8, ty * 0.6, 0.01), (0, 0, tz / 2 - 0.01), p.electronics_mass)}
       {_box("battery", (0.05, 0.03, 0.015), p.battery_offset, p.battery_mass)}
-      {_box("left_hip_yaw_servo", sv.size, (0, p.hip_spacing / 2, yaw_servo_z), sv.mass, "servo")}
-      {_box("right_hip_yaw_servo", sv.size, (0, -p.hip_spacing / 2, yaw_servo_z), sv.mass, "servo")}
+      {_box("left_hip_yaw_servo", yaw_l[0], yaw_l[1], sv.mass, "servo")}
+      {_box("right_hip_yaw_servo", yaw_r[0], yaw_r[1], sv.mass, "servo")}
       <site name="imu" pos="0 0 0"/>
 {_leg(p, "left")}
 {_leg(p, "right")}

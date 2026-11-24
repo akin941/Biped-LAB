@@ -44,7 +44,11 @@ STEPS_PER_ENV = 24
 # action-rate penalty of pure noise outweigh standing and the policy learned to jitter.
 BIPED_INIT_STD = 0.5
 # --robot biped_v1 --model: the committed scenes (G4.5 adds the DS3218MG build).
-BIPED_SCENES = {"biped_v1": bve.DEFAULT_SCENE, "biped_ds3218": bve.DS3218_SCENE}
+BIPED_SCENES = {
+    "biped_v1": bve.DEFAULT_SCENE,
+    "biped_ds3218": bve.DS3218_SCENE,
+    "biped_ds3218b": bve.DS3218B_SCENE,
+}
 
 
 class Recorder:

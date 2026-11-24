@@ -86,3 +86,58 @@ def test_ds3218_variant_is_committed_and_about_one_kilogram():
     np.testing.assert_allclose(model.actuator_forcerange[:, 1], p.servo.torque_limit)
     top = data.qpos[2] + p.trunk_size[2] / 2
     assert 0.20 <= top <= 0.30
+
+
+def _clearance():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_clearance", REPO_ROOT / "scripts/check_clearance.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_ds3218b_is_buildable_and_ds3218_is_not():
+    """WP5-13: the U-bracket layout clears every same-leg servo pair; the lumped one cannot."""
+    check = _clearance().check
+    lumped = check("biped_ds3218")
+    assert not lumped["ok"]
+    assert any({r["a"], r["b"]} == {"left_hip_roll_servo", "left_hip_pitch_servo"}
+               for r in lumped["failures"])  # fmt: skip
+    built = check("biped_ds3218b")
+    assert built["ok"], built["failures"]
+    assert all(r["gap_mm"] >= 3.0 for r in built["closest_same_leg"])
+
+
+def test_box_gap_matches_simple_cases():
+    gap = _clearance().box_gap
+    eye, h = np.eye(3), np.array([0.01, 0.01, 0.01])
+    assert gap(np.zeros(3), eye, h, np.array([0.05, 0, 0]), eye, h) == pytest.approx(0.03)
+    assert gap(np.zeros(3), eye, h, np.array([0.015, 0, 0]), eye, h) == pytest.approx(-0.005)
+
+
+def test_ds3218b_variant_is_committed_and_stands():
+    """WP5-13: same joints, ranges, stand pose and mass as biped_ds3218; legs collide."""
+    p = biped.BIPED_DS3218B
+    path = REPO_ROOT / "simulation/custom-biped/biped_ds3218b.xml"
+    assert path.read_text() == biped.to_mjcf(p)
+    model, data = build(p)
+    ref, _ = build(biped.BIPED_DS3218)
+    assert model.nu == ref.nu and model.njnt == ref.njnt
+    np.testing.assert_allclose(model.jnt_range, ref.jnt_range)
+    np.testing.assert_allclose(model.key_qpos[0][7:], ref.key_qpos[0][7:])
+    assert model.body_subtreemass[1] == pytest.approx(budget(p), abs=1e-9)
+    top = data.qpos[2] + p.trunk_size[2] / 2
+    assert 0.20 <= top <= 0.30  # G4.2
+    for side in biped.SIDES:
+        assert data.site(f"{side}_foot").xpos[2] == pytest.approx(0.002, abs=1e-6)
+    servo = model.geom("left_knee_servo").id
+    foot = model.geom("right_foot").id
+    assert model.geom_contype[servo] & model.geom_conaffinity[foot]
+    floor = model.geom("floor").id
+    assert not (model.geom_contype[servo] & model.geom_conaffinity[floor])
+    assert not (model.geom_contype[floor] & model.geom_conaffinity[servo])
+    result = sim_rollout.rollout(model, data, keyframe="STAND", duration_s=3.0)
+    assert result.finite and not result.fell
