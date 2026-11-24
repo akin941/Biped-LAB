@@ -1,7 +1,8 @@
 """Regenerate the committed biped models from ``BipedParams`` (WP4-02, G4.5).
 
 Writes ``simulation/custom-biped/<name>.xml`` for every entry of
-``bipedlab.design.biped.VARIANTS`` (biped_v1 and the DS3218MG build, biped_ds3218).
+``bipedlab.design.biped.VARIANTS`` (biped_v1, the DS3218MG build biped_ds3218 and its
+buildable layout biped_ds3218b).
 
 Usage: uv run python scripts/gen_biped.py [--check]
 ``--check`` exits 1 if the committed file differs from the generator's output.

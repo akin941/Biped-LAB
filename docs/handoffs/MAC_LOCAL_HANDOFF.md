@@ -2605,6 +2605,36 @@ verdict: met. The MAC-47 policy keeps the WP4-40 rows with cheap-servo imperfect
   falls from 81 to 77 % (not a WP4-40 row). No fine-tune needed. No hardware.
 ```
 
+## MAC-50 — biped_ds3218b: walk on the buildable DS3218MG layout (WP5-13)
+Status: `todo` · Deps: WP5-13 on main (`--model biped_ds3218b`), MAC-47 run A (`runs/mac47-a/model_<newest>.pt`)
+
+`scripts/check_clearance.py` (cloud) shows biped_ds3218 cannot be built: it keeps the 18 g servo hip, where
+the hip-roll and hip-pitch servo boxes overlap by 20 mm. biped_ds3218b places the same ten DS3218MG as
+U-brackets hold them; every same-leg pair clears by >= 5 mm. Changes against biped_ds3218: hip pitch axis
+50 mm lower (yaw->roll 30 mm, roll->pitch 50 mm), trunk 10 mm flatter, stand height 0.262 m (top 0.297 m),
+same mass (1.04 kg), joints, ranges, stand pose and Hello file (`biped_ds3218.hello` is byte-identical), and
+the servo boxes now collide with the other leg (the policy must not cross its legs). Cloud CPU training
+runs ~2.9 s/iteration at 256 envs on 4 cores; the checkpoint to start from is only on the Mac.
+
+Step 1: fine-tune MAC-47 run A on the new model with DR and the servo imperfections on.
+```bash
+P=<mac47>/runs/mac47-a
+F="--robot biped_v1 --model biped_ds3218b --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 0.5 --torque-limit 1.96 --motor-no-load-speed 7.0"
+uv run python scripts/train_ppo.py $F --iters 1500 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac50 --save-every 100 --out runs/mac50/report.json
+```
+If the reward stalls far below MAC-47's or the robot falls in most episodes after 1500 iterations, train from
+scratch instead with the MAC-37 B settings and `--model biped_ds3218b` (note it in the result).
+
+Step 2: evaluate as MAC-49 step 1 with `--model biped_ds3218b`, with and without `--servo-dr`, plus the MAC-48
+seed part through the runtime (8 starts x 0.15 / 0.25, `runtime_sim.py --model biped_ds3218b`, no `--realtime`).
+
+**Acceptance (WP5-13 sim part):** the WP4-40 rows on biped_ds3218b (no fall nominal / DR, vx >= 50 % at
+0.15 and 0.25, worst walking torque <= 1.3 N.m) with `--servo-dr` on in both eval modes, and the MAC-48 seed
+rows through the runtime. Report the MAC-25 rows, sizing, slew-limited fraction and ONNX sha256; commit a
+summary JSON under `docs/experiments/mac50/` (no ONNX, no runs/). No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)

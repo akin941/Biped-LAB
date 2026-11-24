@@ -78,6 +78,8 @@ from bipedlab.rl.velocity_env import axis_angle_matrix, rotate, rotate_inverse, 
 DEFAULT_SCENE = REPO_ROOT / "simulation/custom-biped/biped_v1.xml"
 # The DS3218MG build (G4.5): same joints and stand pose, ~1 kg, PWM hobby servos.
 DS3218_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218.xml"
+# Buildable U-bracket layout of the same servos (WP5-13); needs its own policy (MAC-50).
+DS3218B_SCENE = REPO_ROOT / "simulation/custom-biped/biped_ds3218b.xml"
 JOINT_FEEDBACK = ("measured", "commanded")
 
 PHYSICS_DT = 0.005
