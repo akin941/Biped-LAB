@@ -2805,6 +2805,26 @@ verdict: not met. The yaw drift did not come back. At the zero command it double
   penalty on hip yaw only. No hardware.
 ```
 
+## MAC-54 — yaw back on the torque-margin policy, softer kernel (WP5-16)
+Status: `todo` · Deps: MAC-52 (`runs/mac52/model_<newest>.pt`)
+
+MAC-53 (yaw std2 0.1) made the drift worse (zero command -0.29 rad/s), as MAC-19 did on biped_v1: a tight kernel
+leaves no gradient for large yaw errors. Use the MAC-21/25 recipe instead: the default kernel (std2 0.25) with
+the stronger mirror loss, from MAC-52, torque penalty kept.
+
+```bash
+P=<mac52>/runs/mac52
+F="--robot biped_v1 --model biped_ds3218b_heavy --joint-feedback commanded --dr --servo-dr --envs 256 --seed 0 \
+   --track-yaw-std2 0.25 --symmetry loss --mirror-loss-coeff 1.0 --torque-limit 1.96 --motor-no-load-speed 7.0 \
+   --torque-soft 1.0"
+uv run python scripts/train_ppo.py $F --iters 800 --workers <best> --resume $P/model_<newest>.pt \
+    --run-dir runs/mac54 --save-every 100 --out runs/mac54/report.json
+```
+Then the MAC-52 evals. **Acceptance:** as MAC-53 (no falls, vx >= 50 %, every joint <= 1.15 N.m, |wz| <= 0.08
+at 0.15 / 0.25 / zero command in both modes and the runtime seed rows). If it misses, stop the WP5-16 tuning:
+MAC-50 stays the reference policy and the torque margin goes on the hardware list (lighter brackets). Summary
+JSON under `docs/experiments/mac54/`. No hardware.
+
 ---
 
 ## Later Mac tasks (not ready yet)
