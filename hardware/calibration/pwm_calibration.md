@@ -36,3 +36,9 @@ exactly on `q`:
    for review: it goes into the firmware only with the owner's approval.
 
 Joints not measured keep the nominal mapping and are listed as `missing`.
+
+## Also measure: unpowered holding torque (WP5-19)
+With the servo unpowered, hang a known weight on a known arm from the horn and
+find the smallest torque that turns it (e.g. 50 g at 20 cm = 0.098 N·m). In sim
+(`scripts/sit_stand.py`) the robot falls when the servos switch off if this is
+below ~0.1 N·m, and stays where it was at ≥ 0.2 N·m.
