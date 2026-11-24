@@ -41,7 +41,7 @@ option if the gait needs it.
 | 8 | 2S balance charger + LiPo safety bag | 1 | not checked | – | – | S-4; skip the charger if one is at hand |
 | 9 | Latching e-stop / kill switch ≥ 10 A in the servo supply | 1 | not checked | – | – | S-3 |
 | 10 | Blade fuse + holder (≈ 10 A) | 1 | not checked | – | ~2 g | S-4 |
-| 11 | Structure: 3D-printed PLA/PETG frame for 40 × 20 mm servos, metal servo horns, M3 screws | – | not checked | – | ~200 g budget | original geometry (ADR-0004) |
+| 11 | Structure: MG995/MG996-size aluminium servo brackets (10 multi-function + U, horns, bearings) or a printed PLA/PETG frame; layout and prices in `frame_ds3218b.md` | – | est. 1,000–1,600 TL (brackets) | Turkish stock not confirmed | ~250–300 g (brackets) | layout = `biped_ds3218b` (WP5-13) |
 | (opt.) | PCA9685 16-channel PWM board | 1 | robotistan: 249.69 TL incl. VAT | robotistan: sold out; robotsepeti: in stock | ~9 g | only if not driving PWM from the RP2040 |
 
 ## Cost summary
